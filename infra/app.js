@@ -82,7 +82,7 @@ class NotesPipelineStack extends Stack {
         StringEquals: {
           "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
           "token.actions.githubusercontent.com:sub":
-            "repo:suzy1031/transcribe-save-to-notes-app:ref:refs/heads/main",
+            "repo:suzy1031@51276845/transcribe-save-to-notes-app@1439053334:ref:refs/heads/main",
         },
       }),
     });
