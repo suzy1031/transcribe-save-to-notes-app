@@ -10,7 +10,7 @@ const image = {
 };
 
 function pipeline(overrides) {
-  const calls = { download: 0, transcribe: 0, create: [], move: [] };
+  const calls = { download: 0, transcribe: 0, create: [], move: [], removed: [] };
   const deps = {
     files: [image],
     download: async () => {
@@ -28,6 +28,9 @@ function pipeline(overrides) {
     },
     moveToProcessed: async (input) => {
       calls.move.push(input);
+    },
+    removeTextFiles: async (file) => {
+      calls.removed.push(file.name);
     },
     getRemainingTimeMs: () => 120_000,
     log: { info() {}, error() {} },
@@ -115,6 +118,22 @@ test("an empty inbox logs that no image was found", async () => {
   assert.deepEqual(lines, ["画像ファイル取得なし"]);
   assert.equal(summary.processed, 0);
   assert.equal(calls.create.length, 0);
+});
+
+test("a moved image removes its companion text", async () => {
+  const { calls, run } = pipeline();
+  await run();
+  assert.deepEqual(calls.removed, ["note.png"]);
+});
+
+test("a transcription failure leaves the companion text", async () => {
+  const { calls, run } = pipeline({
+    transcribe: async () => {
+      throw new Error("model failed");
+    },
+  });
+  await run();
+  assert.equal(calls.removed.length, 0);
 });
 
 test("a Craft create failure does not move the image", async () => {

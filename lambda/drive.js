@@ -11,6 +11,21 @@ export function isSupportedImage(file) {
   return mimeOk && IMAGE_EXTENSIONS.has(extension);
 }
 
+export function fileStem(name) {
+  const base = path.basename(name ?? "");
+  const extension = path.extname(base);
+  return base.slice(0, base.length - extension.length).toLowerCase();
+}
+
+export function isTextFile(file) {
+  return path.extname(file.name ?? "").toLowerCase() === ".txt";
+}
+
+export function orphanTextFiles(textFiles, remainingImages) {
+  const stems = new Set(remainingImages.map((file) => fileStem(file.name)));
+  return textFiles.filter((file) => isTextFile(file) && !stems.has(fileStem(file.name)));
+}
+
 export function resolveUniqueFolder(files, name) {
   const matches = files.filter(
     (file) => file.name === name && file.mimeType === FOLDER_MIME,
@@ -96,6 +111,14 @@ export function createDriveClient({ serviceAccount, fetchImpl = fetch }) {
       return files.filter(isSupportedImage);
     },
 
+    async listTextFiles(folderId) {
+      const files = await listAll(
+        `'${folderId}' in parents and trashed = false and name contains '.txt'`,
+        "id,name,mimeType",
+      );
+      return files.filter(isTextFile);
+    },
+
     async download(fileId) {
       const url = driveUrl(`/files/${fileId}`, {
         alt: "media",
@@ -107,6 +130,32 @@ export function createDriveClient({ serviceAccount, fetchImpl = fetch }) {
         throw new Error(`Drive download ${response.status}: ${text.slice(0, 300)}`);
       }
       return Buffer.from(await response.arrayBuffer());
+    },
+
+    async deleteFile(fileId) {
+      const url = driveUrl(`/files/${fileId}`, { supportsAllDrives: "true" });
+      const response = await request(url, { method: "DELETE" });
+      if (response.ok) return;
+      const text = await response.text();
+      let message = text.slice(0, 300);
+      try {
+        message = JSON.parse(text).error?.message ?? message;
+      } catch {
+        // Keep the raw response excerpt.
+      }
+      const error = new Error(`Drive API ${response.status}: ${message}`);
+      error.status = response.status;
+      throw error;
+    },
+
+    async moveFile({ fileId, addParentId, removeParentId }) {
+      const url = driveUrl(`/files/${fileId}`, {
+        addParents: addParentId,
+        removeParents: removeParentId,
+        supportsAllDrives: "true",
+        fields: "id,parents",
+      });
+      await readJson(await request(url, { method: "PATCH", body: "{}" }));
     },
 
     async moveToProcessed({ fileId, inboxFolderId, processedFolderId, craftDocumentId }) {

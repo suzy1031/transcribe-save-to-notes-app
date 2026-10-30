@@ -1,7 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { App, Duration, RemovalPolicy, Stack, TimeZone } from "aws-cdk-lib";
-import { PolicyStatement } from "aws-cdk-lib/aws-iam";
+import { OpenIdConnectProvider, PolicyStatement, Role, WebIdentityPrincipal } from "aws-cdk-lib/aws-iam";
 import { Runtime, RuntimeFamily } from "aws-cdk-lib/aws-lambda";
 import { NodejsFunction, OutputFormat } from "aws-cdk-lib/aws-lambda-nodejs";
 import { Schedule, ScheduleExpression } from "aws-cdk-lib/aws-scheduler";
@@ -69,6 +69,35 @@ class NotesPipelineStack extends Stack {
           `arn:aws:bedrock:${this.region}::foundation-model/${MODEL_ID}`,
           `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/${MODEL_ID}`,
         ],
+      }),
+    );
+
+    const githubOidc = new OpenIdConnectProvider(this, "GitHubOidc", {
+      url: "https://token.actions.githubusercontent.com",
+      clientIds: ["sts.amazonaws.com"],
+    });
+    const githubDeploy = new Role(this, "GitHubDeploy", {
+      roleName: "notes-pipeline-github-deploy",
+      assumedBy: new WebIdentityPrincipal(githubOidc.openIdConnectProviderArn, {
+        StringEquals: {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
+          "token.actions.githubusercontent.com:sub":
+            "repo:suzy1031/transcribe-save-to-notes-app:ref:refs/heads/main",
+        },
+      }),
+    });
+    githubDeploy.addToPolicy(
+      new PolicyStatement({
+        actions: ["sts:AssumeRole"],
+        resources: [
+          "deploy",
+          "file-publishing",
+          "image-publishing",
+          "lookup",
+        ].map(
+          (purpose) =>
+            `arn:aws:iam::${this.account}:role/cdk-hnb659fds-${purpose}-role-${this.account}-${this.region}`,
+        ),
       }),
     );
 
