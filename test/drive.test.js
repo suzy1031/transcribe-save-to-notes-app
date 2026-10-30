@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isSupportedImage, resolveUniqueFolder } from "../lambda/drive.js";
+import { isSupportedImage, orphanTextFiles, resolveUniqueFolder } from "../lambda/drive.js";
 
 const folder = (id, name) => ({
   id,
@@ -19,6 +19,18 @@ test("isSupportedImage rejects other types even when the mime type is an image",
   assert.equal(isSupportedImage({ name: "note.heic", mimeType: "image/heic" }), false);
   assert.equal(isSupportedImage({ name: "note.heic", mimeType: "image/jpeg" }), false);
   assert.equal(isSupportedImage({ name: "note.txt", mimeType: "text/plain" }), false);
+});
+
+test("orphanTextFiles keeps a txt while its image remains", () => {
+  const texts = [
+    { id: "t1", name: "2026.10.30.txt" },
+    { id: "t2", name: "note.TXT" },
+  ];
+  const remaining = [{ id: "i1", name: "2026.10.30.png" }];
+  assert.deepEqual(
+    orphanTextFiles(texts, remaining).map((file) => file.name),
+    ["note.TXT"],
+  );
 });
 
 test("resolveUniqueFolder requires exactly one folder name", () => {

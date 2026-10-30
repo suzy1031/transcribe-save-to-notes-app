@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
 import { createCraftClient } from "./craft.js";
-import { createDriveClient } from "./drive.js";
+import { createDriveClient, fileStem, orphanTextFiles } from "./drive.js";
 import { createTranscription, MAX_IMAGE_BYTES } from "./transcribe/index.js";
 
 const INBOX_FOLDER_NAME = "00_notes_inbox";
@@ -57,6 +57,7 @@ export async function processInbox({
   ensureFolder,
   createDocument,
   moveToProcessed,
+  removeTextFiles = async () => {},
   getRemainingTimeMs = () => Number.POSITIVE_INFINITY,
   maxImageBytes = MAX_IMAGE_BYTES,
   log = console,
@@ -82,6 +83,7 @@ export async function processInbox({
       if (existingId) {
         log.info(`画像ファイル取得成功 ${file.name}`);
         await moveToProcessed({ file, craftDocumentId: existingId });
+        await removeTextFiles(file);
         summary.processed += 1;
         continue;
       }
@@ -106,6 +108,7 @@ export async function processInbox({
       log.info(`craft保存 end ${file.name}`);
       stage = "移動";
       await moveToProcessed({ file, craftDocumentId });
+      await removeTextFiles(file);
       summary.processed += 1;
     } catch (error) {
       summary.failed += 1;
@@ -148,6 +151,16 @@ async function runPipeline(context) {
   }
 
   const files = await drive.listImages(inbox.id);
+  const textFiles = await drive.listTextFiles(inbox.id);
+  const removedTextIds = new Set();
+  const discardText = (textFile) =>
+    discardInboxText({
+      drive,
+      textFile,
+      inboxFolderId: inbox.id,
+      processedFolderId: processed.id,
+      removedTextIds,
+    });
   const craft = createCraftClient({
     baseUrl: credentials.craftApiBaseUrl,
     apiKey: credentials.craftApiKey,
@@ -164,7 +177,7 @@ async function runPipeline(context) {
     },
   });
 
-  return processInbox({
+  const summary = await processInbox({
     files,
     download: (file) => drive.download(file.id),
     transcribe: transcription.transcribe,
@@ -178,6 +191,48 @@ async function runPipeline(context) {
         processedFolderId: processed.id,
         craftDocumentId,
       }),
+    removeTextFiles: async (image) => {
+      const stem = fileStem(image.name);
+      for (const textFile of textFiles) {
+        if (fileStem(textFile.name) === stem) await discardText(textFile);
+      }
+    },
     getRemainingTimeMs: () => context.getRemainingTimeInMillis(),
   });
+
+  const remainingImages = await drive.listImages(inbox.id);
+  for (const textFile of orphanTextFiles(textFiles, remainingImages)) {
+    await discardText(textFile);
+  }
+  return summary;
+}
+
+async function discardInboxText({
+  drive,
+  textFile,
+  inboxFolderId,
+  processedFolderId,
+  removedTextIds,
+}) {
+  if (removedTextIds.has(textFile.id)) return;
+  removedTextIds.add(textFile.id);
+  try {
+    await drive.deleteFile(textFile.id);
+    console.log(`txt削除 ${textFile.name}`);
+  } catch (error) {
+    if (error.status !== 403) {
+      console.error(`txt削除失敗 ${textFile.name}: ${error.message}`);
+      return;
+    }
+    try {
+      await drive.moveFile({
+        fileId: textFile.id,
+        addParentId: processedFolderId,
+        removeParentId: inboxFolderId,
+      });
+      console.log(`txt移動 ${textFile.name}`);
+    } catch (moveError) {
+      console.error(`txt削除失敗 ${textFile.name}: ${moveError.message}`);
+    }
+  }
 }

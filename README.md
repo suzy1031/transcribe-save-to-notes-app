@@ -17,6 +17,7 @@ lambda/craft.js         Craft
 lambda/prompt.js        文字起こしプロンプト
 lambda/transcribe/      claude / bedrock
 test/                   node:test
+.github/workflows/ci.yml  pull request で test、main で cdk deploy
 .env.example            ローカル実行用の環境変数
 ```
 
