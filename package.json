@@ -1,0 +1,20 @@
+{
+  "name": "transcribe-save-to-notes-app",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "cdk": "cdk"
+  },
+  "dependencies": {
+    "@aws-sdk/client-bedrock-runtime": "3.1160.0",
+    "@aws-sdk/client-secrets-manager": "3.1160.0",
+    "google-auth-library": "11.3.2"
+  },
+  "devDependencies": {
+    "aws-cdk": "2.1146.1",
+    "aws-cdk-lib": "2.275.0",
+    "constructs": "10.8.1",
+    "esbuild": "0.28.2"
+  }
+}
