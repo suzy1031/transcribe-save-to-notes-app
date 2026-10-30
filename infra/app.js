@@ -11,6 +11,13 @@ import { Secret } from "aws-cdk-lib/aws-secretsmanager";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const MODEL_ID = "amazon.nova-lite-v1:0";
 
+const bundling = {
+  format: OutputFormat.ESM,
+  target: "node22",
+  mainFields: ["module", "main"],
+  banner: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
+};
+
 class NotesPipelineStack extends Stack {
   constructor(scope, id, props) {
     super(scope, id, props);
@@ -22,13 +29,15 @@ class NotesPipelineStack extends Stack {
     const secret = new Secret(this, "Credentials", {
       secretName: "notes-pipeline/credentials",
       description:
-        "JSON with googleServiceAccount, craftApiBaseUrl, and craftApiKey. Replace the generated value before the first run.",
+        "JSON with googleServiceAccount, craftApiBaseUrl, craftApiKey, lineChannelAccessToken, and lineUserId. Replace the generated value before the first run.",
       removalPolicy: RemovalPolicy.RETAIN,
       generateSecretString: {
         secretStringTemplate: JSON.stringify({
           googleServiceAccount: { client_email: "", private_key: "" },
           craftApiBaseUrl: "",
           craftApiKey: "",
+          lineChannelAccessToken: "",
+          lineUserId: "",
         }),
         generateStringKey: "generated",
       },
@@ -52,25 +61,45 @@ class NotesPipelineStack extends Stack {
         TRANSCRIPTION_PROVIDER: "claude",
         CLAUDE_MODEL_ID: "claude-haiku-5-5",
       },
-      bundling: {
-        format: OutputFormat.ESM,
-        target: "node22",
-        mainFields: ["module", "main"],
-        banner:
-          "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
-      },
+      bundling,
     });
 
-    secret.grantRead(fn);
-    fn.addToRolePolicy(
+    const weekly = new NodejsFunction(this, "WeeklySummarizer", {
+      functionName: "craft-weekly-summarizer",
+      entry: path.join(__dirname, "../lambda/weekly.js"),
+      projectRoot: path.join(__dirname, ".."),
+      depsLockFilePath: path.join(__dirname, "../package-lock.json"),
+      handler: "handler",
+      runtime,
+      memorySize: 512,
+      timeout: Duration.minutes(3),
+      reservedConcurrentExecutions: 1,
+      environment: {
+        SECRET_ID: secret.secretArn,
+        BEDROCK_MODEL_ID: MODEL_ID,
+        BEDROCK_REGION: this.region,
+        TRANSCRIPTION_PROVIDER: "claude",
+        CLAUDE_MODEL_ID: "claude-haiku-5-5",
+        CRAFT_SOURCE_FOLDER_NAME: "daily_note_transcribe",
+        CRAFT_PROCESSED_FOLDER_NAME: "processed",
+        CRAFT_SUMMARY_FOLDER_NAME: "daily_note_summaries",
+      },
+      bundling,
+    });
+
+    const bedrockAccess = () =>
       new PolicyStatement({
         actions: ["bedrock:InvokeModel", "bedrock:Converse"],
         resources: [
           `arn:aws:bedrock:${this.region}::foundation-model/${MODEL_ID}`,
           `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/${MODEL_ID}`,
         ],
-      }),
-    );
+      });
+
+    secret.grantRead(fn);
+    secret.grantRead(weekly);
+    fn.addToRolePolicy(bedrockAccess());
+    weekly.addToRolePolicy(bedrockAccess());
 
     const githubOidc = new OpenIdConnectProvider(this, "GitHubOidc", {
       url: "https://token.actions.githubusercontent.com",
@@ -108,6 +137,16 @@ class NotesPipelineStack extends Stack {
         timeZone: TimeZone.ASIA_TOKYO,
       }),
       target: new LambdaInvoke(fn, { retryAttempts: 0 }),
+    });
+
+    new Schedule(this, "WeeklySummary", {
+      schedule: ScheduleExpression.cron({
+        minute: "0",
+        hour: "9",
+        weekDay: "SUN",
+        timeZone: TimeZone.ASIA_TOKYO,
+      }),
+      target: new LambdaInvoke(weekly, { retryAttempts: 0 }),
     });
   }
 }

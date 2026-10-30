@@ -20,6 +20,8 @@ export function settingsFromEnv(env = process.env) {
     claudeModelId: env.CLAUDE_MODEL_ID || "claude-haiku-5-5",
     transcriptionProvider: env.TRANSCRIPTION_PROVIDER || "claude",
     googleServiceAccountJson: env.GOOGLE_SERVICE_ACCOUNT_JSON ?? "",
+    lineChannelAccessToken: env.LINE_CHANNEL_ACCESS_TOKEN ?? "",
+    lineUserId: env.LINE_USER_ID ?? "",
   };
 }
 
@@ -34,6 +36,8 @@ export async function loadCredentials(settings, secretsClient) {
       craftApiBaseUrl: parsed.craftApiBaseUrl,
       craftApiKey: parsed.craftApiKey,
       anthropicApiKey: parsed.anthropicApiKey,
+      lineChannelAccessToken: parsed.lineChannelAccessToken ?? "",
+      lineUserId: parsed.lineUserId ?? "",
     };
   }
   if (!settings.googleServiceAccountJson || !settings.craftApiBaseUrl || !settings.craftApiKey) {
@@ -47,6 +51,8 @@ export async function loadCredentials(settings, secretsClient) {
     craftApiBaseUrl: settings.craftApiBaseUrl,
     craftApiKey: settings.craftApiKey,
     anthropicApiKey: settings.anthropicApiKey,
+    lineChannelAccessToken: settings.lineChannelAccessToken ?? "",
+    lineUserId: settings.lineUserId ?? "",
   };
 }
 

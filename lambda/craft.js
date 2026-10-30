@@ -33,12 +33,27 @@ function createdDocumentId(payload) {
   return id;
 }
 
-async function craftJson(baseUrl, apiKey, path, { method, body, fetchImpl }) {
+export function documentsQuery({ folderId, createdDateGte }) {
+  const params = new URLSearchParams({ folderId, createdDateGte });
+  return `/documents?${params.toString()}`;
+}
+
+export function listedDocument(item) {
+  const id = item?.id ?? item?.documentId ?? item?.rootBlockId;
+  if (typeof id !== "string" || id === "") return null;
+  return { id, title: typeof item.title === "string" ? item.title : "" };
+}
+
+export function moveDocumentsPayload(documentIds, folderId) {
+  return { documentIds, destination: { folderId } };
+}
+
+async function craftRequest(baseUrl, apiKey, path, { method, body, fetchImpl, accept = "application/json" }) {
   const url = `${baseUrl.replace(/\/$/, "")}${path}`;
   const response = await fetchImpl(url, {
     method,
     headers: {
-      accept: "application/json",
+      accept,
       authorization: `Bearer ${apiKey}`,
       ...(body === undefined ? {} : { "content-type": "application/json" }),
     },
@@ -48,13 +63,23 @@ async function craftJson(baseUrl, apiKey, path, { method, body, fetchImpl }) {
   if (!response.ok) {
     throw new Error(`Craft ${method} ${path} failed: ${response.status} ${text.slice(0, 300)}`);
   }
+  if (accept !== "application/json") return text;
   return text === "" ? {} : JSON.parse(text);
 }
 
 export function createCraftClient({ baseUrl, apiKey, fetchImpl = fetch }) {
   if (!apiKey) throw new Error("Craft API key is required");
-  const request = (path, options) => craftJson(baseUrl, apiKey, path, { ...options, fetchImpl });
+  const request = (path, options) => craftRequest(baseUrl, apiKey, path, { ...options, fetchImpl });
   return {
+    async findFolder(name) {
+      const listed = await request("/folders", { method: "GET" });
+      const ids = findFolderIds(listed, name);
+      if (ids.length > 1) {
+        throw new Error(`Craft folder "${name}" matched ${ids.length} folders`);
+      }
+      return ids[0] ?? null;
+    },
+
     async ensureFolder(name) {
       const listed = await request("/folders", { method: "GET" });
       const ids = findFolderIds(listed, name);
@@ -89,6 +114,26 @@ export function createCraftClient({ baseUrl, apiKey, fetchImpl = fetch }) {
         },
       });
       return documentId;
+    },
+
+    async listDocuments({ folderId, createdDateGte }) {
+      const listed = await request(documentsQuery({ folderId, createdDateGte }), { method: "GET" });
+      const items = listed.items ?? listed.documents ?? [];
+      return items.map(listedDocument).filter((item) => item !== null);
+    },
+
+    async readMarkdown(id) {
+      return request(`/blocks?id=${encodeURIComponent(id)}`, {
+        method: "GET",
+        accept: "text/markdown",
+      });
+    },
+
+    async moveDocuments({ documentIds, folderId }) {
+      await request("/documents/move", {
+        method: "PUT",
+        body: moveDocumentsPayload(documentIds, folderId),
+      });
     },
   };
 }

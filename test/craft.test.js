@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createCraftClient, documentPayload, findFolderIds } from "../lambda/craft.js";
+import {
+  createCraftClient,
+  documentPayload,
+  documentsQuery,
+  findFolderIds,
+  moveDocumentsPayload,
+} from "../lambda/craft.js";
 
 test("documentPayload addresses daily_note_transcribe by folder id", () => {
   assert.deepEqual(documentPayload("朝のメモ", "folder-daily"), {
@@ -66,4 +72,79 @@ test("createDocument posts the folder id and then the markdown", async () => {
     markdown: "本文",
     position: { position: "end", pageId: "doc-1" },
   });
+});
+
+test("listDocuments filters by folder and created date", async () => {
+  const calls = [];
+  const fetchImpl = async (url, options) => {
+    calls.push({ url, accept: options.headers.accept, method: options.method });
+    return new Response(
+      JSON.stringify({
+        items: [
+          { id: "doc-1", title: "月曜" },
+          { documentId: "doc-2", title: "火曜" },
+          { title: "idなし" },
+        ],
+      }),
+      { status: 200 },
+    );
+  };
+  const craft = createCraftClient({
+    baseUrl: "https://connect.craft.do/links/example/api/v1",
+    apiKey: "test-key",
+    fetchImpl,
+  });
+  const documents = await craft.listDocuments({
+    folderId: "folder-daily",
+    createdDateGte: "2026-10-25",
+  });
+  assert.deepEqual(documents, [
+    { id: "doc-1", title: "月曜" },
+    { id: "doc-2", title: "火曜" },
+  ]);
+  assert.equal(
+    calls[0].url,
+    `https://connect.craft.do/links/example/api/v1${documentsQuery({
+      folderId: "folder-daily",
+      createdDateGte: "2026-10-25",
+    })}`,
+  );
+  assert.equal(calls[0].method, "GET");
+});
+
+test("readMarkdown requests the document as markdown", async () => {
+  const calls = [];
+  const fetchImpl = async (url, options) => {
+    calls.push({ url, accept: options.headers.accept });
+    return new Response("# 本文", { status: 200 });
+  };
+  const craft = createCraftClient({
+    baseUrl: "https://connect.craft.do/links/example/api/v1/",
+    apiKey: "test-key",
+    fetchImpl,
+  });
+  const markdown = await craft.readMarkdown("doc/1");
+  assert.equal(markdown, "# 本文");
+  assert.equal(calls[0].accept, "text/markdown");
+  assert.equal(
+    calls[0].url,
+    "https://connect.craft.do/links/example/api/v1/blocks?id=doc%2F1",
+  );
+});
+
+test("moveDocuments puts the destination folder id", async () => {
+  const calls = [];
+  const fetchImpl = async (url, options) => {
+    calls.push({ url, method: options.method, body: JSON.parse(options.body) });
+    return new Response("{}", { status: 200 });
+  };
+  const craft = createCraftClient({
+    baseUrl: "https://connect.craft.do/links/example/api/v1",
+    apiKey: "test-key",
+    fetchImpl,
+  });
+  await craft.moveDocuments({ documentIds: ["doc-1", "doc-2"], folderId: "folder-processed" });
+  assert.equal(calls[0].method, "PUT");
+  assert.equal(calls[0].url, "https://connect.craft.do/links/example/api/v1/documents/move");
+  assert.deepEqual(calls[0].body, moveDocumentsPayload(["doc-1", "doc-2"], "folder-processed"));
 });
