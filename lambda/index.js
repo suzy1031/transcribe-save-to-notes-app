@@ -17,7 +17,7 @@ export function settingsFromEnv(env = process.env) {
     craftApiBaseUrl: env.CRAFT_API_BASE_URL ?? "",
     craftApiKey: env.CRAFT_API_KEY ?? "",
     anthropicApiKey: env.ANTHROPIC_API_KEY ?? "",
-    claudeModelId: env.CLAUDE_MODEL_ID || "claude-haiku-5-5",
+    claudeModelId: env.CLAUDE_MODEL_ID || "claude-sonnet-5-5",
     transcriptionProvider: env.TRANSCRIPTION_PROVIDER || "claude",
     googleServiceAccountJson: env.GOOGLE_SERVICE_ACCOUNT_JSON ?? "",
     lineChannelAccessToken: env.LINE_CHANNEL_ACCESS_TOKEN ?? "",

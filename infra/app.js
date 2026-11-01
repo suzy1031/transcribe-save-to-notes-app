@@ -59,7 +59,7 @@ class NotesPipelineStack extends Stack {
         CRAFT_FOLDER_NAME: "daily_note_transcribe",
         // "claude" or "bedrock"
         TRANSCRIPTION_PROVIDER: "claude",
-        CLAUDE_MODEL_ID: "claude-haiku-5-5",
+        CLAUDE_MODEL_ID: "claude-sonnet-5-5",
       },
       bundling,
     });
