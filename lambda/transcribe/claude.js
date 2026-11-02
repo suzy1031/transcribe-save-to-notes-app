@@ -30,7 +30,7 @@ export function createTranscriber({
       body: JSON.stringify({
         model: modelId,
         max_tokens: 4096,
-        thinking: { type: "disabled" },
+        thinking: { type: "between_tools" },
         system: SYSTEM_PROMPT,
         messages: [
           {

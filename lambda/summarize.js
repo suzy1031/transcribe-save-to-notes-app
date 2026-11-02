@@ -39,7 +39,7 @@ export function createClaudeSummarizer({
       body: JSON.stringify({
         model: modelId,
         max_tokens: MAX_TOKENS,
-        thinking: { type: "disabled" },
+        thinking: { type: "between_tools" },
         messages: [{ role: "user", content: summaryPrompt(notesText) }],
       }),
     });
