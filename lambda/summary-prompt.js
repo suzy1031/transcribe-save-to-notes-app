@@ -8,15 +8,12 @@ LINEメッセージとして読みやすいよう、絵文字や改行を活用�
 📌 今週のハイライト
 （3〜5行で簡潔に）
 
-📝 主なトピックと決定事項
+📝 主なトピック
 （箇条書き）
 
 🚀 来週への持ち越し・アクションアイテム
-（ToDo形式）
-
----
-【ノートデータ】
-{統合されたCraftノートテキスト}`;
+- [ ] ToDo形式で記載してください
+`;
 
 export function combineNotes(notes) {
   return notes.map((note) => `# ${note.title}\n\n${note.markdown}`.trim()).join("\n\n");
