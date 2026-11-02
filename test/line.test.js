@@ -8,6 +8,7 @@ import {
   transcriptionFailedMessage,
   transcriptionSavedMessage,
 } from "../lambda/line.js";
+import { craftAppDocumentLink } from "../lambda/craft.js";
 
 test("fitLineText keeps a short message and cuts at 5000 characters", () => {
   assert.equal(fitLineText("こんにちは"), "こんにちは");
@@ -17,7 +18,9 @@ test("fitLineText keeps a short message and cuts at 5000 characters", () => {
 });
 
 test("transcription LINE messages name the saved title and the failed file", () => {
-  assert.equal(transcriptionSavedMessage("2026/11/02"), "文字起こしを保存しました\n2026/11/02");
+  const link = craftAppDocumentLink("space-1", "doc-1");
+  assert.equal(transcriptionSavedMessage("2026/11/02", link), `2026/11/02\n${link}`);
+  assert.equal(transcriptionSavedMessage("2026/11/02", ""), "2026/11/02");
   assert.equal(
     transcriptionFailedMessage("note.png", "model failed"),
     "文字起こしに失敗しました\nnote.png\nmodel failed",

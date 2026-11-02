@@ -48,7 +48,7 @@ function pipeline(overrides) {
 test("a saved note notifies LINE and an empty inbox does not", async () => {
   const saved = pipeline();
   await saved.run();
-  assert.deepEqual(saved.calls.saved, [{ title: "朝のメモ", fileName: "note.png" }]);
+  assert.deepEqual(saved.calls.saved, [{ title: "朝のメモ", documentId: "doc-1" }]);
   assert.equal(saved.calls.failed.length, 0);
 
   const empty = pipeline({ files: [] });

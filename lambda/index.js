@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import { createCraftClient } from "./craft.js";
+import { connectionSpaceId, createCraftClient, craftAppDocumentLink } from "./craft.js";
 import { createDriveClient, fileStem, orphanTextFiles } from "./drive.js";
 import { createLineClient, transcriptionFailedMessage, transcriptionSavedMessage } from "./line.js";
 import { createTranscription, MAX_IMAGE_BYTES } from "./transcribe/index.js";
@@ -120,7 +120,7 @@ export async function processInbox({
       await moveToProcessed({ file, craftDocumentId });
       await removeTextFiles(file);
       summary.processed += 1;
-      await notifySaved({ title: note.title, fileName: file.name });
+      await notifySaved({ title: note.title, documentId: craftDocumentId });
     } catch (error) {
       summary.failed += 1;
       if (stage === "画像ファイル取得") {
@@ -180,6 +180,12 @@ async function runPipeline(context) {
     baseUrl: credentials.craftApiBaseUrl,
     apiKey: credentials.craftApiKey,
   });
+  let craftSpaceId = "";
+  try {
+    craftSpaceId = connectionSpaceId(await craft.getConnection());
+  } catch (error) {
+    console.error(`Craft connection lookup failed: ${error.message}`);
+  }
   const transcription = createTranscription({
     provider: settings.transcriptionProvider,
     claude: {
@@ -212,7 +218,7 @@ async function runPipeline(context) {
         if (fileStem(textFile.name) === stem) await discardText(textFile);
       }
     },
-    notifySaved: (input) => notify.saved(input),
+    notifySaved: (input) => notify.saved({ ...input, spaceId: craftSpaceId }),
     notifyFailed: (input) => notify.failed(input),
     getRemainingTimeMs: () => context.getRemainingTimeInMillis(),
   });
@@ -233,8 +239,10 @@ function createLineNotifier(credentials) {
         })
       : null;
   return {
-    async saved({ title }) {
-      await pushLine(line, transcriptionSavedMessage(title));
+    async saved({ title, documentId, spaceId }) {
+      const appLink =
+        spaceId && documentId ? craftAppDocumentLink(spaceId, documentId) : "";
+      await pushLine(line, transcriptionSavedMessage(title, appLink));
     },
     async failed({ fileName, reason }) {
       await pushLine(line, transcriptionFailedMessage(fileName, reason));

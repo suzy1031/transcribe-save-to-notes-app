@@ -1,12 +1,26 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  connectionSpaceId,
+  craftAppDocumentLink,
   createCraftClient,
   documentPayload,
   documentsQuery,
   findFolderIds,
   moveDocumentsPayload,
 } from "../lambda/craft.js";
+
+test("craftAppDocumentLink opens the document in the Craft app", () => {
+  assert.equal(
+    craftAppDocumentLink("space-1", "doc-1"),
+    "craftdocs://open?spaceId=space-1&documentId=doc-1",
+  );
+});
+
+test("connectionSpaceId reads the space id from GET /connection", () => {
+  assert.equal(connectionSpaceId({ space: { id: "space-1" } }), "space-1");
+  assert.throws(() => connectionSpaceId({ space: {} }), /space id/);
+});
 
 test("documentPayload addresses daily_note_transcribe by folder id", () => {
   assert.deepEqual(documentPayload("朝のメモ", "folder-daily"), {

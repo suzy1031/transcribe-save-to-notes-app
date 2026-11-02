@@ -2,8 +2,10 @@ export const LINE_PUSH_URL = "https://api.line.me/v2/bot/message/push";
 export const LINE_TEXT_LIMIT = 5000;
 export const EMPTY_WEEK_MESSAGE = "今週対象のノートはありませんでした";
 
-export function transcriptionSavedMessage(title) {
-  return fitLineText(`文字起こしを保存しました\n${title}`);
+export function transcriptionSavedMessage(title, appLink) {
+  const lines = [String(title).trim()];
+  if (appLink) lines.push(appLink);
+  return fitLineText(lines.join("\n"));
 }
 
 export function transcriptionFailedMessage(fileName, reason) {
