@@ -2,7 +2,7 @@
 
 Google Drive の手書き画像を文字起こしし、Craft に保存して処理済みへ移す。毎週日曜には、その週の Craft ノートを要約して LINE へ送り、同じ要約を Craft に残して元ノートを処理済みへ移す。
 
-- 実行: EventBridge Scheduler、毎日 8:00–11:50 JST、10分間隔
+- 実行: EventBridge Scheduler、毎日 8:00–11:50 JST、10分間隔。保存と失敗は LINE へ通知し、画像が無いときは通知しない
 - 週次要約: 毎週日曜 9:00 JST。対象が無い週は LINE に「今週対象のノートはありませんでした」と送り、Craft には保存しない
 - 実行環境: Lambda Node.js 26、`ap-northeast-1`
 - 文字起こし: `TRANSCRIPTION_PROVIDER` が `claude`（Claude Sonnet 5.5）または `bedrock`（Nova Lite）

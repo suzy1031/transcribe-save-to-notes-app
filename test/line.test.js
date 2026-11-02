@@ -1,12 +1,27 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createLineClient, fitLineText, LINE_PUSH_URL, LINE_TEXT_LIMIT } from "../lambda/line.js";
+import {
+  createLineClient,
+  fitLineText,
+  LINE_PUSH_URL,
+  LINE_TEXT_LIMIT,
+  transcriptionFailedMessage,
+  transcriptionSavedMessage,
+} from "../lambda/line.js";
 
 test("fitLineText keeps a short message and cuts at 5000 characters", () => {
   assert.equal(fitLineText("こんにちは"), "こんにちは");
   const long = "あ".repeat(LINE_TEXT_LIMIT + 25);
   assert.equal(fitLineText(long).length, LINE_TEXT_LIMIT);
   assert.equal(fitLineText(long), "あ".repeat(LINE_TEXT_LIMIT));
+});
+
+test("transcription LINE messages name the saved title and the failed file", () => {
+  assert.equal(transcriptionSavedMessage("2026/11/02"), "文字起こしを保存しました\n2026/11/02");
+  assert.equal(
+    transcriptionFailedMessage("note.png", "model failed"),
+    "文字起こしに失敗しました\nnote.png\nmodel failed",
+  );
 });
 
 test("push sends one text message with the channel token", async () => {
