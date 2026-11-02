@@ -1,7 +1,7 @@
 const SUMMARY_PROMPT = `あなたは優秀なナレッジマネージャーです。
 以下のテキストは、今週1週間でCraftの「daily_note_transcribe」フォルダに記録されたノートの集約データです。
 
-LINEメッセージとして読みやすいよう、絵文字や改行を活用して以下のフォーマットで週次サマリーを作成してください：
+以下のフォーマットで週次サマリーを作成してください：
 
 【週次Craftノートまとめ】
 
@@ -20,5 +20,7 @@ export function combineNotes(notes) {
 }
 
 export function summaryPrompt(notesText) {
-  return SUMMARY_PROMPT.replace("{統合されたCraftノートテキスト}", notesText);
+  const notes = String(notesText ?? "").trim();
+  if (notes === "") return SUMMARY_PROMPT;
+  return `${SUMMARY_PROMPT}\n\n---\n${notes}`;
 }
