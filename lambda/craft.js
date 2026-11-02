@@ -48,6 +48,22 @@ export function moveDocumentsPayload(documentIds, folderId) {
   return { documentIds, destination: { folderId } };
 }
 
+export function craftAppDocumentLink(spaceId, documentId) {
+  const params = new URLSearchParams({
+    spaceId: String(spaceId),
+    documentId: String(documentId),
+  });
+  return `craftdocs://open?${params.toString()}`;
+}
+
+export function connectionSpaceId(payload) {
+  const id = payload?.space?.id ?? payload?.space?.spaceId;
+  if (typeof id !== "string" || id === "") {
+    throw new Error("Craft connection returned no space id");
+  }
+  return id;
+}
+
 async function craftRequest(baseUrl, apiKey, path, { method, body, fetchImpl, accept = "application/json" }) {
   const url = `${baseUrl.replace(/\/$/, "")}${path}`;
   const response = await fetchImpl(url, {
@@ -71,6 +87,10 @@ export function createCraftClient({ baseUrl, apiKey, fetchImpl = fetch }) {
   if (!apiKey) throw new Error("Craft API key is required");
   const request = (path, options) => craftRequest(baseUrl, apiKey, path, { ...options, fetchImpl });
   return {
+    async getConnection() {
+      return request("/connection", { method: "GET" });
+    },
+
     async findFolder(name) {
       const listed = await request("/folders", { method: "GET" });
       const ids = findFolderIds(listed, name);

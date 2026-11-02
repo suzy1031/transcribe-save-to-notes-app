@@ -1,7 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import { createCraftClient } from "./craft.js";
+import { connectionSpaceId, createCraftClient, craftAppDocumentLink } from "./craft.js";
 import { createDriveClient, fileStem, orphanTextFiles } from "./drive.js";
+import { createLineClient, transcriptionFailedMessage, transcriptionSavedMessage } from "./line.js";
 import { createTranscription, MAX_IMAGE_BYTES } from "./transcribe/index.js";
 
 const INBOX_FOLDER_NAME = "00_notes_inbox";
@@ -17,7 +18,7 @@ export function settingsFromEnv(env = process.env) {
     craftApiBaseUrl: env.CRAFT_API_BASE_URL ?? "",
     craftApiKey: env.CRAFT_API_KEY ?? "",
     anthropicApiKey: env.ANTHROPIC_API_KEY ?? "",
-    claudeModelId: env.CLAUDE_MODEL_ID || "claude-haiku-5-5",
+    claudeModelId: env.CLAUDE_MODEL_ID || "claude-sonnet-5-5",
     transcriptionProvider: env.TRANSCRIPTION_PROVIDER || "claude",
     googleServiceAccountJson: env.GOOGLE_SERVICE_ACCOUNT_JSON ?? "",
     lineChannelAccessToken: env.LINE_CHANNEL_ACCESS_TOKEN ?? "",
@@ -64,6 +65,8 @@ export async function processInbox({
   createDocument,
   moveToProcessed,
   removeTextFiles = async () => {},
+  notifySaved = async () => {},
+  notifyFailed = async () => {},
   getRemainingTimeMs = () => Number.POSITIVE_INFINITY,
   maxImageBytes = MAX_IMAGE_BYTES,
   log = console,
@@ -98,6 +101,7 @@ export async function processInbox({
       if (bytes.byteLength > maxImageBytes) {
         summary.skipped += 1;
         log.error(`Skipped ${file.name}: image exceeds the size limit`);
+        await notifyFailed({ fileName: file.name, reason: "image exceeds the size limit" });
         continue;
       }
       stage = "文字起こし";
@@ -116,6 +120,7 @@ export async function processInbox({
       await moveToProcessed({ file, craftDocumentId });
       await removeTextFiles(file);
       summary.processed += 1;
+      await notifySaved({ title: note.title, documentId: craftDocumentId });
     } catch (error) {
       summary.failed += 1;
       if (stage === "画像ファイル取得") {
@@ -126,6 +131,7 @@ export async function processInbox({
         log.error(`${stage}失敗 ${file.name}: ${error.message}`);
         log.info(`${stage} end ${file.name}`);
       }
+      await notifyFailed({ fileName: file.name, reason: error.message });
     }
   }
   return summary;
@@ -149,10 +155,13 @@ async function runPipeline(context) {
   const drive = createDriveClient({ serviceAccount: credentials.serviceAccount });
   const inbox = await drive.findUniqueFolder(INBOX_FOLDER_NAME);
   const processed = await drive.findUniqueFolder(PROCESSED_FOLDER_NAME);
+  const notify = createLineNotifier(credentials);
   if (!inbox.ok || !processed.ok) {
     const inboxCount = inbox.ok ? 1 : inbox.count;
     const processedCount = processed.ok ? 1 : processed.count;
+    const reason = `Drive folder lookup failed: inbox=${inboxCount} processed=${processedCount}`;
     console.error(`画像ファイル取得失敗 inbox=${inboxCount} processed=${processedCount}`);
+    await notify.failed({ fileName: "inbox", reason });
     return { processed: 0, failed: 0, skipped: 0, deferred: 0, folderLookup: "failed" };
   }
 
@@ -171,6 +180,12 @@ async function runPipeline(context) {
     baseUrl: credentials.craftApiBaseUrl,
     apiKey: credentials.craftApiKey,
   });
+  let craftSpaceId = "";
+  try {
+    craftSpaceId = connectionSpaceId(await craft.getConnection());
+  } catch (error) {
+    console.error(`Craft connection lookup failed: ${error.message}`);
+  }
   const transcription = createTranscription({
     provider: settings.transcriptionProvider,
     claude: {
@@ -203,6 +218,8 @@ async function runPipeline(context) {
         if (fileStem(textFile.name) === stem) await discardText(textFile);
       }
     },
+    notifySaved: (input) => notify.saved({ ...input, spaceId: craftSpaceId }),
+    notifyFailed: (input) => notify.failed(input),
     getRemainingTimeMs: () => context.getRemainingTimeInMillis(),
   });
 
@@ -211,6 +228,39 @@ async function runPipeline(context) {
     await discardText(textFile);
   }
   return summary;
+}
+
+function createLineNotifier(credentials) {
+  const line =
+    credentials.lineChannelAccessToken && credentials.lineUserId
+      ? createLineClient({
+          channelAccessToken: credentials.lineChannelAccessToken,
+          userId: credentials.lineUserId,
+        })
+      : null;
+  return {
+    async saved({ title, documentId, spaceId }) {
+      const appLink =
+        spaceId && documentId ? craftAppDocumentLink(spaceId, documentId) : "";
+      await pushLine(line, transcriptionSavedMessage(title, appLink));
+    },
+    async failed({ fileName, reason }) {
+      await pushLine(line, transcriptionFailedMessage(fileName, reason));
+    },
+  };
+}
+
+async function pushLine(line, text) {
+  if (!line) {
+    console.error("LINE通知失敗: credentials are missing");
+    return;
+  }
+  try {
+    await line.push(text);
+    console.log("LINE通知");
+  } catch (error) {
+    console.error(`LINE通知失敗: ${error.message}`);
+  }
 }
 
 async function discardInboxText({

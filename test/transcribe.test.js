@@ -17,7 +17,7 @@ test("parseTranscription rejects a missing title", () => {
   assert.throws(() => parseTranscription('{"title":"  ","markdown":"本文"}'), /title/);
 });
 
-test("createClaudeTranscriber sends the image to Haiku and reads the JSON text", async () => {
+test("createClaudeTranscriber sends the image to Sonnet and reads the JSON text", async () => {
   let request;
   const fetchImpl = async (url, options) => {
     request = { url, headers: options.headers, body: JSON.parse(options.body) };
@@ -36,7 +36,7 @@ test("createClaudeTranscriber sends the image to Haiku and reads the JSON text",
   assert.deepEqual(note, { title: "朝のメモ", markdown: "本文" });
   assert.equal(request.url, "https://api.anthropic.com/v1/messages");
   assert.equal(request.headers["x-api-key"], "test-key");
-  assert.equal(request.body.model, "claude-haiku-5-5");
+  assert.equal(request.body.model, "claude-sonnet-5-5");
   assert.equal(request.body.messages[0].content[0].type, "image");
   assert.equal(request.body.messages[0].content[0].source.media_type, "image/png");
 });

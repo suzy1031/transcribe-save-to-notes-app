@@ -3,7 +3,7 @@ import test from "node:test";
 import { combineNotes, summaryPrompt } from "../lambda/summary-prompt.js";
 import { createBedrockSummarizer, createClaudeSummarizer } from "../lambda/summarize.js";
 
-test("summaryPrompt inserts the combined notes under the requested headings", () => {
+test("summaryPrompt includes the weekly headings and combined notes", () => {
   const notes = combineNotes([
     { title: "月曜", markdown: "会議メモ" },
     { title: "火曜", markdown: "決定事項" },
@@ -11,10 +11,10 @@ test("summaryPrompt inserts the combined notes under the requested headings", ()
   const prompt = summaryPrompt(notes);
   assert.match(prompt, /【週次Craftノートまとめ】/);
   assert.match(prompt, /📌 今週のハイライト/);
-  assert.match(prompt, /📝 主なトピックと決定事項/);
+  assert.match(prompt, /📝 主なトピック/);
   assert.match(prompt, /🚀 来週への持ち越し・アクションアイテム/);
-  assert.match(prompt, /# 月曜\n\n会議メモ\n\n# 火曜\n\n決定事項/);
-  assert.equal(prompt.includes("{統合されたCraftノートテキスト}"), false);
+  assert.match(prompt, /- \[ \] ToDo形式で記載してください/);
+  assert.match(prompt, /---\n# 月曜\n\n会議メモ\n\n# 火曜\n\n決定事項/);
 });
 
 test("createClaudeSummarizer sends the prompt and returns the text", async () => {

@@ -2,7 +2,7 @@ import { SYSTEM_PROMPT } from "../prompt.js";
 import { assertImageSize, parseTranscription } from "./parse.js";
 
 const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
-const DEFAULT_MODEL_ID = "claude-haiku-5-5";
+const DEFAULT_MODEL_ID = "claude-sonnet-5-5";
 
 export const maxImageBytes = 7 * 1024 * 1024;
 

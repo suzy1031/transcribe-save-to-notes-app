@@ -10,7 +10,7 @@ const image = {
 };
 
 function pipeline(overrides) {
-  const calls = { download: 0, transcribe: 0, create: [], move: [], removed: [] };
+  const calls = { download: 0, transcribe: 0, create: [], move: [], removed: [], saved: [], failed: [] };
   const deps = {
     files: [image],
     download: async () => {
@@ -32,6 +32,12 @@ function pipeline(overrides) {
     removeTextFiles: async (file) => {
       calls.removed.push(file.name);
     },
+    notifySaved: async (input) => {
+      calls.saved.push(input);
+    },
+    notifyFailed: async (input) => {
+      calls.failed.push(input);
+    },
     getRemainingTimeMs: () => 120_000,
     log: { info() {}, error() {} },
     ...overrides,
@@ -39,7 +45,19 @@ function pipeline(overrides) {
   return { calls, run: () => processInbox(deps) };
 }
 
-test("a transcription failure leaves the image in the inbox", async () => {
+test("a saved note notifies LINE and an empty inbox does not", async () => {
+  const saved = pipeline();
+  await saved.run();
+  assert.deepEqual(saved.calls.saved, [{ title: "朝のメモ", documentId: "doc-1" }]);
+  assert.equal(saved.calls.failed.length, 0);
+
+  const empty = pipeline({ files: [] });
+  await empty.run();
+  assert.equal(empty.calls.saved.length, 0);
+  assert.equal(empty.calls.failed.length, 0);
+});
+
+test("a transcription failure notifies LINE and leaves the image in the inbox", async () => {
   const { calls, run } = pipeline({
     transcribe: async () => {
       throw new Error("model failed");
@@ -48,6 +66,8 @@ test("a transcription failure leaves the image in the inbox", async () => {
   const summary = await run();
   assert.equal(summary.failed, 1);
   assert.equal(calls.move.length, 0);
+  assert.deepEqual(calls.failed, [{ fileName: "note.png", reason: "model failed" }]);
+  assert.equal(calls.saved.length, 0);
 });
 
 test("an existing craftDocumentId is moved without creating another document", async () => {
