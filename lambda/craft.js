@@ -26,7 +26,7 @@ export function documentPayload(title, folderId) {
 
 function createdDocumentId(payload) {
   const list = payload.items ?? payload.documents ?? [];
-  const id = list[0]?.id ?? list[0]?.documentId;
+  const id = list[0]?.rootBlockId ?? list[0]?.id ?? list[0]?.documentId;
   if (typeof id !== "string" || id === "") {
     throw new Error("Craft document create returned no id");
   }
@@ -48,10 +48,10 @@ export function moveDocumentsPayload(documentIds, folderId) {
   return { documentIds, destination: { folderId } };
 }
 
-export function craftAppDocumentLink(spaceId, documentId) {
+export function craftAppDocumentLink(spaceId, blockId) {
   const params = new URLSearchParams({
     spaceId: String(spaceId),
-    documentId: String(documentId),
+    blockId: String(blockId),
   });
   return `craftdocs://open?${params.toString()}`;
 }

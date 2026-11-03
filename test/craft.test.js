@@ -13,7 +13,7 @@ import {
 test("craftAppDocumentLink opens the document in the Craft app", () => {
   assert.equal(
     craftAppDocumentLink("space-1", "doc-1"),
-    "craftdocs://open?spaceId=space-1&documentId=doc-1",
+    "craftdocs://open?spaceId=space-1&blockId=doc-1",
   );
 });
 
