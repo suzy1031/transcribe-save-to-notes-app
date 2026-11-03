@@ -33,8 +33,10 @@ function createdDocumentId(payload) {
   return id;
 }
 
-export function documentsQuery({ folderId, createdDateGte }) {
+export function documentsQuery({ folderId, createdDateGte, createdDateLte, fetchMetadata }) {
   const params = new URLSearchParams({ folderId, createdDateGte });
+  if (createdDateLte) params.set("createdDateLte", createdDateLte);
+  if (fetchMetadata) params.set("fetchMetadata", "true");
   return `/documents?${params.toString()}`;
 }
 
@@ -136,8 +138,11 @@ export function createCraftClient({ baseUrl, apiKey, fetchImpl = fetch }) {
       return documentId;
     },
 
-    async listDocuments({ folderId, createdDateGte }) {
-      const listed = await request(documentsQuery({ folderId, createdDateGte }), { method: "GET" });
+    async listDocuments({ folderId, createdDateGte, createdDateLte, fetchMetadata }) {
+      const listed = await request(
+        documentsQuery({ folderId, createdDateGte, createdDateLte, fetchMetadata }),
+        { method: "GET" },
+      );
       const items = listed.items ?? listed.documents ?? [];
       return items.map(listedDocument).filter((item) => item !== null);
     },
