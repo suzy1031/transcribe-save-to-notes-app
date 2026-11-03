@@ -7,6 +7,7 @@ import {
   LINE_TEXT_LIMIT,
   transcriptionFailedMessage,
   transcriptionSavedMessage,
+  reminderFailedMessage,
 } from "../lambda/line.js";
 import { craftAppDocumentLink } from "../lambda/craft.js";
 
@@ -24,6 +25,10 @@ test("transcription LINE messages name the saved title and the failed file", () 
   assert.equal(
     transcriptionFailedMessage("note.png", "model failed"),
     "文字起こしに失敗しました\nnote.png\nmodel failed",
+  );
+  assert.equal(
+    reminderFailedMessage("Craft folder was not found"),
+    "週次リマインドに失敗しました\nCraft folder was not found",
   );
 });
 

@@ -126,6 +126,35 @@ test("listDocuments filters by folder and created date", async () => {
   assert.equal(calls[0].method, "GET");
 });
 
+test("listDocuments can bound created date with createdDateLte", async () => {
+  const calls = [];
+  const fetchImpl = async (url, options) => {
+    calls.push({ url, method: options.method });
+    return new Response(JSON.stringify({ items: [{ id: "doc-1", title: "週次まとめ" }] }), {
+      status: 200,
+    });
+  };
+  const craft = createCraftClient({
+    baseUrl: "https://connect.craft.do/links/example/api/v1",
+    apiKey: "test-key",
+    fetchImpl,
+  });
+  const documents = await craft.listDocuments({
+    folderId: "folder-summaries",
+    createdDateGte: "2026-11-01",
+    createdDateLte: "2026-11-01",
+  });
+  assert.deepEqual(documents, [{ id: "doc-1", title: "週次まとめ" }]);
+  assert.equal(
+    calls[0].url,
+    `https://connect.craft.do/links/example/api/v1${documentsQuery({
+      folderId: "folder-summaries",
+      createdDateGte: "2026-11-01",
+      createdDateLte: "2026-11-01",
+    })}`,
+  );
+});
+
 test("readMarkdown requests the document as markdown", async () => {
   const calls = [];
   const fetchImpl = async (url, options) => {

@@ -16,11 +16,15 @@ export function tokyoDate(now = new Date(), timeZone = TOKYO) {
   }).format(now);
 }
 
-export function createdSinceDate(now = new Date(), timeZone = TOKYO) {
+export function daysBeforeTokyoDate(now = new Date(), days = 7, timeZone = TOKYO) {
   const [year, month, day] = tokyoDate(now, timeZone).split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));
-  date.setUTCDate(date.getUTCDate() - 7);
+  date.setUTCDate(date.getUTCDate() - days);
   return date.toISOString().slice(0, 10);
+}
+
+export function createdSinceDate(now = new Date(), timeZone = TOKYO) {
+  return daysBeforeTokyoDate(now, 7, timeZone);
 }
 
 export function weeklySettingsFromEnv(env = process.env) {

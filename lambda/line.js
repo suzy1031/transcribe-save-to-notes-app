@@ -1,6 +1,7 @@
 export const LINE_PUSH_URL = "https://api.line.me/v2/bot/message/push";
 export const LINE_TEXT_LIMIT = 5000;
 export const EMPTY_WEEK_MESSAGE = "今週対象のノートはありませんでした";
+export const EMPTY_REMINDER_MESSAGE = "リマインドはありませんでした。";
 
 export function transcriptionSavedMessage(title, appLink) {
   const lines = [String(title).trim()];
@@ -10,6 +11,10 @@ export function transcriptionSavedMessage(title, appLink) {
 
 export function transcriptionFailedMessage(fileName, reason) {
   return fitLineText(`文字起こしに失敗しました\n${fileName}\n${reason}`);
+}
+
+export function reminderFailedMessage(reason) {
+  return fitLineText(`週次リマインドに失敗しました\n${String(reason).trim()}`);
 }
 
 export function fitLineText(text, limit = LINE_TEXT_LIMIT) {

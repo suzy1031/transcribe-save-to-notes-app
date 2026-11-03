@@ -101,6 +101,25 @@ class NotesPipelineStack extends Stack {
     fn.addToRolePolicy(bedrockAccess());
     weekly.addToRolePolicy(bedrockAccess());
 
+    const reminder = new NodejsFunction(this, "WeeklyReminder", {
+      functionName: "craft-weekly-reminder",
+      entry: path.join(__dirname, "../lambda/reminder.js"),
+      projectRoot: path.join(__dirname, ".."),
+      depsLockFilePath: path.join(__dirname, "../package-lock.json"),
+      handler: "handler",
+      runtime,
+      memorySize: 256,
+      timeout: Duration.minutes(1),
+      reservedConcurrentExecutions: 1,
+      environment: {
+        SECRET_ID: secret.secretArn,
+        CRAFT_SUMMARY_FOLDER_NAME: "daily_note_summaries",
+      },
+      bundling,
+    });
+
+    secret.grantRead(reminder);
+
     const githubOidc = new OpenIdConnectProvider(this, "GitHubOidc", {
       url: "https://token.actions.githubusercontent.com",
       clientIds: ["sts.amazonaws.com"],
@@ -147,6 +166,16 @@ class NotesPipelineStack extends Stack {
         timeZone: TimeZone.ASIA_TOKYO,
       }),
       target: new LambdaInvoke(weekly, { retryAttempts: 0 }),
+    });
+
+    new Schedule(this, "WeeklyReminder", {
+      schedule: ScheduleExpression.cron({
+        minute: "0",
+        hour: "9",
+        weekDay: "SUN",
+        timeZone: TimeZone.ASIA_TOKYO,
+      }),
+      target: new LambdaInvoke(reminder, { retryAttempts: 0 }),
     });
   }
 }
