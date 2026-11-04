@@ -2,8 +2,12 @@ name: ci
 
 on:
   pull_request:
+    paths-ignore:
+      - ".cursor/**"
   push:
     branches: [main]
+    paths-ignore:
+      - ".cursor/**"
 
 permissions:
   contents: read
