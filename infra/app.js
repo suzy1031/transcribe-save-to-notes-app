@@ -168,7 +168,7 @@ class NotesPipelineStack extends Stack {
       target: new LambdaInvoke(weekly, { retryAttempts: 0 }),
     });
 
-    new Schedule(this, "WeeklyReminder", {
+    new Schedule(this, "WeeklyReminderSchedule", {
       schedule: ScheduleExpression.cron({
         minute: "0",
         hour: "9",
