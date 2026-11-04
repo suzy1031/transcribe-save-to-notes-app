@@ -175,6 +175,26 @@ test("readMarkdown requests the document as markdown", async () => {
   );
 });
 
+test("appendMarkdown posts markdown at the end of a page", async () => {
+  const calls = [];
+  const fetchImpl = async (url, options) => {
+    calls.push({ url, method: options.method, body: JSON.parse(options.body) });
+    return new Response("{}", { status: 200 });
+  };
+  const craft = createCraftClient({
+    baseUrl: "https://connect.craft.do/links/example/api/v1",
+    apiKey: "test-key",
+    fetchImpl,
+  });
+  await craft.appendMarkdown({ pageId: "doc-1", markdown: "追記" });
+  assert.equal(calls[0].method, "POST");
+  assert.equal(calls[0].url, "https://connect.craft.do/links/example/api/v1/blocks");
+  assert.deepEqual(calls[0].body, {
+    markdown: "追記",
+    position: { position: "end", pageId: "doc-1" },
+  });
+});
+
 test("moveDocuments puts the destination folder id", async () => {
   const calls = [];
   const fetchImpl = async (url, options) => {

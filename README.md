@@ -5,6 +5,7 @@ Google Drive の手書き画像を文字起こしし、Craft に保存して処�
 - 実行: EventBridge Scheduler、毎日 8:00–11:50 JST、10分間隔。保存と失敗は LINE へ通知し、画像が無いときは通知しない
 - 週次要約: 毎週日曜 9:00 JST。対象が無い週は LINE に「今週対象のノートはありませんでした」と送り、Craft には保存しない
 - 週次リマインド: 毎週日曜 9:00 JST。`daily_note_summaries` 内で実行日の7日前に作成されたノートを1件だけ LINE（タイトル + Craft アプリリンク）で通知。該当が無い場合は「リマインドはありませんでした。」。処理失敗時は LINE に「週次リマインドに失敗しました」を送る
+- Kindle 要約: 毎週月曜 6:00 JST。Drive の `kindle` 配下の `kindle_*` フォルダ内画像を要約し、Craft に同名フォルダがあれば「要約」ノートへ追記（0件なら新規、2件以上はスキップ）。成功した画像は各 `kindle_*` 内の `processed` へ移動。1回の実行で処理または失敗が1枚以上あれば LINE に件数と Craft アプリリンクを1通送る
 - 実行環境: Lambda Node.js 26、`ap-northeast-1`
 - 文字起こし: `TRANSCRIPTION_PROVIDER` が `claude`（Claude Sonnet 5.5）または `bedrock`（Nova Lite）
 - 週次要約: Claude Haiku 5.5
@@ -17,6 +18,9 @@ infra/app.js            CDK（Lambda、Scheduler、Secrets Manager）
 lambda/index.js         朝のパイプライン
 lambda/weekly.js        週次要約
 lambda/reminder.js      週次リマインド
+lambda/kindle.js        Kindle 画像要約
+lambda/kindle-summarize.js  Kindle 画像要約（Vision）
+lambda/kindle-prompt.js Kindle 要約プロンプト
 lambda/drive.js         Google Drive
 lambda/craft.js         Craft
 lambda/line.js          LINE

@@ -36,6 +36,15 @@ export function resolveUniqueFolder(files, name) {
   return { ok: true, id: matches[0].id };
 }
 
+export function filterKindleBookFolders(folders, prefix = "kindle_") {
+  return folders.filter(
+    (folder) =>
+      folder.mimeType === FOLDER_MIME &&
+      typeof folder.name === "string" &&
+      folder.name.startsWith(prefix),
+  );
+}
+
 function driveUrl(pathname, params) {
   const url = new URL(`${DRIVE_API}${pathname}`);
   for (const [key, value] of Object.entries(params)) {
@@ -171,6 +180,46 @@ export function createDriveClient({ serviceAccount, fetchImpl = fetch }) {
           body: JSON.stringify({ appProperties: { craftDocumentId } }),
         }),
       );
+    },
+
+    async listChildFolders(parentId) {
+      const files = await listAll(
+        `'${parentId}' in parents and mimeType = '${FOLDER_MIME}' and trashed = false`,
+        "id,name,mimeType",
+      );
+      return files;
+    },
+
+    async listKindleBookFolders(parentId, prefix = "kindle_") {
+      return filterKindleBookFolders(await this.listChildFolders(parentId), prefix);
+    },
+
+    async ensureChildFolder(parentId, name) {
+      const escaped = name.replaceAll("'", "\\'");
+      const files = await listAll(
+        `'${parentId}' in parents and name = '${escaped}' and mimeType = '${FOLDER_MIME}' and trashed = false`,
+        "id,name,mimeType",
+      );
+      const resolved = resolveUniqueFolder(files, name);
+      if (resolved.ok) return resolved.id;
+      if (resolved.count > 1) {
+        throw new Error(`Drive folder "${name}" under parent matched ${resolved.count} folders`);
+      }
+      const url = driveUrl("/files", { supportsAllDrives: "true", fields: "id" });
+      const payload = await readJson(
+        await request(url, {
+          method: "POST",
+          body: JSON.stringify({
+            name,
+            mimeType: FOLDER_MIME,
+            parents: [parentId],
+          }),
+        }),
+      );
+      if (typeof payload.id !== "string" || payload.id === "") {
+        throw new Error(`Drive folder "${name}" was not created`);
+      }
+      return payload.id;
     },
   };
 }

@@ -128,14 +128,18 @@ export function createCraftClient({ baseUrl, apiKey, fetchImpl = fetch }) {
         body: documentPayload(title, folderId),
       });
       const documentId = createdDocumentId(created);
+      await this.appendMarkdown({ pageId: documentId, markdown });
+      return documentId;
+    },
+
+    async appendMarkdown({ pageId, markdown }) {
       await request("/blocks", {
         method: "POST",
         body: {
           markdown,
-          position: { position: "end", pageId: documentId },
+          position: { position: "end", pageId },
         },
       });
-      return documentId;
     },
 
     async listDocuments({ folderId, createdDateGte, createdDateLte, fetchMetadata }) {

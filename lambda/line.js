@@ -13,6 +13,19 @@ export function transcriptionFailedMessage(fileName, reason) {
   return fitLineText(`文字起こしに失敗しました\n${fileName}\n${reason}`);
 }
 
+export function kindleFailedMessage(reason) {
+  return fitLineText(`Kindle要約に失敗しました\n${String(reason).trim()}`);
+}
+
+export function kindleRunSummaryMessage({ summarized, failed, links }) {
+  const lines = [`Kindle要約完了`, `処理: ${summarized}枚 / 失敗: ${failed}枚`];
+  for (const { folderName, appLink } of links) {
+    lines.push(String(folderName).trim());
+    if (appLink) lines.push(appLink);
+  }
+  return fitLineText(lines.join("\n"));
+}
+
 export function reminderFailedMessage(reason) {
   return fitLineText(`週次リマインドに失敗しました\n${String(reason).trim()}`);
 }
