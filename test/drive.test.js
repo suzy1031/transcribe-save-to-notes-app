@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isSupportedImage, orphanTextFiles, resolveUniqueFolder } from "../lambda/drive.js";
+import { isSupportedImage, filterKindleBookFolders, orphanTextFiles, resolveUniqueFolder } from "../lambda/drive.js";
 
 const folder = (id, name) => ({
   id,
@@ -45,5 +45,18 @@ test("resolveUniqueFolder requires exactly one folder name", () => {
       "00_notes_inbox",
     ).ok,
     false,
+  );
+});
+
+test("filterKindleBookFolders keeps only folders whose names start with kindle_", () => {
+  const folders = [
+    folder("a", "kindle_book_one"),
+    folder("b", "processed"),
+    folder("c", "other_kindle"),
+    { id: "d", name: "kindle_two", mimeType: "image/png" },
+  ];
+  assert.deepEqual(
+    filterKindleBookFolders(folders).map((item) => item.id),
+    ["a"],
   );
 });

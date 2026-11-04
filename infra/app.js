@@ -120,6 +120,33 @@ class NotesPipelineStack extends Stack {
 
     secret.grantRead(reminder);
 
+    const kindle = new NodejsFunction(this, "KindleSummarizer", {
+      functionName: "craft-kindle-summarizer",
+      entry: path.join(__dirname, "../lambda/kindle.js"),
+      projectRoot: path.join(__dirname, ".."),
+      depsLockFilePath: path.join(__dirname, "../package-lock.json"),
+      handler: "handler",
+      runtime,
+      memorySize: 512,
+      timeout: Duration.minutes(5),
+      reservedConcurrentExecutions: 1,
+      environment: {
+        SECRET_ID: secret.secretArn,
+        BEDROCK_MODEL_ID: MODEL_ID,
+        BEDROCK_REGION: this.region,
+        TRANSCRIPTION_PROVIDER: "claude",
+        CLAUDE_MODEL_ID: "claude-sonnet-5-5",
+        KINDLE_DRIVE_PARENT_FOLDER_NAME: "kindle",
+        KINDLE_BOOK_FOLDER_PREFIX: "kindle_",
+        KINDLE_PROCESSED_FOLDER_NAME: "processed",
+        KINDLE_SUMMARY_DOC_TITLE: "要約",
+      },
+      bundling,
+    });
+
+    secret.grantRead(kindle);
+    kindle.addToRolePolicy(bedrockAccess());
+
     const githubOidc = new OpenIdConnectProvider(this, "GitHubOidc", {
       url: "https://token.actions.githubusercontent.com",
       clientIds: ["sts.amazonaws.com"],
@@ -176,6 +203,16 @@ class NotesPipelineStack extends Stack {
         timeZone: TimeZone.ASIA_TOKYO,
       }),
       target: new LambdaInvoke(reminder, { retryAttempts: 0 }),
+    });
+
+    new Schedule(this, "KindleSummary", {
+      schedule: ScheduleExpression.cron({
+        minute: "0",
+        hour: "6",
+        weekDay: "MON",
+        timeZone: TimeZone.ASIA_TOKYO,
+      }),
+      target: new LambdaInvoke(kindle, { retryAttempts: 0 }),
     });
   }
 }
