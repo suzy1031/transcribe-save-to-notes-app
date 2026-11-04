@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "hooks": {
+    "beforeShellExecution": [
+      {
+        "command": "./hooks/block-gh-pr-merge-and-release.sh",
+        "matcher": "\\bgh(?:\\s+(?!pr\\b|release\\b)\\S+)*\\s+pr(?:\\s+(?!merge\\b)\\S+)*\\s+merge\\b|\\bgh(?:\\s+(?!pr\\b|release\\b)\\S+)*\\s+release(?:\\s+(?!create\\b)\\S+)*\\s+create\\b",
+        "failClosed": true 
+      }
+    ]
+  }
+}
