@@ -4,7 +4,7 @@ import { craftAppDocumentLink } from "../lambda/craft.js";
 import { processKindleBooks, summaryDocumentState } from "../lambda/kindle.js";
 import { kindleRunSummaryMessage } from "../lambda/line.js";
 
-test("summaryDocumentState accepts zero or one document", () => {
+test("summaryDocumentState は0件または1件のドキュメントを受け付ける", () => {
   assert.deepEqual(summaryDocumentState([]), { action: "create" });
   assert.deepEqual(summaryDocumentState([{ id: "doc-1", title: "要約" }]), {
     action: "append",
@@ -13,7 +13,7 @@ test("summaryDocumentState accepts zero or one document", () => {
   assert.equal(summaryDocumentState([{ id: "a", title: "a" }, { id: "b", title: "b" }]).action, "error");
 });
 
-test("kindleRunSummaryMessage lists folder names and Craft links", () => {
+test("kindleRunSummaryMessage にフォルダ名とCraftリンクが列挙される", () => {
   const text = kindleRunSummaryMessage({
     summarized: 2,
     failed: 0,
@@ -30,7 +30,7 @@ test("kindleRunSummaryMessage lists folder names and Craft links", () => {
   assert.match(text, /craftdocs:\/\/open\?/);
 });
 
-test("processKindleBooks skips folders without Craft and appends to one document", async () => {
+test("processKindleBooks はCraftのないフォルダをスキップし1ドキュメントに追記する", async () => {
   const moves = [];
   const appends = [];
   const creates = [];
@@ -75,7 +75,7 @@ test("processKindleBooks skips folders without Craft and appends to one document
   assert.deepEqual(summary.links, [{ folderName: "kindle_book", documentId: "doc-1" }]);
 });
 
-test("processKindleBooks creates the summary document when the Craft folder is empty", async () => {
+test("processKindleBooks はCraftフォルダが空のとき要約ドキュメントを作成する", async () => {
   const creates = [];
   const summary = await processKindleBooks({
     bookFolders: [{ id: "drive-1", name: "kindle_book" }],

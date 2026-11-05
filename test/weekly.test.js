@@ -37,13 +37,13 @@ function weekly(overrides) {
   return { calls, run: () => processWeekly(deps) };
 }
 
-test("createdSinceDate is seven calendar days before the Tokyo date", () => {
+test("createdSinceDate は東京日付の7暦日前を返す", () => {
   assert.equal(tokyoDate(now), "2026-11-01");
   assert.equal(createdSinceDate(now), "2026-10-25");
   assert.equal(tokyoDate(new Date("2026-10-31T16:00:00Z")), "2026-11-01");
 });
 
-test("an empty week sends the fixed LINE message and skips Craft writes", async () => {
+test("ノートがない週は固定のLINEメッセージを送りCraftへの書き込みをしない", async () => {
   const { calls, run } = weekly({ documents: [] });
   const summary = await run();
   assert.deepEqual(summary, { summarized: 0, moved: 0 });
@@ -52,7 +52,7 @@ test("an empty week sends the fixed LINE message and skips Craft writes", async 
   assert.equal(calls.move.length, 0);
 });
 
-test("a week with notes notifies LINE, saves the full summary, then moves the source notes", async () => {
+test("ノートがある週はLINE通知し要約を保存してから元ノートを移動する", async () => {
   const { calls, run } = weekly();
   const summary = await run();
   assert.deepEqual(summary, { summarized: 2, moved: 2 });
@@ -65,7 +65,7 @@ test("a week with notes notifies LINE, saves the full summary, then moves the so
   assert.deepEqual(calls.move, [["doc-1", "doc-2"]]);
 });
 
-test("a summary failure does not send LINE or move notes", async () => {
+test("要約失敗時はLINE送信とノート移動をしない", async () => {
   const { calls, run } = weekly({
     summarize: async () => {
       throw new Error("model failed");
@@ -77,7 +77,7 @@ test("a summary failure does not send LINE or move notes", async () => {
   assert.equal(calls.move.length, 0);
 });
 
-test("a LINE failure does not save the summary or move notes", async () => {
+test("LINE失敗時は要約保存とノート移動をしない", async () => {
   const { calls, run } = weekly({
     pushLine: async () => {
       throw new Error("line failed");
@@ -88,7 +88,7 @@ test("a LINE failure does not save the summary or move notes", async () => {
   assert.equal(calls.move.length, 0);
 });
 
-test("a Craft save failure does not move notes", async () => {
+test("Craft保存失敗時はノートを移動しない", async () => {
   const { calls, run } = weekly({
     createDocument: async () => {
       throw new Error("craft failed");

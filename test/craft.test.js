@@ -10,26 +10,26 @@ import {
   moveDocumentsPayload,
 } from "../lambda/craft.js";
 
-test("craftAppDocumentLink opens the document in the Craft app", () => {
+test("craftAppDocumentLink はCraftアプリでドキュメントを開くURLを返す", () => {
   assert.equal(
     craftAppDocumentLink("space-1", "doc-1"),
     "craftdocs://open?spaceId=space-1&blockId=doc-1",
   );
 });
 
-test("connectionSpaceId reads the space id from GET /connection", () => {
+test("connectionSpaceId はGET /connectionからspace idを読み取る", () => {
   assert.equal(connectionSpaceId({ space: { id: "space-1" } }), "space-1");
   assert.throws(() => connectionSpaceId({ space: {} }), /space id/);
 });
 
-test("documentPayload addresses daily_note_transcribe by folder id", () => {
+test("documentPayload はfolder idでdaily_note_transcribe向けペイロードを組み立てる", () => {
   assert.deepEqual(documentPayload("朝のメモ", "folder-daily"), {
     documents: [{ title: "朝のメモ" }],
     destination: { folderId: "folder-daily" },
   });
 });
 
-test("findFolderIds walks nested folders and reports duplicates", () => {
+test("findFolderIds はネストフォルダを走査し重複を報告する", () => {
   const payload = {
     items: [
       {
@@ -54,7 +54,7 @@ test("findFolderIds walks nested folders and reports duplicates", () => {
   );
 });
 
-test("createDocument posts the folder id and then the markdown", async () => {
+test("createDocument はfolder idをPOSTしてからmarkdownを送る", async () => {
   const calls = [];
   const fetchImpl = async (url, options) => {
     calls.push({
@@ -88,7 +88,7 @@ test("createDocument posts the folder id and then the markdown", async () => {
   });
 });
 
-test("listDocuments filters by folder and created date", async () => {
+test("listDocuments はフォルダと作成日でフィルタする", async () => {
   const calls = [];
   const fetchImpl = async (url, options) => {
     calls.push({ url, accept: options.headers.accept, method: options.method });
@@ -126,7 +126,7 @@ test("listDocuments filters by folder and created date", async () => {
   assert.equal(calls[0].method, "GET");
 });
 
-test("listDocuments can bound created date with createdDateLte", async () => {
+test("listDocuments はcreatedDateLteで作成日の上限を指定できる", async () => {
   const calls = [];
   const fetchImpl = async (url, options) => {
     calls.push({ url, method: options.method });
@@ -155,7 +155,7 @@ test("listDocuments can bound created date with createdDateLte", async () => {
   );
 });
 
-test("readMarkdown requests the document as markdown", async () => {
+test("readMarkdown はドキュメントをmarkdownとして取得する", async () => {
   const calls = [];
   const fetchImpl = async (url, options) => {
     calls.push({ url, accept: options.headers.accept });
@@ -175,7 +175,7 @@ test("readMarkdown requests the document as markdown", async () => {
   );
 });
 
-test("appendMarkdown posts markdown at the end of a page", async () => {
+test("appendMarkdown はページ末尾にmarkdownをPOSTする", async () => {
   const calls = [];
   const fetchImpl = async (url, options) => {
     calls.push({ url, method: options.method, body: JSON.parse(options.body) });
@@ -195,7 +195,7 @@ test("appendMarkdown posts markdown at the end of a page", async () => {
   });
 });
 
-test("moveDocuments puts the destination folder id", async () => {
+test("moveDocuments は移動先folder idを指定する", async () => {
   const calls = [];
   const fetchImpl = async (url, options) => {
     calls.push({ url, method: options.method, body: JSON.parse(options.body) });

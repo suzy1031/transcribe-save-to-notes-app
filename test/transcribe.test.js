@@ -2,22 +2,22 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createTranscription, parseTranscription } from "../lambda/transcribe/index.js";
 
-test("parseTranscription reads a JSON object", () => {
+test("parseTranscription はJSONオブジェクトを読み取る", () => {
   const note = parseTranscription('{"title":"朝のメモ","markdown":"本文"}');
   assert.deepEqual(note, { title: "朝のメモ", markdown: "本文" });
 });
 
-test("parseTranscription strips a json code fence", () => {
+test("parseTranscription はjsonコードフェンスを除去する", () => {
   const note = parseTranscription('```json\n{"title":"題","markdown":"## 見出し"}\n```');
   assert.equal(note.title, "題");
   assert.equal(note.markdown, "## 見出し");
 });
 
-test("parseTranscription rejects a missing title", () => {
+test("parseTranscription はtitle欠落を拒否する", () => {
   assert.throws(() => parseTranscription('{"title":"  ","markdown":"本文"}'), /title/);
 });
 
-test("createClaudeTranscriber sends the image to Sonnet and reads the JSON text", async () => {
+test("createClaudeTranscriber は画像をSonnetに送りJSONテキストを読み取る", async () => {
   let request;
   const fetchImpl = async (url, options) => {
     request = { url, headers: options.headers, body: JSON.parse(options.body) };
@@ -41,7 +41,7 @@ test("createClaudeTranscriber sends the image to Sonnet and reads the JSON text"
   assert.equal(request.body.messages[0].content[0].source.media_type, "image/png");
 });
 
-test("createTranscription selects Bedrock Nova Lite", async () => {
+test("createTranscription はBedrock Nova Liteを選択する", async () => {
   let command;
   const client = {
     async send(value) {
@@ -60,6 +60,6 @@ test("createTranscription selects Bedrock Nova Lite", async () => {
   assert.equal(command.input.messages[0].content[1].image.format, "png");
 });
 
-test("createTranscription rejects an unknown provider", () => {
+test("createTranscription は未知のプロバイダを拒否する", () => {
   assert.throws(() => createTranscription({ provider: "other" }), /Unknown transcription provider/);
 });
