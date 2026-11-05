@@ -25,6 +25,7 @@ export const DEFAULT_CLAUDE_WEEKLY_MODEL_ID = "claude-haiku-5-5";
 
 export const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
 export const ANTHROPIC_API_VERSION = "2023-06-01";
+export const JSON_CONTENT_TYPE = "application/json";
 
 export const MAX_TRANSCRIPTION_TOKENS = 4096;
 export const MAX_SUMMARY_TOKENS = 2048;

@@ -1,3 +1,5 @@
+import { JSON_CONTENT_TYPE } from "./const.js";
+
 export const LINE_PUSH_URL = "https://api.line.me/v2/bot/message/push";
 export const LINE_TEXT_LIMIT = 5000;
 export const EMPTY_WEEK_MESSAGE = "今週対象のノートはありませんでした";
@@ -52,7 +54,7 @@ export function createLineClient({ channelAccessToken, userId, fetchImpl = fetch
         method: "POST",
         headers: {
           authorization: `Bearer ${channelAccessToken}`,
-          "content-type": "application/json",
+          "content-type": JSON_CONTENT_TYPE,
         },
         body: JSON.stringify(linePushPayload(userId, text)),
       });

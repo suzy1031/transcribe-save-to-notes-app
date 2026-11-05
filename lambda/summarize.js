@@ -6,6 +6,7 @@ import {
   DEFAULT_BEDROCK_MODEL_ID,
   DEFAULT_CLAUDE_WEEKLY_MODEL_ID,
   DEFAULT_TRANSCRIPTION_PROVIDER,
+  JSON_CONTENT_TYPE,
   MAX_SUMMARY_TOKENS,
 } from "./const.js";
 
@@ -35,7 +36,7 @@ export function createClaudeSummarizer({
     const response = await fetchImpl(CLAUDE_API_URL, {
       method: "POST",
       headers: {
-        "content-type": "application/json",
+        "content-type": JSON_CONTENT_TYPE,
         "x-api-key": apiKey,
         "anthropic-version": ANTHROPIC_API_VERSION,
       },

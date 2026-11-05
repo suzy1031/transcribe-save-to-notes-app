@@ -4,6 +4,7 @@ import {
   ANTHROPIC_API_VERSION,
   CLAUDE_API_URL,
   DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
+  JSON_CONTENT_TYPE,
   MAX_IMAGE_BYTES,
   MAX_TRANSCRIPTION_TOKENS,
   TRANSCRIBE_USER_PROMPT,
@@ -28,7 +29,7 @@ export function createTranscriber({
     const response = await fetchImpl(CLAUDE_API_URL, {
       method: "POST",
       headers: {
-        "content-type": "application/json",
+        "content-type": JSON_CONTENT_TYPE,
         "x-api-key": apiKey,
         "anthropic-version": ANTHROPIC_API_VERSION,
       },
