@@ -6,6 +6,12 @@ const FOLDER_MIME = "application/vnd.google-apps.folder";
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg"]);
 const DRIVE_API = "https://www.googleapis.com/drive/v3";
 
+export function escapeDriveQuery(value) {
+  return String(value)
+    .replaceAll("\\", "\\\\")
+    .replaceAll("'", "\\'");
+}
+
 export function isSupportedImage(file) {
   const mimeOk = file.mimeType === "image/jpeg" || file.mimeType === "image/png";
   const extension = path.extname(file.name ?? "").toLowerCase();
@@ -64,12 +70,14 @@ async function readJson(response) {
   return payload;
 }
 
-export function createDriveClient({ serviceAccount, fetchImpl = fetch }) {
-  const auth = new JWT({
-    email: serviceAccount.client_email,
-    key: serviceAccount.private_key,
-    scopes: ["https://www.googleapis.com/auth/drive"],
-  });
+export function createDriveClient({ serviceAccount, authClient, fetchImpl = fetch }) {
+  const auth =
+    authClient ??
+    new JWT({
+      email: serviceAccount?.client_email,
+      key: serviceAccount?.private_key,
+      scopes: ["https://www.googleapis.com/auth/drive"],
+    });
 
   async function request(url, options = {}) {
     const access = await auth.getAccessToken();
@@ -107,7 +115,7 @@ export function createDriveClient({ serviceAccount, fetchImpl = fetch }) {
   return {
     async findUniqueFolder(name) {
       const files = await listAll(
-        `name = '${name.replaceAll("'", "\\'")}' and mimeType = '${FOLDER_MIME}' and trashed = false`,
+        `name = '${escapeDriveQuery(name)}' and mimeType = '${FOLDER_MIME}' and trashed = false`,
         "id,name,mimeType",
       );
       return resolveUniqueFolder(files, name);
@@ -196,7 +204,7 @@ export function createDriveClient({ serviceAccount, fetchImpl = fetch }) {
     },
 
     async ensureChildFolder(parentId, name) {
-      const escaped = name.replaceAll("'", "\\'");
+      const escaped = escapeDriveQuery(name);
       const files = await listAll(
         `'${parentId}' in parents and name = '${escaped}' and mimeType = '${FOLDER_MIME}' and trashed = false`,
         "id,name,mimeType",

@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { isSupportedImage, filterKindleBookFolders, orphanTextFiles, resolveUniqueFolder } from "../lambda/drive.js";
+import {
+  createDriveClient,
+  escapeDriveQuery,
+  filterKindleBookFolders,
+  isSupportedImage,
+  orphanTextFiles,
+  resolveUniqueFolder,
+} from "../lambda/drive.js";
 
 const folder = (id, name) => ({
   id,
@@ -59,4 +66,76 @@ test("filterKindleBookFolders は名前がkindle_で始まるフォルダのみ�
     filterKindleBookFolders(folders).map((item) => item.id),
     ["a"],
   );
+});
+
+test("escapeDriveQuery はバックスラッシュとシングルクォートを正しくエスケープする", () => {
+  assert.equal(escapeDriveQuery("normal_folder"), "normal_folder");
+  assert.equal(escapeDriveQuery("folder's"), "folder\\'s");
+  assert.equal(escapeDriveQuery("folder\\name"), "folder\\\\name");
+  // クエリインジェクション対策: \' を含む文字列でバックスラッシュが先にエスケープされること
+  assert.equal(
+    escapeDriveQuery("test\\' or name = 'inbox"),
+    "test\\\\\\' or name = \\'inbox",
+  );
+  assert.equal(
+    escapeDriveQuery("\\' or 1=1 --"),
+    "\\\\\\' or 1=1 --",
+  );
+  assert.equal(escapeDriveQuery(12345), "12345");
+});
+
+test("findUniqueFolder はエスケープされた検索クエリを生成する", async () => {
+  const requests = [];
+  const fetchImpl = async (url) => {
+    requests.push(url.toString());
+    return new Response(
+      JSON.stringify({
+        files: [folder("folder-1", "it\\'s\\folder")],
+      }),
+      { status: 200 },
+    );
+  };
+  const drive = createDriveClient({
+    authClient: { getAccessToken: async () => "mock-token" },
+    fetchImpl,
+  });
+
+  const res = await drive.findUniqueFolder("it\\'s\\folder");
+  assert.equal(res.ok, true);
+  assert.equal(res.id, "folder-1");
+  assert.equal(requests.length, 1);
+  const parsedUrl = new URL(requests[0]);
+  assert.equal(
+    parsedUrl.searchParams.get("q"),
+    "name = 'it\\\\\\'s\\\\folder' and mimeType = 'application/vnd.google-apps.folder' and trashed = false",
+  );
+});
+
+test("ensureChildFolder はエスケープされた検索クエリでフォルダを検索・作成する", async () => {
+  const requests = [];
+  const fetchImpl = async (url, options) => {
+    requests.push({ url: url.toString(), options });
+    if (options?.method === "POST") {
+      return new Response(JSON.stringify({ id: "new-folder-id" }), { status: 200 });
+    }
+    return new Response(JSON.stringify({ files: [] }), { status: 200 });
+  };
+  const drive = createDriveClient({
+    authClient: { getAccessToken: async () => "mock-token" },
+    fetchImpl,
+  });
+
+  const id = await drive.ensureChildFolder("parent-1", "user's\\folder");
+  assert.equal(id, "new-folder-id");
+  assert.equal(requests.length, 2);
+
+  const searchUrl = new URL(requests[0].url);
+  assert.equal(
+    searchUrl.searchParams.get("q"),
+    "'parent-1' in parents and name = 'user\\'s\\\\folder' and mimeType = 'application/vnd.google-apps.folder' and trashed = false",
+  );
+
+  const postBody = JSON.parse(requests[1].options.body);
+  assert.equal(postBody.name, "user's\\folder");
+  assert.deepEqual(postBody.parents, ["parent-1"]);
 });
