@@ -3,23 +3,29 @@ import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-sec
 import { connectionSpaceId, createCraftClient, craftAppDocumentLink } from "./craft.js";
 import { createDriveClient, fileStem, orphanTextFiles } from "./drive.js";
 import { createLineClient, transcriptionFailedMessage, transcriptionSavedMessage } from "./line.js";
+import {
+  DEFAULT_AWS_REGION,
+  DEFAULT_BEDROCK_MODEL_ID,
+  DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
+  DEFAULT_CRAFT_TRANSCRIBE_FOLDER,
+  DEFAULT_TRANSCRIPTION_PROVIDER,
+  INBOX_FOLDER_NAME,
+  MIN_REMAINING_MS,
+  PROCESSED_DRIVE_FOLDER_NAME,
+} from "./const.js";
 import { createTranscription, MAX_IMAGE_BYTES } from "./transcribe/index.js";
-
-const INBOX_FOLDER_NAME = "00_notes_inbox";
-const PROCESSED_FOLDER_NAME = "01_processed";
-const MIN_REMAINING_MS = 60_000;
 
 export function settingsFromEnv(env = process.env) {
   return {
     secretId: env.SECRET_ID ?? "",
-    bedrockModelId: env.BEDROCK_MODEL_ID || "amazon.nova-lite-v1:0",
-    bedrockRegion: env.BEDROCK_REGION || env.AWS_REGION || "ap-northeast-1",
-    craftFolderName: env.CRAFT_FOLDER_NAME || "daily_note_transcribe",
+    bedrockModelId: env.BEDROCK_MODEL_ID || DEFAULT_BEDROCK_MODEL_ID,
+    bedrockRegion: env.BEDROCK_REGION || env.AWS_REGION || DEFAULT_AWS_REGION,
+    craftFolderName: env.CRAFT_FOLDER_NAME || DEFAULT_CRAFT_TRANSCRIBE_FOLDER,
     craftApiBaseUrl: env.CRAFT_API_BASE_URL ?? "",
     craftApiKey: env.CRAFT_API_KEY ?? "",
     anthropicApiKey: env.ANTHROPIC_API_KEY ?? "",
-    claudeModelId: env.CLAUDE_MODEL_ID || "claude-sonnet-5-5",
-    transcriptionProvider: env.TRANSCRIPTION_PROVIDER || "claude",
+    claudeModelId: env.CLAUDE_MODEL_ID || DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
+    transcriptionProvider: env.TRANSCRIPTION_PROVIDER || DEFAULT_TRANSCRIPTION_PROVIDER,
     googleServiceAccountJson: env.GOOGLE_SERVICE_ACCOUNT_JSON ?? "",
     lineChannelAccessToken: env.LINE_CHANNEL_ACCESS_TOKEN ?? "",
     lineUserId: env.LINE_USER_ID ?? "",
@@ -154,7 +160,7 @@ async function runPipeline(context) {
   );
   const drive = createDriveClient({ serviceAccount: credentials.serviceAccount });
   const inbox = await drive.findUniqueFolder(INBOX_FOLDER_NAME);
-  const processed = await drive.findUniqueFolder(PROCESSED_FOLDER_NAME);
+  const processed = await drive.findUniqueFolder(PROCESSED_DRIVE_FOLDER_NAME);
   const notify = createLineNotifier(credentials);
   if (!inbox.ok || !processed.ok) {
     const inboxCount = inbox.ok ? 1 : inbox.count;

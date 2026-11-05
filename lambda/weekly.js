@@ -4,10 +4,15 @@ import { createLineClient, EMPTY_WEEK_MESSAGE, fitLineText } from "./line.js";
 import { loadCredentials, settingsFromEnv } from "./index.js";
 import { combineNotes } from "./summary-prompt.js";
 import { createSummarizer } from "./summarize.js";
+import {
+  DEFAULT_CRAFT_PROCESSED_FOLDER,
+  DEFAULT_CRAFT_SUMMARY_FOLDER,
+  DEFAULT_CRAFT_TRANSCRIBE_FOLDER,
+  TOKYO_TIME_ZONE,
+  WEEKLY_LOOKBACK_DAYS,
+} from "./const.js";
 
-const TOKYO = "Asia/Tokyo";
-
-export function tokyoDate(now = new Date(), timeZone = TOKYO) {
+export function tokyoDate(now = new Date(), timeZone = TOKYO_TIME_ZONE) {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone,
     year: "numeric",
@@ -16,23 +21,23 @@ export function tokyoDate(now = new Date(), timeZone = TOKYO) {
   }).format(now);
 }
 
-export function daysBeforeTokyoDate(now = new Date(), days = 7, timeZone = TOKYO) {
+export function daysBeforeTokyoDate(now = new Date(), days = WEEKLY_LOOKBACK_DAYS, timeZone = TOKYO_TIME_ZONE) {
   const [year, month, day] = tokyoDate(now, timeZone).split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));
   date.setUTCDate(date.getUTCDate() - days);
   return date.toISOString().slice(0, 10);
 }
 
-export function createdSinceDate(now = new Date(), timeZone = TOKYO) {
-  return daysBeforeTokyoDate(now, 7, timeZone);
+export function createdSinceDate(now = new Date(), timeZone = TOKYO_TIME_ZONE) {
+  return daysBeforeTokyoDate(now, WEEKLY_LOOKBACK_DAYS, timeZone);
 }
 
 export function weeklySettingsFromEnv(env = process.env) {
   return {
     ...settingsFromEnv(env),
-    sourceFolderName: env.CRAFT_SOURCE_FOLDER_NAME || "daily_note_transcribe",
-    processedFolderName: env.CRAFT_PROCESSED_FOLDER_NAME || "processed",
-    summaryFolderName: env.CRAFT_SUMMARY_FOLDER_NAME || "daily_note_summaries",
+    sourceFolderName: env.CRAFT_SOURCE_FOLDER_NAME || DEFAULT_CRAFT_TRANSCRIBE_FOLDER,
+    processedFolderName: env.CRAFT_PROCESSED_FOLDER_NAME || DEFAULT_CRAFT_PROCESSED_FOLDER,
+    summaryFolderName: env.CRAFT_SUMMARY_FOLDER_NAME || DEFAULT_CRAFT_SUMMARY_FOLDER,
   };
 }
 

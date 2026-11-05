@@ -1,10 +1,13 @@
 import { BedrockRuntimeClient, ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
 import { summaryPrompt } from "./summary-prompt.js";
-
-const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
-const DEFAULT_CLAUDE_MODEL_ID = "claude-haiku-5-5";
-const DEFAULT_BEDROCK_MODEL_ID = "amazon.nova-lite-v1:0";
-const MAX_TOKENS = 2048;
+import {
+  ANTHROPIC_API_VERSION,
+  CLAUDE_API_URL,
+  DEFAULT_BEDROCK_MODEL_ID,
+  DEFAULT_CLAUDE_WEEKLY_MODEL_ID,
+  DEFAULT_TRANSCRIPTION_PROVIDER,
+  MAX_SUMMARY_TOKENS,
+} from "./const.js";
 
 function textFromClaude(payload) {
   return (payload.content ?? [])
@@ -24,7 +27,7 @@ function requireSummary(text) {
 
 export function createClaudeSummarizer({
   apiKey,
-  modelId = DEFAULT_CLAUDE_MODEL_ID,
+  modelId = DEFAULT_CLAUDE_WEEKLY_MODEL_ID,
   fetchImpl = fetch,
 } = {}) {
   if (!apiKey) throw new Error("Anthropic API key is required");
@@ -34,11 +37,11 @@ export function createClaudeSummarizer({
       headers: {
         "content-type": "application/json",
         "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
+        "anthropic-version": ANTHROPIC_API_VERSION,
       },
       body: JSON.stringify({
         model: modelId,
-        max_tokens: MAX_TOKENS,
+        max_tokens: MAX_SUMMARY_TOKENS,
         thinking: { type: "between_tools" },
         messages: [{ role: "user", content: summaryPrompt(notesText) }],
       }),
@@ -62,14 +65,14 @@ export function createBedrockSummarizer({
       new ConverseCommand({
         modelId,
         messages: [{ role: "user", content: [{ text: summaryPrompt(notesText) }] }],
-        inferenceConfig: { maxTokens: MAX_TOKENS, temperature: 0 },
+        inferenceConfig: { maxTokens: MAX_SUMMARY_TOKENS, temperature: 0 },
       }),
     );
     return requireSummary(textFromBedrock(response));
   };
 }
 
-export function createSummarizer({ provider = "claude", claude: claudeOptions, bedrock: bedrockOptions }) {
+export function createSummarizer({ provider = DEFAULT_TRANSCRIPTION_PROVIDER, claude: claudeOptions, bedrock: bedrockOptions }) {
   if (provider === "bedrock") return createBedrockSummarizer(bedrockOptions);
   if (provider === "claude") return createClaudeSummarizer(claudeOptions);
   throw new Error(`Unknown transcription provider: ${provider}`);

@@ -7,9 +7,22 @@ import { NodejsFunction, OutputFormat } from "aws-cdk-lib/aws-lambda-nodejs";
 import { Schedule, ScheduleExpression } from "aws-cdk-lib/aws-scheduler";
 import { LambdaInvoke } from "aws-cdk-lib/aws-scheduler-targets";
 import { Secret } from "aws-cdk-lib/aws-secretsmanager";
+import {
+  DEFAULT_AWS_REGION,
+  DEFAULT_BEDROCK_MODEL_ID,
+  DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
+  DEFAULT_CLAUDE_WEEKLY_MODEL_ID,
+  DEFAULT_CRAFT_PROCESSED_FOLDER,
+  DEFAULT_CRAFT_SUMMARY_FOLDER,
+  DEFAULT_CRAFT_TRANSCRIBE_FOLDER,
+  DEFAULT_KINDLE_BOOK_PREFIX,
+  DEFAULT_KINDLE_DRIVE_PARENT,
+  DEFAULT_KINDLE_PROCESSED_FOLDER,
+  DEFAULT_KINDLE_SUMMARY_DOC_TITLE,
+  DEFAULT_TRANSCRIPTION_PROVIDER,
+} from "../lambda/const.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const MODEL_ID = "amazon.nova-lite-v1:0";
 
 const bundling = {
   format: OutputFormat.ESM,
@@ -54,12 +67,12 @@ class NotesPipelineStack extends Stack {
       reservedConcurrentExecutions: 1,
       environment: {
         SECRET_ID: secret.secretArn,
-        BEDROCK_MODEL_ID: MODEL_ID,
+        BEDROCK_MODEL_ID: DEFAULT_BEDROCK_MODEL_ID,
         BEDROCK_REGION: this.region,
-        CRAFT_FOLDER_NAME: "daily_note_transcribe",
+        CRAFT_FOLDER_NAME: DEFAULT_CRAFT_TRANSCRIBE_FOLDER,
         // "claude" or "bedrock"
-        TRANSCRIPTION_PROVIDER: "claude",
-        CLAUDE_MODEL_ID: "claude-sonnet-5-5",
+        TRANSCRIPTION_PROVIDER: DEFAULT_TRANSCRIPTION_PROVIDER,
+        CLAUDE_MODEL_ID: DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
       },
       bundling,
     });
@@ -76,13 +89,13 @@ class NotesPipelineStack extends Stack {
       reservedConcurrentExecutions: 1,
       environment: {
         SECRET_ID: secret.secretArn,
-        BEDROCK_MODEL_ID: MODEL_ID,
+        BEDROCK_MODEL_ID: DEFAULT_BEDROCK_MODEL_ID,
         BEDROCK_REGION: this.region,
-        TRANSCRIPTION_PROVIDER: "claude",
-        CLAUDE_MODEL_ID: "claude-haiku-5-5",
-        CRAFT_SOURCE_FOLDER_NAME: "daily_note_transcribe",
-        CRAFT_PROCESSED_FOLDER_NAME: "processed",
-        CRAFT_SUMMARY_FOLDER_NAME: "daily_note_summaries",
+        TRANSCRIPTION_PROVIDER: DEFAULT_TRANSCRIPTION_PROVIDER,
+        CLAUDE_MODEL_ID: DEFAULT_CLAUDE_WEEKLY_MODEL_ID,
+        CRAFT_SOURCE_FOLDER_NAME: DEFAULT_CRAFT_TRANSCRIBE_FOLDER,
+        CRAFT_PROCESSED_FOLDER_NAME: DEFAULT_CRAFT_PROCESSED_FOLDER,
+        CRAFT_SUMMARY_FOLDER_NAME: DEFAULT_CRAFT_SUMMARY_FOLDER,
       },
       bundling,
     });
@@ -91,8 +104,8 @@ class NotesPipelineStack extends Stack {
       new PolicyStatement({
         actions: ["bedrock:InvokeModel", "bedrock:Converse"],
         resources: [
-          `arn:aws:bedrock:${this.region}::foundation-model/${MODEL_ID}`,
-          `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/${MODEL_ID}`,
+          `arn:aws:bedrock:${this.region}::foundation-model/${DEFAULT_BEDROCK_MODEL_ID}`,
+          `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/${DEFAULT_BEDROCK_MODEL_ID}`,
         ],
       });
 
@@ -113,7 +126,7 @@ class NotesPipelineStack extends Stack {
       reservedConcurrentExecutions: 1,
       environment: {
         SECRET_ID: secret.secretArn,
-        CRAFT_SUMMARY_FOLDER_NAME: "daily_note_summaries",
+        CRAFT_SUMMARY_FOLDER_NAME: DEFAULT_CRAFT_SUMMARY_FOLDER,
       },
       bundling,
     });
@@ -132,14 +145,14 @@ class NotesPipelineStack extends Stack {
       reservedConcurrentExecutions: 1,
       environment: {
         SECRET_ID: secret.secretArn,
-        BEDROCK_MODEL_ID: MODEL_ID,
+        BEDROCK_MODEL_ID: DEFAULT_BEDROCK_MODEL_ID,
         BEDROCK_REGION: this.region,
-        TRANSCRIPTION_PROVIDER: "claude",
-        CLAUDE_MODEL_ID: "claude-sonnet-5-5",
-        KINDLE_DRIVE_PARENT_FOLDER_NAME: "kindle",
-        KINDLE_BOOK_FOLDER_PREFIX: "kindle_",
-        KINDLE_PROCESSED_FOLDER_NAME: "processed",
-        KINDLE_SUMMARY_DOC_TITLE: "要約",
+        TRANSCRIPTION_PROVIDER: DEFAULT_TRANSCRIPTION_PROVIDER,
+        CLAUDE_MODEL_ID: DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
+        KINDLE_DRIVE_PARENT_FOLDER_NAME: DEFAULT_KINDLE_DRIVE_PARENT,
+        KINDLE_BOOK_FOLDER_PREFIX: DEFAULT_KINDLE_BOOK_PREFIX,
+        KINDLE_PROCESSED_FOLDER_NAME: DEFAULT_KINDLE_PROCESSED_FOLDER,
+        KINDLE_SUMMARY_DOC_TITLE: DEFAULT_KINDLE_SUMMARY_DOC_TITLE,
       },
       bundling,
     });
@@ -221,6 +234,6 @@ const app = new App();
 new NotesPipelineStack(app, "NotesPipelineStack", {
   env: {
     account: process.env.CDK_DEFAULT_ACCOUNT,
-    region: process.env.CDK_DEFAULT_REGION || "ap-northeast-1",
+    region: process.env.CDK_DEFAULT_REGION || DEFAULT_AWS_REGION,
   },
 });

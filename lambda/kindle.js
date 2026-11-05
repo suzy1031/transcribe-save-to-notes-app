@@ -4,18 +4,25 @@ import { createDriveClient } from "./drive.js";
 import { loadCredentials, settingsFromEnv } from "./index.js";
 import { createKindleSummarizer } from "./kindle-summarize.js";
 import { createLineClient, kindleFailedMessage, kindleRunSummaryMessage } from "./line.js";
-
-export const ALL_CRAFT_DOCUMENTS_SINCE = "1970-01-01";
-export const MIN_REMAINING_MS = 60_000;
+import {
+  ALL_CRAFT_DOCUMENTS_SINCE,
+  DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
+  DEFAULT_KINDLE_BOOK_PREFIX,
+  DEFAULT_KINDLE_DRIVE_PARENT,
+  DEFAULT_KINDLE_PROCESSED_FOLDER,
+  DEFAULT_KINDLE_SUMMARY_DOC_TITLE,
+  MIN_REMAINING_MS,
+} from "./const.js";
 
 export function kindleSettingsFromEnv(env = process.env) {
   return {
     ...settingsFromEnv(env),
-    driveParentFolderName: env.KINDLE_DRIVE_PARENT_FOLDER_NAME || "kindle",
-    bookFolderPrefix: env.KINDLE_BOOK_FOLDER_PREFIX || "kindle_",
-    processedFolderName: env.KINDLE_PROCESSED_FOLDER_NAME || "processed",
-    summaryDocTitle: env.KINDLE_SUMMARY_DOC_TITLE || "要約",
-    kindleClaudeModelId: env.KINDLE_CLAUDE_MODEL_ID || env.CLAUDE_MODEL_ID || "claude-sonnet-5-5",
+    driveParentFolderName: env.KINDLE_DRIVE_PARENT_FOLDER_NAME || DEFAULT_KINDLE_DRIVE_PARENT,
+    bookFolderPrefix: env.KINDLE_BOOK_FOLDER_PREFIX || DEFAULT_KINDLE_BOOK_PREFIX,
+    processedFolderName: env.KINDLE_PROCESSED_FOLDER_NAME || DEFAULT_KINDLE_PROCESSED_FOLDER,
+    summaryDocTitle: env.KINDLE_SUMMARY_DOC_TITLE || DEFAULT_KINDLE_SUMMARY_DOC_TITLE,
+    kindleClaudeModelId:
+      env.KINDLE_CLAUDE_MODEL_ID || env.CLAUDE_MODEL_ID || DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
   };
 }
 

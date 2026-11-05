@@ -1,5 +1,6 @@
 import path from "node:path";
 import { JWT } from "google-auth-library";
+import { DEFAULT_KINDLE_BOOK_PREFIX } from "./const.js";
 
 const FOLDER_MIME = "application/vnd.google-apps.folder";
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg"]);
@@ -36,7 +37,7 @@ export function resolveUniqueFolder(files, name) {
   return { ok: true, id: matches[0].id };
 }
 
-export function filterKindleBookFolders(folders, prefix = "kindle_") {
+export function filterKindleBookFolders(folders, prefix = DEFAULT_KINDLE_BOOK_PREFIX) {
   return folders.filter(
     (folder) =>
       folder.mimeType === FOLDER_MIME &&

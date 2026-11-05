@@ -1,10 +1,15 @@
 import { SYSTEM_PROMPT } from "../prompt.js";
 import { assertImageSize, parseTranscription } from "./parse.js";
+import {
+  ANTHROPIC_API_VERSION,
+  CLAUDE_API_URL,
+  DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
+  MAX_IMAGE_BYTES,
+  MAX_TRANSCRIPTION_TOKENS,
+  TRANSCRIBE_USER_PROMPT,
+} from "../const.js";
 
-const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
-const DEFAULT_MODEL_ID = "claude-sonnet-5-5";
-
-export const maxImageBytes = 7 * 1024 * 1024;
+export { MAX_IMAGE_BYTES as maxImageBytes };
 
 function mediaType(mimeType) {
   if (mimeType === "image/png") return "image/png";
@@ -14,22 +19,22 @@ function mediaType(mimeType) {
 
 export function createTranscriber({
   apiKey,
-  modelId = DEFAULT_MODEL_ID,
+  modelId = DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
   fetchImpl = fetch,
 } = {}) {
   if (!apiKey) throw new Error("Anthropic API key is required");
   return async function transcribe({ bytes, mimeType }) {
-    assertImageSize(bytes, maxImageBytes);
+    assertImageSize(bytes, MAX_IMAGE_BYTES);
     const response = await fetchImpl(CLAUDE_API_URL, {
       method: "POST",
       headers: {
         "content-type": "application/json",
         "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
+        "anthropic-version": ANTHROPIC_API_VERSION,
       },
       body: JSON.stringify({
         model: modelId,
-        max_tokens: 4096,
+        max_tokens: MAX_TRANSCRIPTION_TOKENS,
         thinking: { type: "between_tools" },
         system: SYSTEM_PROMPT,
         messages: [
@@ -44,7 +49,7 @@ export function createTranscriber({
                   data: Buffer.from(bytes).toString("base64"),
                 },
               },
-              { type: "text", text: "この手書きノート画像を読み取ってください。" },
+              { type: "text", text: TRANSCRIBE_USER_PROMPT },
             ],
           },
         ],

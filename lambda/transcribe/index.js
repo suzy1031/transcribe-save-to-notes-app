@@ -1,9 +1,10 @@
 import * as bedrock from "./bedrock.js";
 import * as claude from "./claude.js";
+import { DEFAULT_TRANSCRIPTION_PROVIDER } from "../const.js";
 
 const providers = { bedrock, claude };
 
-export function createTranscription({ provider = "claude", claude: claudeOptions, bedrock: bedrockOptions }) {
+export function createTranscription({ provider = DEFAULT_TRANSCRIPTION_PROVIDER, claude: claudeOptions, bedrock: bedrockOptions }) {
   const selected = providers[provider];
   if (!selected) {
     throw new Error(`Unknown transcription provider: ${provider}`);

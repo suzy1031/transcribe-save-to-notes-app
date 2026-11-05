@@ -7,16 +7,17 @@ import {
   reminderFailedMessage,
   transcriptionSavedMessage,
 } from "./line.js";
+import { DEFAULT_CRAFT_SUMMARY_FOLDER, REMINDER_LOOKBACK_DAYS } from "./const.js";
 import { daysBeforeTokyoDate } from "./weekly.js";
 
 export function reminderTargetDate(now = new Date()) {
-  return daysBeforeTokyoDate(now, 7);
+  return daysBeforeTokyoDate(now, REMINDER_LOOKBACK_DAYS);
 }
 
 export function reminderSettingsFromEnv(env = process.env) {
   return {
     ...settingsFromEnv(env),
-    summaryFolderName: env.CRAFT_SUMMARY_FOLDER_NAME || "daily_note_summaries",
+    summaryFolderName: env.CRAFT_SUMMARY_FOLDER_NAME || DEFAULT_CRAFT_SUMMARY_FOLDER,
   };
 }
 
