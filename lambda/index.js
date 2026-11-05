@@ -102,6 +102,13 @@ export async function processInbox({
         summary.processed += 1;
         continue;
       }
+      const listedSize = file.size != null && file.size !== "" ? Number(file.size) : Number.NaN;
+      if (Number.isFinite(listedSize) && listedSize > maxImageBytes) {
+        summary.skipped += 1;
+        log.error(`Skipped ${file.name}: image exceeds the size limit`);
+        await notifyFailed({ fileName: file.name, reason: "image exceeds the size limit" });
+        continue;
+      }
       const bytes = await download(file);
       log.info(`画像ファイル取得成功 ${file.name}`);
       if (bytes.byteLength > maxImageBytes) {

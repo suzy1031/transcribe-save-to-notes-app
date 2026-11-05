@@ -93,10 +93,28 @@ test("新規ノートは解決したCraftフォルダに作成してから移動
 
 test("サイズ超過の画像は受信箱に残す", async () => {
   const { calls, run } = pipeline({
-    download: async () => Buffer.alloc(MAX_IMAGE_BYTES + 1),
+    files: [{ ...image, size: String(MAX_IMAGE_BYTES + 1) }],
+    download: async () => {
+      throw new Error("should not download");
+    },
   });
   const summary = await run();
   assert.equal(summary.skipped, 1);
+  assert.equal(calls.download, 0);
+  assert.equal(calls.move.length, 0);
+  assert.equal(calls.create.length, 0);
+});
+
+test("一覧にサイズが無い場合はダウンロード後にサイズ超過を判定する", async () => {
+  const { calls, run } = pipeline({
+    download: async () => {
+      calls.download += 1;
+      return Buffer.alloc(MAX_IMAGE_BYTES + 1);
+    },
+  });
+  const summary = await run();
+  assert.equal(summary.skipped, 1);
+  assert.equal(calls.download, 1);
   assert.equal(calls.move.length, 0);
   assert.equal(calls.create.length, 0);
 });
