@@ -116,7 +116,7 @@ export function createDriveClient({ serviceAccount, fetchImpl = fetch }) {
     async listImages(folderId) {
       const files = await listAll(
         `'${folderId}' in parents and trashed = false and (mimeType = 'image/jpeg' or mimeType = 'image/png')`,
-        "id,name,mimeType,appProperties",
+        "id,name,mimeType,size,appProperties",
       );
       return files.filter(isSupportedImage);
     },
