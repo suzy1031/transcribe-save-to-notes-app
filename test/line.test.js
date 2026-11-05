@@ -11,14 +11,14 @@ import {
 } from "../lambda/line.js";
 import { craftAppDocumentLink } from "../lambda/craft.js";
 
-test("fitLineText keeps a short message and cuts at 5000 characters", () => {
+test("fitLineText は短いメッセージをそのまま返し5000文字で切り詰める", () => {
   assert.equal(fitLineText("こんにちは"), "こんにちは");
   const long = "あ".repeat(LINE_TEXT_LIMIT + 25);
   assert.equal(fitLineText(long).length, LINE_TEXT_LIMIT);
   assert.equal(fitLineText(long), "あ".repeat(LINE_TEXT_LIMIT));
 });
 
-test("transcription LINE messages name the saved title and the failed file", () => {
+test("文字起こし用LINEメッセージに保存タイトルと失敗ファイル名が含まれる", () => {
   const link = craftAppDocumentLink("space-1", "doc-1");
   assert.equal(transcriptionSavedMessage("2026/11/02", link), `2026/11/02\n${link}`);
   assert.equal(transcriptionSavedMessage("2026/11/02", ""), "2026/11/02");
@@ -32,7 +32,7 @@ test("transcription LINE messages name the saved title and the failed file", () 
   );
 });
 
-test("push sends one text message with the channel token", async () => {
+test("push はチャンネルトークンでテキストメッセージを1件送る", async () => {
   const calls = [];
   const fetchImpl = async (url, options) => {
     calls.push({
@@ -56,7 +56,7 @@ test("push sends one text message with the channel token", async () => {
   });
 });
 
-test("push throws when LINE rejects the message", async () => {
+test("LINEが拒否した場合pushは例外を投げる", async () => {
   const line = createLineClient({
     channelAccessToken: "channel-token",
     userId: "U123",

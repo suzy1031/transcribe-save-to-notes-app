@@ -3,7 +3,7 @@ import test from "node:test";
 import { combineNotes, summaryPrompt } from "../lambda/summary-prompt.js";
 import { createBedrockSummarizer, createClaudeSummarizer } from "../lambda/summarize.js";
 
-test("summaryPrompt includes the weekly headings and combined notes", () => {
+test("summaryPrompt に週次見出しと結合ノートが含まれる", () => {
   const notes = combineNotes([
     { title: "月曜", markdown: "会議メモ" },
     { title: "火曜", markdown: "決定事項" },
@@ -17,7 +17,7 @@ test("summaryPrompt includes the weekly headings and combined notes", () => {
   assert.match(prompt, /---\n# 月曜\n\n会議メモ\n\n# 火曜\n\n決定事項/);
 });
 
-test("createClaudeSummarizer sends the prompt and returns the text", async () => {
+test("createClaudeSummarizer はプロンプトを送りテキストを返す", async () => {
   let body;
   const summarize = createClaudeSummarizer({
     apiKey: "anthropic-key",
@@ -37,7 +37,7 @@ test("createClaudeSummarizer sends the prompt and returns the text", async () =>
   assert.equal(body.payload.messages[0].content.includes("ノート"), true);
 });
 
-test("createBedrockSummarizer sends the prompt and returns the text", async () => {
+test("createBedrockSummarizer はプロンプトを送りテキストを返す", async () => {
   let command;
   const summarize = createBedrockSummarizer({
     modelId: "amazon.nova-lite-v1:0",

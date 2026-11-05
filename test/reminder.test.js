@@ -21,19 +21,19 @@ function reminder(overrides) {
   return { calls, run: () => processReminder(deps) };
 }
 
-test("reminderTargetDate is seven calendar days before the Tokyo date", () => {
+test("reminderTargetDate は東京日付の7暦日前を返す", () => {
   assert.equal(tokyoDate(sundayNov8), "2026-11-08");
   assert.equal(reminderTargetDate(sundayNov8), "2026-11-01");
 });
 
-test("no matching note sends the fixed LINE message", async () => {
+test("一致するノートがない場合は固定のLINEメッセージを送る", async () => {
   const { calls, run } = reminder({ documents: [] });
   const result = await run();
   assert.deepEqual(result, { reminded: 0 });
   assert.deepEqual(calls.push, [EMPTY_REMINDER_MESSAGE]);
 });
 
-test("one matching note sends title and Craft app link", async () => {
+test("一致するノートが1件の場合はタイトルとCraftアプリリンクを送る", async () => {
   const { calls, run } = reminder();
   const result = await run();
   assert.deepEqual(result, { reminded: 1, documentId: "doc-1" });
@@ -45,7 +45,7 @@ test("one matching note sends title and Craft app link", async () => {
   ]);
 });
 
-test("multiple matching notes fail without sending LINE", async () => {
+test("一致するノートが複数の場合はLINEを送らず失敗する", async () => {
   const { calls, run } = reminder({
     documents: [
       { id: "doc-1", title: "a" },
@@ -56,7 +56,7 @@ test("multiple matching notes fail without sending LINE", async () => {
   assert.equal(calls.push.length, 0);
 });
 
-test("notifyReminderLineError pushes the failure message", async () => {
+test("notifyReminderLineError は失敗メッセージをpushする", async () => {
   const calls = { push: [] };
   const line = {
     push: async (text) => {
@@ -71,7 +71,7 @@ test("notifyReminderLineError pushes the failure message", async () => {
   assert.deepEqual(calls.push, [reminderFailedMessage("expected exactly one")]);
 });
 
-test("notifyReminderLineError logs when LINE credentials are missing", async () => {
+test("notifyReminderLineError はLINE認証情報がない場合にログを出す", async () => {
   const errors = [];
   const original = console.error;
   console.error = (message) => errors.push(message);

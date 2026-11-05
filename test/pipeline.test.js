@@ -45,7 +45,7 @@ function pipeline(overrides) {
   return { calls, run: () => processInbox(deps) };
 }
 
-test("a saved note notifies LINE and an empty inbox does not", async () => {
+test("保存成功時はLINE通知し、受信箱が空の場合は通知しない", async () => {
   const saved = pipeline();
   await saved.run();
   assert.deepEqual(saved.calls.saved, [{ title: "朝のメモ", documentId: "doc-1" }]);
@@ -57,7 +57,7 @@ test("a saved note notifies LINE and an empty inbox does not", async () => {
   assert.equal(empty.calls.failed.length, 0);
 });
 
-test("a transcription failure notifies LINE and leaves the image in the inbox", async () => {
+test("文字起こし失敗時はLINE通知し画像を受信箱に残す", async () => {
   const { calls, run } = pipeline({
     transcribe: async () => {
       throw new Error("model failed");
@@ -70,7 +70,7 @@ test("a transcription failure notifies LINE and leaves the image in the inbox", 
   assert.equal(calls.saved.length, 0);
 });
 
-test("an existing craftDocumentId is moved without creating another document", async () => {
+test("既存のcraftDocumentIdがある場合は新規作成せず移動する", async () => {
   const { calls, run } = pipeline({
     files: [{ ...image, appProperties: { craftDocumentId: "doc-existing" } }],
     download: async () => {
@@ -83,7 +83,7 @@ test("an existing craftDocumentId is moved without creating another document", a
   assert.equal(calls.move[0].craftDocumentId, "doc-existing");
 });
 
-test("a new note is created in the resolved Craft folder and then moved", async () => {
+test("新規ノートは解決したCraftフォルダに作成してから移動する", async () => {
   const { calls, run } = pipeline();
   const summary = await run();
   assert.equal(summary.processed, 1);
@@ -91,7 +91,7 @@ test("a new note is created in the resolved Craft folder and then moved", async 
   assert.equal(calls.move[0].craftDocumentId, "doc-1");
 });
 
-test("an oversized image stays in the inbox", async () => {
+test("サイズ超過の画像は受信箱に残す", async () => {
   const { calls, run } = pipeline({
     download: async () => Buffer.alloc(MAX_IMAGE_BYTES + 1),
   });
@@ -101,7 +101,7 @@ test("an oversized image stays in the inbox", async () => {
   assert.equal(calls.create.length, 0);
 });
 
-test("processInbox logs fetch, transcription, and Craft save", async () => {
+test("processInbox は取得・文字起こし・Craft保存をログに記録する", async () => {
   const lines = [];
   const { run } = pipeline({
     log: {
@@ -123,7 +123,7 @@ test("processInbox logs fetch, transcription, and Craft save", async () => {
   ]);
 });
 
-test("an empty inbox logs that no image was found", async () => {
+test("受信箱が空の場合は画像なしをログに記録する", async () => {
   const lines = [];
   const { calls, run } = pipeline({
     files: [],
@@ -140,13 +140,13 @@ test("an empty inbox logs that no image was found", async () => {
   assert.equal(calls.create.length, 0);
 });
 
-test("a moved image removes its companion text", async () => {
+test("移動した画像は付随テキストを削除する", async () => {
   const { calls, run } = pipeline();
   await run();
   assert.deepEqual(calls.removed, ["note.png"]);
 });
 
-test("a transcription failure leaves the companion text", async () => {
+test("文字起こし失敗時は付随テキストを残す", async () => {
   const { calls, run } = pipeline({
     transcribe: async () => {
       throw new Error("model failed");
@@ -156,7 +156,7 @@ test("a transcription failure leaves the companion text", async () => {
   assert.equal(calls.removed.length, 0);
 });
 
-test("a Craft create failure does not move the image", async () => {
+test("Craft作成失敗時は画像を移動しない", async () => {
   const { calls, run } = pipeline({
     createDocument: async () => {
       throw new Error("craft failed");

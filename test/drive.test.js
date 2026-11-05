@@ -8,20 +8,20 @@ const folder = (id, name) => ({
   mimeType: "application/vnd.google-apps.folder",
 });
 
-test("isSupportedImage accepts png, jpg, and jpeg", () => {
+test("isSupportedImage はpng・jpg・jpegを受け付ける", () => {
   assert.equal(isSupportedImage({ name: "note.png", mimeType: "image/png" }), true);
   assert.equal(isSupportedImage({ name: "note.jpg", mimeType: "image/jpeg" }), true);
   assert.equal(isSupportedImage({ name: "note.JPEG", mimeType: "image/jpeg" }), true);
 });
 
-test("isSupportedImage rejects other types even when the mime type is an image", () => {
+test("isSupportedImage はmimeがimageでも他形式を拒否する", () => {
   assert.equal(isSupportedImage({ name: "note.pdf", mimeType: "application/pdf" }), false);
   assert.equal(isSupportedImage({ name: "note.heic", mimeType: "image/heic" }), false);
   assert.equal(isSupportedImage({ name: "note.heic", mimeType: "image/jpeg" }), false);
   assert.equal(isSupportedImage({ name: "note.txt", mimeType: "text/plain" }), false);
 });
 
-test("orphanTextFiles keeps a txt while its image remains", () => {
+test("orphanTextFiles は画像が残る間は対応txtを残す", () => {
   const texts = [
     { id: "t1", name: "2026.10.30.txt" },
     { id: "t2", name: "note.TXT" },
@@ -33,7 +33,7 @@ test("orphanTextFiles keeps a txt while its image remains", () => {
   );
 });
 
-test("resolveUniqueFolder requires exactly one folder name", () => {
+test("resolveUniqueFolder はフォルダ名がちょうど1件であることを要求する", () => {
   assert.equal(resolveUniqueFolder([], "00_notes_inbox").ok, false);
   assert.deepEqual(
     resolveUniqueFolder([folder("a", "00_notes_inbox")], "00_notes_inbox"),
@@ -48,7 +48,7 @@ test("resolveUniqueFolder requires exactly one folder name", () => {
   );
 });
 
-test("filterKindleBookFolders keeps only folders whose names start with kindle_", () => {
+test("filterKindleBookFolders は名前がkindle_で始まるフォルダのみ残す", () => {
   const folders = [
     folder("a", "kindle_book_one"),
     folder("b", "processed"),
