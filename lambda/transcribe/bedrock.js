@@ -1,10 +1,14 @@
 import { BedrockRuntimeClient, ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
 import { SYSTEM_PROMPT } from "../prompt.js";
 import { assertImageSize, parseTranscription } from "./parse.js";
+import {
+  DEFAULT_BEDROCK_MODEL_ID,
+  MAX_IMAGE_BYTES,
+  MAX_TRANSCRIPTION_TOKENS,
+  TRANSCRIBE_USER_PROMPT,
+} from "../const.js";
 
-const DEFAULT_MODEL_ID = "amazon.nova-lite-v1:0";
-
-export const maxImageBytes = 7 * 1024 * 1024;
+export { MAX_IMAGE_BYTES as maxImageBytes };
 
 function imageFormat(mimeType) {
   if (mimeType === "image/png") return "png";
@@ -14,11 +18,11 @@ function imageFormat(mimeType) {
 
 export function createTranscriber({
   region,
-  modelId = DEFAULT_MODEL_ID,
+  modelId = DEFAULT_BEDROCK_MODEL_ID,
   client = new BedrockRuntimeClient({ region }),
 } = {}) {
   return async function transcribe({ bytes, mimeType }) {
-    assertImageSize(bytes, maxImageBytes);
+    assertImageSize(bytes, MAX_IMAGE_BYTES);
     const response = await client.send(
       new ConverseCommand({
         modelId,
@@ -27,7 +31,7 @@ export function createTranscriber({
           {
             role: "user",
             content: [
-              { text: "この手書きノート画像を読み取ってください。" },
+              { text: TRANSCRIBE_USER_PROMPT },
               {
                 image: {
                   format: imageFormat(mimeType),
@@ -37,7 +41,7 @@ export function createTranscriber({
             ],
           },
         ],
-        inferenceConfig: { maxTokens: 4096, temperature: 0 },
+        inferenceConfig: { maxTokens: MAX_TRANSCRIPTION_TOKENS, temperature: 0 },
       }),
     );
     const text = (response.output?.message?.content ?? [])

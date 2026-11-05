@@ -15,6 +15,8 @@ Google Drive の手書き画像を文字起こしし、Craft に保存して処�
 
 ```
 infra/app.js            CDK（Lambda、Scheduler、Secrets Manager）
+lambda/const.ts           共有定数
+lambda/const.js           const.ts の re-export（ESM 解決用）
 lambda/index.js         朝のパイプライン
 lambda/weekly.js        週次要約
 lambda/reminder.js      週次リマインド

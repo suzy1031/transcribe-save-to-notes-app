@@ -1,3 +1,5 @@
+import { JSON_CONTENT_TYPE } from "./const.js";
+
 const CHILD_KEYS = ["folders", "children", "subfolders"];
 
 export function findFolderIds(payload, name) {
@@ -66,14 +68,14 @@ export function connectionSpaceId(payload) {
   return id;
 }
 
-async function craftRequest(baseUrl, apiKey, path, { method, body, fetchImpl, accept = "application/json" }) {
+async function craftRequest(baseUrl, apiKey, path, { method, body, fetchImpl, accept = JSON_CONTENT_TYPE }) {
   const url = `${baseUrl.replace(/\/$/, "")}${path}`;
   const response = await fetchImpl(url, {
     method,
     headers: {
       accept,
       authorization: `Bearer ${apiKey}`,
-      ...(body === undefined ? {} : { "content-type": "application/json" }),
+      ...(body === undefined ? {} : { "content-type": JSON_CONTENT_TYPE }),
     },
     body: body === undefined ? undefined : JSON.stringify(body),
   });
@@ -81,7 +83,7 @@ async function craftRequest(baseUrl, apiKey, path, { method, body, fetchImpl, ac
   if (!response.ok) {
     throw new Error(`Craft ${method} ${path} failed: ${response.status} ${text.slice(0, 300)}`);
   }
-  if (accept !== "application/json") return text;
+  if (accept !== JSON_CONTENT_TYPE) return text;
   return text === "" ? {} : JSON.parse(text);
 }
 

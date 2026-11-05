@@ -2,11 +2,15 @@ import { BedrockRuntimeClient, ConverseCommand } from "@aws-sdk/client-bedrock-r
 import { assertImageSize } from "./transcribe/parse.js";
 import { maxImageBytes } from "./transcribe/claude.js";
 import { KINDLE_SYSTEM_PROMPT, KINDLE_USER_PROMPT } from "./kindle-prompt.js";
-
-const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
-const DEFAULT_CLAUDE_MODEL_ID = "claude-sonnet-5-5";
-const DEFAULT_BEDROCK_MODEL_ID = "amazon.nova-lite-v1:0";
-const MAX_TOKENS = 2048;
+import {
+  ANTHROPIC_API_VERSION,
+  CLAUDE_API_URL,
+  DEFAULT_BEDROCK_MODEL_ID,
+  DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
+  DEFAULT_TRANSCRIPTION_PROVIDER,
+  JSON_CONTENT_TYPE,
+  MAX_SUMMARY_TOKENS,
+} from "./const.js";
 
 function mediaType(mimeType) {
   if (mimeType === "image/png") return "image/png";
@@ -38,7 +42,7 @@ function textFromBedrock(response) {
 
 export function createClaudeKindleSummarizer({
   apiKey,
-  modelId = DEFAULT_CLAUDE_MODEL_ID,
+  modelId = DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
   fetchImpl = fetch,
 } = {}) {
   if (!apiKey) throw new Error("Anthropic API key is required");
@@ -47,13 +51,13 @@ export function createClaudeKindleSummarizer({
     const response = await fetchImpl(CLAUDE_API_URL, {
       method: "POST",
       headers: {
-        "content-type": "application/json",
+        "content-type": JSON_CONTENT_TYPE,
         "x-api-key": apiKey,
-        "anthropic-version": "2023-06-01",
+        "anthropic-version": ANTHROPIC_API_VERSION,
       },
       body: JSON.stringify({
         model: modelId,
-        max_tokens: MAX_TOKENS,
+        max_tokens: MAX_SUMMARY_TOKENS,
         thinking: { type: "between_tools" },
         system: KINDLE_SYSTEM_PROMPT,
         messages: [
@@ -108,7 +112,7 @@ export function createBedrockKindleSummarizer({
             ],
           },
         ],
-        inferenceConfig: { maxTokens: MAX_TOKENS, temperature: 0 },
+        inferenceConfig: { maxTokens: MAX_SUMMARY_TOKENS, temperature: 0 },
       }),
     );
     return requireSummary(textFromBedrock(response));
@@ -116,7 +120,7 @@ export function createBedrockKindleSummarizer({
 }
 
 export function createKindleSummarizer({
-  provider = "claude",
+  provider = DEFAULT_TRANSCRIPTION_PROVIDER,
   claude: claudeOptions,
   bedrock: bedrockOptions,
 }) {
