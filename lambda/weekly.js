@@ -1,4 +1,5 @@
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
+import { formatWeeklyUsage, getWeeklyUsage } from "./claude-usage.js";
 import { createCraftClient } from "./craft.js";
 import { createLineClient, EMPTY_WEEK_MESSAGE, fitLineText } from "./line.js";
 import { loadCredentials, settingsFromEnv } from "./index.js";
@@ -53,6 +54,14 @@ export async function loadWeeklyCredentials(settings, secretsClient) {
     lineChannelAccessToken: settings.lineChannelAccessToken,
     lineUserId: settings.lineUserId,
   };
+}
+
+export async function reportWeeklyUsage({ getUsage, pushLine, log = console.log }) {
+  const item = await getUsage();
+  const text = formatWeeklyUsage(item);
+  log(text);
+  if (item && pushLine) await pushLine(text);
+  return { item, text };
 }
 
 export async function processWeekly({
@@ -143,5 +152,13 @@ async function runWeekly() {
     now,
   });
   console.log(`週次要約 ${summary.summarized}件`);
+  try {
+    await reportWeeklyUsage({
+      getUsage: () => getWeeklyUsage({ now }),
+      pushLine: (text) => line.push(text),
+    });
+  } catch (error) {
+    console.error(`Claude利用量の参照に失敗: ${error.message}`);
+  }
   return summary;
 }
