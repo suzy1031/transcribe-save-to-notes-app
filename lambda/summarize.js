@@ -1,4 +1,5 @@
 import { BedrockRuntimeClient, ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
+import { recordWeeklyUsage } from "./claude-usage.js";
 import { summaryPrompt } from "./summary-prompt.js";
 import {
   ANTHROPIC_API_VERSION,
@@ -31,6 +32,7 @@ export function createClaudeSummarizer({
   apiKey,
   modelId = DEFAULT_CLAUDE_WEEKLY_MODEL_ID,
   fetchImpl = fetch,
+  recordUsage = recordWeeklyUsage,
 } = {}) {
   if (!apiKey) throw new Error("Anthropic API key is required");
   return async function summarize(notesText) {
@@ -56,6 +58,11 @@ export function createClaudeSummarizer({
       const detail = payload.error?.message ?? response.statusText;
       throw new Error(`Claude summary failed: ${response.status} ${detail}`);
     }
+    await recordUsage({
+      functionName: "weekly",
+      modelId: payload.model || modelId,
+      usage: payload.usage ?? {},
+    });
     return requireSummary(textFromClaude(payload));
   };
 }
