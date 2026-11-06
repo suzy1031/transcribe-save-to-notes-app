@@ -1,3 +1,4 @@
+import { recordWeeklyUsage } from "../claude-usage.js";
 import { SYSTEM_PROMPT } from "../prompt.js";
 import { assertImageSize, parseTranscription } from "./parse.js";
 import {
@@ -22,6 +23,7 @@ export function createTranscriber({
   apiKey,
   modelId = DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
   fetchImpl = fetch,
+  recordUsage = recordWeeklyUsage,
 } = {}) {
   if (!apiKey) throw new Error("Anthropic API key is required");
   return async function transcribe({ bytes, mimeType }) {
@@ -61,6 +63,11 @@ export function createTranscriber({
       const detail = payload.error?.message ?? response.statusText;
       throw new Error(`Claude transcription failed: ${response.status} ${detail}`);
     }
+    await recordUsage({
+      functionName: "index",
+      modelId: payload.model || modelId,
+      usage: payload.usage ?? {},
+    });
     const text = (payload.content ?? [])
       .filter((block) => block.type === "text")
       .map((block) => block.text ?? "")

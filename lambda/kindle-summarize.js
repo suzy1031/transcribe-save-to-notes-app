@@ -1,4 +1,5 @@
 import { BedrockRuntimeClient, ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
+import { recordWeeklyUsage } from "./claude-usage.js";
 import { assertImageSize } from "./transcribe/parse.js";
 import { maxImageBytes } from "./transcribe/claude.js";
 import { KINDLE_SYSTEM_PROMPT, KINDLE_USER_PROMPT } from "./kindle-prompt.js";
@@ -44,6 +45,7 @@ export function createClaudeKindleSummarizer({
   apiKey,
   modelId = DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
   fetchImpl = fetch,
+  recordUsage = recordWeeklyUsage,
 } = {}) {
   if (!apiKey) throw new Error("Anthropic API key is required");
   return async function summarizeImage({ bytes, mimeType }) {
@@ -83,6 +85,11 @@ export function createClaudeKindleSummarizer({
       const detail = payload.error?.message ?? response.statusText;
       throw new Error(`Claude kindle summary failed: ${response.status} ${detail}`);
     }
+    await recordUsage({
+      functionName: "kindle",
+      modelId: payload.model || modelId,
+      usage: payload.usage ?? {},
+    });
     return requireSummary(textFromClaude(payload));
   };
 }
