@@ -1,6 +1,7 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { App, Duration, RemovalPolicy, Stack, TimeZone } from "aws-cdk-lib";
+import { AttributeType, BillingMode, Table } from "aws-cdk-lib/aws-dynamodb";
 import { OpenIdConnectProvider, PolicyStatement, Role, WebIdentityPrincipal } from "aws-cdk-lib/aws-iam";
 import { Runtime, RuntimeFamily } from "aws-cdk-lib/aws-lambda";
 import { NodejsFunction, OutputFormat } from "aws-cdk-lib/aws-lambda-nodejs";
@@ -56,6 +57,13 @@ class NotesPipelineStack extends Stack {
       },
     });
 
+    const claudeUsage = new Table(this, "ClaudeUsage", {
+      tableName: "notes-pipeline-claude-usage",
+      partitionKey: { name: "pk", type: AttributeType.STRING },
+      billingMode: BillingMode.PAY_PER_REQUEST,
+      removalPolicy: RemovalPolicy.RETAIN,
+    });
+
     const fn = new NodejsFunction(this, "Handler", {
       entry: path.join(__dirname, "../lambda/index.js"),
       projectRoot: path.join(__dirname, ".."),
@@ -73,6 +81,7 @@ class NotesPipelineStack extends Stack {
         // "claude" or "bedrock"
         TRANSCRIPTION_PROVIDER: DEFAULT_TRANSCRIPTION_PROVIDER,
         CLAUDE_MODEL_ID: DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
+        CLAUDE_USAGE_TABLE_NAME: claudeUsage.tableName,
       },
       bundling,
     });
@@ -96,6 +105,7 @@ class NotesPipelineStack extends Stack {
         CRAFT_SOURCE_FOLDER_NAME: DEFAULT_CRAFT_TRANSCRIBE_FOLDER,
         CRAFT_PROCESSED_FOLDER_NAME: DEFAULT_CRAFT_PROCESSED_FOLDER,
         CRAFT_SUMMARY_FOLDER_NAME: DEFAULT_CRAFT_SUMMARY_FOLDER,
+        CLAUDE_USAGE_TABLE_NAME: claudeUsage.tableName,
       },
       bundling,
     });
@@ -153,12 +163,16 @@ class NotesPipelineStack extends Stack {
         KINDLE_BOOK_FOLDER_PREFIX: DEFAULT_KINDLE_BOOK_PREFIX,
         KINDLE_PROCESSED_FOLDER_NAME: DEFAULT_KINDLE_PROCESSED_FOLDER,
         KINDLE_SUMMARY_DOC_TITLE: DEFAULT_KINDLE_SUMMARY_DOC_TITLE,
+        CLAUDE_USAGE_TABLE_NAME: claudeUsage.tableName,
       },
       bundling,
     });
 
     secret.grantRead(kindle);
     kindle.addToRolePolicy(bedrockAccess());
+    claudeUsage.grantWriteData(fn);
+    claudeUsage.grantReadWriteData(weekly);
+    claudeUsage.grantWriteData(kindle);
 
     const githubOidc = new OpenIdConnectProvider(this, "GitHubOidc", {
       url: "https://token.actions.githubusercontent.com",
