@@ -7,11 +7,52 @@ import {
   reminderFailedMessage,
   transcriptionSavedMessage,
 } from "./line.js";
-import { DEFAULT_CRAFT_SUMMARY_FOLDER, REMINDER_LOOKBACK_DAYS } from "./const.js";
+import {
+  ALL_CRAFT_DOCUMENTS_SINCE,
+  DEFAULT_CRAFT_SUMMARY_FOLDER,
+  REMINDER_LOOKBACK_DAYS,
+} from "./const.js";
 import { daysBeforeTokyoDate } from "./weekly.js";
+
+export const REMINDER_TITLE_PREFIX = "週次まとめ ";
 
 export function reminderTargetDate(now = new Date()) {
   return daysBeforeTokyoDate(now, REMINDER_LOOKBACK_DAYS);
+}
+
+export function reminderTitleCandidates(targetDate) {
+  const [year, month, day] = targetDate.split("-").map(Number);
+  if (!year || !month || !day) {
+    throw new Error(`Invalid reminder targetDate: ${targetDate}`);
+  }
+  const padded = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  return [
+    `${REMINDER_TITLE_PREFIX}${padded}`,
+    `${REMINDER_TITLE_PREFIX}${year}-${month}-${day}`,
+  ];
+}
+
+export function filterDocumentsByReminderTitle(documents, targetDate) {
+  const candidates = new Set(reminderTitleCandidates(targetDate));
+  return documents.filter((doc) => candidates.has(String(doc.title ?? "").trim()));
+}
+
+export async function listReminderDocuments(craft, summaryFolderId, targetDate) {
+  const byCreatedDate = await craft.listDocuments({
+    folderId: summaryFolderId,
+    createdDateGte: targetDate,
+    createdDateLte: targetDate,
+  });
+  if (byCreatedDate.length > 0) {
+    return { documents: byCreatedDate, matchedBy: "createdDate" };
+  }
+
+  const inFolder = await craft.listDocuments({
+    folderId: summaryFolderId,
+    createdDateGte: ALL_CRAFT_DOCUMENTS_SINCE,
+  });
+  const byTitle = filterDocumentsByReminderTitle(inFolder, targetDate);
+  return { documents: byTitle, matchedBy: byTitle.length > 0 ? "title" : "none" };
 }
 
 export function reminderSettingsFromEnv(env = process.env) {
@@ -112,11 +153,14 @@ async function runReminder() {
 
     const now = new Date();
     const targetDate = reminderTargetDate(now);
-    const documents = await craft.listDocuments({
-      folderId: summaryFolderId,
-      createdDateGte: targetDate,
-      createdDateLte: targetDate,
-    });
+    const { documents, matchedBy } = await listReminderDocuments(
+      craft,
+      summaryFolderId,
+      targetDate,
+    );
+    if (matchedBy === "title") {
+      console.log(`週次リマインド: 作成日0件のためタイトルで ${documents.length} 件 (${targetDate})`);
+    }
     const result = await processReminder({
       documents,
       pushLine: (text) => line.push(text),
