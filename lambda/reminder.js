@@ -5,7 +5,7 @@ import {
   createLineClient,
   EMPTY_REMINDER_MESSAGE,
   reminderFailedMessage,
-  transcriptionSavedMessage,
+  reminderDeliveredMessage,
 } from "./line.js";
 import {
   ALL_CRAFT_DOCUMENTS_SINCE,
@@ -88,7 +88,7 @@ export async function processReminder({ documents, pushLine, spaceId, targetDate
 
   const document = documents[0];
   const link = spaceId ? craftAppDocumentLink(spaceId, document.id) : "";
-  await pushLine(transcriptionSavedMessage(document.title, link));
+  await pushLine(reminderDeliveredMessage(document.title, link));
   return { reminded: 1, documentId: document.id };
 }
 

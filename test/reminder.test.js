@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { craftAppDocumentLink } from "../lambda/craft.js";
-import { EMPTY_REMINDER_MESSAGE, reminderFailedMessage, transcriptionSavedMessage } from "../lambda/line.js";
+import { EMPTY_REMINDER_MESSAGE, reminderDeliveredMessage, reminderFailedMessage } from "../lambda/line.js";
 import {
   filterDocumentsByReminderTitle,
   listReminderDocuments,
@@ -82,7 +82,7 @@ test("一致するノートが1件の場合はタイトルとCraftアプリリ�
   const result = await run();
   assert.deepEqual(result, { reminded: 1, documentId: "doc-1" });
   assert.deepEqual(calls.push, [
-    transcriptionSavedMessage(
+    reminderDeliveredMessage(
       "週次まとめ 2026-11-01",
       craftAppDocumentLink("space-1", "doc-1"),
     ),

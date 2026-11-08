@@ -7,6 +7,7 @@ import {
   LINE_TEXT_LIMIT,
   transcriptionFailedMessage,
   transcriptionSavedMessage,
+  reminderDeliveredMessage,
   reminderFailedMessage,
 } from "../lambda/line.js";
 import { craftAppDocumentLink } from "../lambda/craft.js";
@@ -22,6 +23,10 @@ test("文字起こし用LINEメッセージに保存タイトルと失敗ファ�
   const link = craftAppDocumentLink("space-1", "doc-1");
   assert.equal(transcriptionSavedMessage("2026/11/02", link), `2026/11/02\n${link}`);
   assert.equal(transcriptionSavedMessage("2026/11/02", ""), "2026/11/02");
+  assert.equal(
+    reminderDeliveredMessage("週次まとめ 2026-11-01", link),
+    `【リマインダー】\n週次まとめ 2026-11-01\n${link}`,
+  );
   assert.equal(
     transcriptionFailedMessage("note.png", "model failed"),
     "文字起こしに失敗しました\nnote.png\nmodel failed",

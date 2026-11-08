@@ -11,6 +11,12 @@ export function transcriptionSavedMessage(title, appLink) {
   return fitLineText(lines.join("\n"));
 }
 
+export function reminderDeliveredMessage(title, appLink) {
+  const lines = ["【リマインダー】", String(title).trim()];
+  if (appLink) lines.push(appLink);
+  return fitLineText(lines.join("\n"));
+}
+
 export function transcriptionFailedMessage(fileName, reason) {
   return fitLineText(`文字起こしに失敗しました\n${fileName}\n${reason}`);
 }
