@@ -150,8 +150,12 @@ sequenceDiagram
     Reminder->>Craft: getConnection (spaceId)
     Note over Reminder: targetDate = 今日(JST) − 7日
     Reminder->>Craft: listDocuments(createdDateGte/Lte = targetDate)
+    opt 作成日0件
+        Reminder->>Craft: listDocuments(folder, createdDateGte=全期間)
+        Note over Reminder: タイトル「週次まとめ {targetDate}」で絞り込み
+    end
 
-    alt 0 件
+    alt 0 件（作成日・タイトルとも）
         Reminder->>Line: EMPTY_REMINDER_MESSAGE
         Reminder-->>Scheduler: { reminded: 0 }
     else 2 件以上

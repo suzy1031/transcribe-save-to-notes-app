@@ -48,7 +48,6 @@ export function createClaudeSummarizer({
         body: JSON.stringify({
           model: modelId,
           max_tokens: MAX_SUMMARY_TOKENS,
-          thinking: { type: "between_tools" },
           messages: [{ role: "user", content: summaryPrompt(notesText) }],
         }),
       }),
