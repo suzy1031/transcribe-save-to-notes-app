@@ -10,6 +10,7 @@ import {
   MAX_TRANSCRIPTION_TOKENS,
   TRANSCRIBE_USER_PROMPT,
 } from "../const.js";
+import { withFetchTimeout } from "../fetch-with-timeout.js";
 
 export { MAX_IMAGE_BYTES as maxImageBytes };
 
@@ -28,36 +29,39 @@ export function createTranscriber({
   if (!apiKey) throw new Error("Anthropic API key is required");
   return async function transcribe({ bytes, mimeType }) {
     assertImageSize(bytes, MAX_IMAGE_BYTES);
-    const response = await fetchImpl(CLAUDE_API_URL, {
-      method: "POST",
-      headers: {
-        "content-type": JSON_CONTENT_TYPE,
-        "x-api-key": apiKey,
-        "anthropic-version": ANTHROPIC_API_VERSION,
-      },
-      body: JSON.stringify({
-        model: modelId,
-        max_tokens: MAX_TRANSCRIPTION_TOKENS,
-        thinking: { type: "between_tools" },
-        system: SYSTEM_PROMPT,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "image",
-                source: {
-                  type: "base64",
-                  media_type: mediaType(mimeType),
-                  data: Buffer.from(bytes).toString("base64"),
+    const response = await fetchImpl(
+      CLAUDE_API_URL,
+      withFetchTimeout({
+        method: "POST",
+        headers: {
+          "content-type": JSON_CONTENT_TYPE,
+          "x-api-key": apiKey,
+          "anthropic-version": ANTHROPIC_API_VERSION,
+        },
+        body: JSON.stringify({
+          model: modelId,
+          max_tokens: MAX_TRANSCRIPTION_TOKENS,
+          thinking: { type: "between_tools" },
+          system: SYSTEM_PROMPT,
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "image",
+                  source: {
+                    type: "base64",
+                    media_type: mediaType(mimeType),
+                    data: Buffer.from(bytes).toString("base64"),
+                  },
                 },
-              },
-              { type: "text", text: TRANSCRIBE_USER_PROMPT },
-            ],
-          },
-        ],
+                { type: "text", text: TRANSCRIBE_USER_PROMPT },
+              ],
+            },
+          ],
+        }),
       }),
-    });
+    );
     const payload = await response.json();
     if (!response.ok) {
       const detail = payload.error?.message ?? response.statusText;
