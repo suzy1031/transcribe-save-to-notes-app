@@ -1,6 +1,6 @@
 import { BedrockRuntimeClient, ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
 import { recordWeeklyUsage } from "./claude-usage.js";
-import { summaryPrompt } from "./summary-prompt.js";
+import { SUMMARY_SYSTEM_PROMPT, wrapSummaryNotes } from "./summary-prompt.js";
 import {
   ANTHROPIC_API_VERSION,
   CLAUDE_API_URL,
@@ -36,6 +36,7 @@ export function createClaudeSummarizer({
 } = {}) {
   if (!apiKey) throw new Error("Anthropic API key is required");
   return async function summarize(notesText) {
+    const userContent = wrapSummaryNotes(notesText);
     const response = await fetchImpl(
       CLAUDE_API_URL,
       withFetchTimeout({
@@ -48,7 +49,8 @@ export function createClaudeSummarizer({
         body: JSON.stringify({
           model: modelId,
           max_tokens: MAX_SUMMARY_TOKENS,
-          messages: [{ role: "user", content: summaryPrompt(notesText) }],
+          system: SUMMARY_SYSTEM_PROMPT,
+          messages: [{ role: "user", content: userContent }],
         }),
       }),
     );
@@ -75,7 +77,8 @@ export function createBedrockSummarizer({
     const response = await client.send(
       new ConverseCommand({
         modelId,
-        messages: [{ role: "user", content: [{ text: summaryPrompt(notesText) }] }],
+        system: [{ text: SUMMARY_SYSTEM_PROMPT }],
+        messages: [{ role: "user", content: [{ text: wrapSummaryNotes(notesText) }] }],
         inferenceConfig: { maxTokens: MAX_SUMMARY_TOKENS, temperature: 0 },
       }),
     );
