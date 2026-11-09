@@ -1,4 +1,5 @@
 import { JSON_CONTENT_TYPE } from "./const.js";
+import { withFetchTimeout } from "./fetch-with-timeout.js";
 
 const CHILD_KEYS = ["folders", "children", "subfolders"];
 
@@ -70,15 +71,18 @@ export function connectionSpaceId(payload) {
 
 async function craftRequest(baseUrl, apiKey, path, { method, body, fetchImpl, accept = JSON_CONTENT_TYPE }) {
   const url = `${baseUrl.replace(/\/$/, "")}${path}`;
-  const response = await fetchImpl(url, {
-    method,
-    headers: {
-      accept,
-      authorization: `Bearer ${apiKey}`,
-      ...(body === undefined ? {} : { "content-type": JSON_CONTENT_TYPE }),
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  const response = await fetchImpl(
+    url,
+    withFetchTimeout({
+      method,
+      headers: {
+        accept,
+        authorization: `Bearer ${apiKey}`,
+        ...(body === undefined ? {} : { "content-type": JSON_CONTENT_TYPE }),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }),
+  );
   const text = await response.text();
   if (!response.ok) {
     throw new Error(`Craft ${method} ${path} failed: ${response.status} ${text.slice(0, 300)}`);

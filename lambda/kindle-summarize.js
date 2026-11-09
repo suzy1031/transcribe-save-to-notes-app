@@ -12,6 +12,7 @@ import {
   JSON_CONTENT_TYPE,
   MAX_SUMMARY_TOKENS,
 } from "./const.js";
+import { withFetchTimeout } from "./fetch-with-timeout.js";
 
 function mediaType(mimeType) {
   if (mimeType === "image/png") return "image/png";
@@ -50,36 +51,39 @@ export function createClaudeKindleSummarizer({
   if (!apiKey) throw new Error("Anthropic API key is required");
   return async function summarizeImage({ bytes, mimeType }) {
     assertImageSize(bytes, maxImageBytes);
-    const response = await fetchImpl(CLAUDE_API_URL, {
-      method: "POST",
-      headers: {
-        "content-type": JSON_CONTENT_TYPE,
-        "x-api-key": apiKey,
-        "anthropic-version": ANTHROPIC_API_VERSION,
-      },
-      body: JSON.stringify({
-        model: modelId,
-        max_tokens: MAX_SUMMARY_TOKENS,
-        thinking: { type: "between_tools" },
-        system: KINDLE_SYSTEM_PROMPT,
-        messages: [
-          {
-            role: "user",
-            content: [
-              {
-                type: "image",
-                source: {
-                  type: "base64",
-                  media_type: mediaType(mimeType),
-                  data: Buffer.from(bytes).toString("base64"),
+    const response = await fetchImpl(
+      CLAUDE_API_URL,
+      withFetchTimeout({
+        method: "POST",
+        headers: {
+          "content-type": JSON_CONTENT_TYPE,
+          "x-api-key": apiKey,
+          "anthropic-version": ANTHROPIC_API_VERSION,
+        },
+        body: JSON.stringify({
+          model: modelId,
+          max_tokens: MAX_SUMMARY_TOKENS,
+          thinking: { type: "between_tools" },
+          system: KINDLE_SYSTEM_PROMPT,
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "image",
+                  source: {
+                    type: "base64",
+                    media_type: mediaType(mimeType),
+                    data: Buffer.from(bytes).toString("base64"),
+                  },
                 },
-              },
-              { type: "text", text: KINDLE_USER_PROMPT },
-            ],
-          },
-        ],
+                { type: "text", text: KINDLE_USER_PROMPT },
+              ],
+            },
+          ],
+        }),
       }),
-    });
+    );
     const payload = await response.json();
     if (!response.ok) {
       const detail = payload.error?.message ?? response.statusText;

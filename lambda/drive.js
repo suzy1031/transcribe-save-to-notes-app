@@ -1,6 +1,7 @@
 import path from "node:path";
 import { JWT } from "google-auth-library";
 import { DEFAULT_KINDLE_BOOK_PREFIX, JSON_CONTENT_TYPE } from "./const.js";
+import { withFetchTimeout } from "./fetch-with-timeout.js";
 
 const FOLDER_MIME = "application/vnd.google-apps.folder";
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg"]);
@@ -83,14 +84,17 @@ export function createDriveClient({ serviceAccount, authClient, fetchImpl = fetc
     const access = await auth.getAccessToken();
     const token = typeof access === "string" ? access : access?.token;
     if (!token) throw new Error("Google access token was empty");
-    return fetchImpl(url, {
-      ...options,
-      headers: {
-        authorization: `Bearer ${token}`,
-        ...(options.body ? { "content-type": JSON_CONTENT_TYPE } : {}),
-        ...options.headers,
-      },
-    });
+    return fetchImpl(
+      url,
+      withFetchTimeout({
+        ...options,
+        headers: {
+          authorization: `Bearer ${token}`,
+          ...(options.body ? { "content-type": JSON_CONTENT_TYPE } : {}),
+          ...options.headers,
+        },
+      }),
+    );
   }
 
   async function listAll(query, fields) {
