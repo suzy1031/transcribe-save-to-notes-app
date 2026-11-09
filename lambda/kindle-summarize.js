@@ -13,6 +13,7 @@ import {
   MAX_SUMMARY_TOKENS,
 } from "./const.js";
 import { withFetchTimeout } from "./fetch-with-timeout.js";
+import { sanitizeErrorMessage } from "./sanitize-error.js";
 
 function mediaType(mimeType) {
   if (mimeType === "image/png") return "image/png";
@@ -86,7 +87,7 @@ export function createClaudeKindleSummarizer({
     );
     const payload = await response.json();
     if (!response.ok) {
-      const detail = payload.error?.message ?? response.statusText;
+      const detail = sanitizeErrorMessage(payload.error?.message ?? response.statusText);
       throw new Error(`Claude kindle summary failed: ${response.status} ${detail}`);
     }
     await recordUsage({

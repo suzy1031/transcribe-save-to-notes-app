@@ -4,6 +4,7 @@ import { createDriveClient } from "./drive.js";
 import { loadCredentials, settingsFromEnv } from "./index.js";
 import { createKindleSummarizer } from "./kindle-summarize.js";
 import { createLineClient, kindleFailedMessage, kindleRunSummaryMessage } from "./line.js";
+import { sanitizeErrorMessage } from "./sanitize-error.js";
 import {
   ALL_CRAFT_DOCUMENTS_SINCE,
   DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
@@ -121,8 +122,9 @@ export async function processKindleBooks({
         log.info(`Kindle要約 end ${bookFolder.name}/${file.name}`);
       } catch (error) {
         result.imagesFailed += 1;
-        result.errors.push(`${bookFolder.name}/${file.name}: ${error.message}`);
-        log.error(`Kindle要約失敗 ${bookFolder.name}/${file.name}: ${error.message}`);
+        const message = sanitizeErrorMessage(error.message);
+        result.errors.push(`${bookFolder.name}/${file.name}: ${message}`);
+        log.error(`Kindle要約失敗 ${bookFolder.name}/${file.name}: ${message}`);
       }
     }
 
@@ -166,7 +168,7 @@ async function runKindle(context) {
   try {
     craftSpaceId = connectionSpaceId(await craft.getConnection());
   } catch (error) {
-    console.error(`Craft connection lookup failed: ${error.message}`);
+    console.error(`Craft connection lookup failed: ${sanitizeErrorMessage(error.message)}`);
   }
 
   const parent = await drive.findUniqueFolder(settings.driveParentFolderName);
@@ -248,6 +250,6 @@ async function pushLine(line, text) {
     await line.push(text);
     console.log("LINE通知");
   } catch (error) {
-    console.error(`LINE通知失敗: ${error.message}`);
+    console.error(`LINE通知失敗: ${sanitizeErrorMessage(error.message)}`);
   }
 }

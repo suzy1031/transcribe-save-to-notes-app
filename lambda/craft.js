@@ -1,5 +1,6 @@
 import { JSON_CONTENT_TYPE } from "./const.js";
 import { withFetchTimeout } from "./fetch-with-timeout.js";
+import { formatHttpErrorDetail } from "./sanitize-error.js";
 
 const CHILD_KEYS = ["folders", "children", "subfolders"];
 
@@ -85,7 +86,9 @@ async function craftRequest(baseUrl, apiKey, path, { method, body, fetchImpl, ac
   );
   const text = await response.text();
   if (!response.ok) {
-    throw new Error(`Craft ${method} ${path} failed: ${response.status} ${text.slice(0, 300)}`);
+    throw new Error(
+      `Craft ${method} ${path} failed: ${formatHttpErrorDetail(response.status, text, response.statusText)}`,
+    );
   }
   if (accept !== JSON_CONTENT_TYPE) return text;
   return text === "" ? {} : JSON.parse(text);

@@ -12,6 +12,7 @@ import {
   DEFAULT_CRAFT_SUMMARY_FOLDER,
   REMINDER_LOOKBACK_DAYS,
 } from "./const.js";
+import { sanitizeErrorMessage } from "./sanitize-error.js";
 import { daysBeforeTokyoDate } from "./weekly.js";
 
 export const REMINDER_TITLE_PREFIX = "週次まとめ ";
@@ -148,7 +149,7 @@ async function runReminder() {
     try {
       spaceId = connectionSpaceId(await craft.getConnection());
     } catch (error) {
-      console.error(`Craft connection lookup failed: ${error.message}`);
+      console.error(`Craft connection lookup failed: ${sanitizeErrorMessage(error.message)}`);
     }
 
     const now = new Date();

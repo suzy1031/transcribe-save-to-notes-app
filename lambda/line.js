@@ -1,5 +1,6 @@
 import { JSON_CONTENT_TYPE } from "./const.js";
 import { withFetchTimeout } from "./fetch-with-timeout.js";
+import { formatHttpErrorDetail, sanitizeErrorMessage } from "./sanitize-error.js";
 
 export const LINE_PUSH_URL = "https://api.line.me/v2/bot/message/push";
 export const LINE_TEXT_LIMIT = 5000;
@@ -19,11 +20,13 @@ export function reminderDeliveredMessage(title, appLink) {
 }
 
 export function transcriptionFailedMessage(fileName, reason) {
-  return fitLineText(`文字起こしに失敗しました\n${fileName}\n${reason}`);
+  return fitLineText(
+    `文字起こしに失敗しました\n${fileName}\n${sanitizeErrorMessage(reason)}`,
+  );
 }
 
 export function kindleFailedMessage(reason) {
-  return fitLineText(`Kindle要約に失敗しました\n${String(reason).trim()}`);
+  return fitLineText(`Kindle要約に失敗しました\n${sanitizeErrorMessage(reason)}`);
 }
 
 export function kindleRunSummaryMessage({ summarized, failed, links }) {
@@ -36,7 +39,7 @@ export function kindleRunSummaryMessage({ summarized, failed, links }) {
 }
 
 export function reminderFailedMessage(reason) {
-  return fitLineText(`週次リマインドに失敗しました\n${String(reason).trim()}`);
+  return fitLineText(`週次リマインドに失敗しました\n${sanitizeErrorMessage(reason)}`);
 }
 
 export function fitLineText(text, limit = LINE_TEXT_LIMIT) {
@@ -70,7 +73,7 @@ export function createLineClient({ channelAccessToken, userId, fetchImpl = fetch
       );
       const body = await response.text();
       if (!response.ok) {
-        throw new Error(`LINE push failed: ${response.status} ${body.slice(0, 300)}`);
+        throw new Error(`LINE push failed: ${formatHttpErrorDetail(response.status, body, response.statusText)}`);
       }
     },
   };

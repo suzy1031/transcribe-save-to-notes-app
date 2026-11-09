@@ -13,6 +13,7 @@ import {
   MIN_REMAINING_MS,
   PROCESSED_DRIVE_FOLDER_NAME,
 } from "./const.js";
+import { sanitizeErrorMessage } from "./sanitize-error.js";
 import { createTranscription, MAX_IMAGE_BYTES } from "./transcribe/index.js";
 
 export function settingsFromEnv(env = process.env) {
@@ -136,15 +137,16 @@ export async function processInbox({
       await notifySaved({ title: note.title, documentId: craftDocumentId });
     } catch (error) {
       summary.failed += 1;
+      const message = sanitizeErrorMessage(error.message);
       if (stage === "画像ファイル取得") {
-        log.error(`画像ファイル取得失敗 ${file.name}: ${error.message}`);
+        log.error(`画像ファイル取得失敗 ${file.name}: ${message}`);
       } else if (stage === "移動") {
-        log.error(`移動失敗 ${file.name}: ${error.message}`);
+        log.error(`移動失敗 ${file.name}: ${message}`);
       } else {
-        log.error(`${stage}失敗 ${file.name}: ${error.message}`);
+        log.error(`${stage}失敗 ${file.name}: ${message}`);
         log.info(`${stage} end ${file.name}`);
       }
-      await notifyFailed({ fileName: file.name, reason: error.message });
+      await notifyFailed({ fileName: file.name, reason: message });
     }
   }
   return summary;
@@ -197,7 +199,7 @@ async function runPipeline(context) {
   try {
     craftSpaceId = connectionSpaceId(await craft.getConnection());
   } catch (error) {
-    console.error(`Craft connection lookup failed: ${error.message}`);
+    console.error(`Craft connection lookup failed: ${sanitizeErrorMessage(error.message)}`);
   }
   const transcription = createTranscription({
     provider: settings.transcriptionProvider,
@@ -272,7 +274,7 @@ async function pushLine(line, text) {
     await line.push(text);
     console.log("LINE通知");
   } catch (error) {
-    console.error(`LINE通知失敗: ${error.message}`);
+    console.error(`LINE通知失敗: ${sanitizeErrorMessage(error.message)}`);
   }
 }
 
@@ -290,7 +292,7 @@ async function discardInboxText({
     console.log(`txt削除 ${textFile.name}`);
   } catch (error) {
     if (error.status !== 403) {
-      console.error(`txt削除失敗 ${textFile.name}: ${error.message}`);
+      console.error(`txt削除失敗 ${textFile.name}: ${sanitizeErrorMessage(error.message)}`);
       return;
     }
     try {
@@ -301,7 +303,7 @@ async function discardInboxText({
       });
       console.log(`txt移動 ${textFile.name}`);
     } catch (moveError) {
-      console.error(`txt削除失敗 ${textFile.name}: ${moveError.message}`);
+      console.error(`txt削除失敗 ${textFile.name}: ${sanitizeErrorMessage(moveError.message)}`);
     }
   }
 }
