@@ -4,6 +4,7 @@ import { App, Duration, RemovalPolicy, Stack, TimeZone } from "aws-cdk-lib";
 import { AttributeType, BillingMode, Table } from "aws-cdk-lib/aws-dynamodb";
 import { OpenIdConnectProvider, PolicyStatement, Role, WebIdentityPrincipal } from "aws-cdk-lib/aws-iam";
 import { Runtime, RuntimeFamily } from "aws-cdk-lib/aws-lambda";
+import { RetentionDays } from "aws-cdk-lib/aws-logs";
 import { NodejsFunction, OutputFormat } from "aws-cdk-lib/aws-lambda-nodejs";
 import { Schedule, ScheduleExpression } from "aws-cdk-lib/aws-scheduler";
 import { LambdaInvoke } from "aws-cdk-lib/aws-scheduler-targets";
@@ -31,6 +32,8 @@ const bundling = {
   mainFields: ["module", "main"],
   banner: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
 };
+
+const lambdaLogRetention = RetentionDays.ONE_MONTH;
 
 class NotesPipelineStack extends Stack {
   constructor(scope, id, props) {
@@ -84,6 +87,7 @@ class NotesPipelineStack extends Stack {
         CLAUDE_USAGE_TABLE_NAME: claudeUsage.tableName,
       },
       bundling,
+      logRetention: lambdaLogRetention,
     });
 
     const weekly = new NodejsFunction(this, "WeeklySummarizer", {
@@ -108,6 +112,7 @@ class NotesPipelineStack extends Stack {
         CLAUDE_USAGE_TABLE_NAME: claudeUsage.tableName,
       },
       bundling,
+      logRetention: lambdaLogRetention,
     });
 
     const bedrockAccess = () =>
@@ -139,6 +144,7 @@ class NotesPipelineStack extends Stack {
         CRAFT_SUMMARY_FOLDER_NAME: DEFAULT_CRAFT_SUMMARY_FOLDER,
       },
       bundling,
+      logRetention: lambdaLogRetention,
     });
 
     secret.grantRead(reminder);
@@ -166,6 +172,7 @@ class NotesPipelineStack extends Stack {
         CLAUDE_USAGE_TABLE_NAME: claudeUsage.tableName,
       },
       bundling,
+      logRetention: lambdaLogRetention,
     });
 
     secret.grantRead(kindle);

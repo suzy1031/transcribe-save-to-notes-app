@@ -4,6 +4,7 @@ import { createCraftClient } from "./craft.js";
 import { createLineClient, EMPTY_WEEK_MESSAGE, fitLineText } from "./line.js";
 import { loadCredentials, settingsFromEnv } from "./index.js";
 import { combineNotes } from "./summary-prompt.js";
+import { sanitizeErrorMessage } from "./sanitize-error.js";
 import { createSummarizer } from "./summarize.js";
 import {
   DEFAULT_CRAFT_PROCESSED_FOLDER,
@@ -158,7 +159,7 @@ async function runWeekly() {
       pushLine: (text) => line.push(text),
     });
   } catch (error) {
-    console.error(`Claude利用量の参照に失敗: ${error.message}`);
+    console.error(`Claude利用量の参照に失敗: ${sanitizeErrorMessage(error.message)}`);
   }
   return summary;
 }

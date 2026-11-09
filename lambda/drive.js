@@ -2,6 +2,7 @@ import path from "node:path";
 import { JWT } from "google-auth-library";
 import { DEFAULT_KINDLE_BOOK_PREFIX, JSON_CONTENT_TYPE } from "./const.js";
 import { withFetchTimeout } from "./fetch-with-timeout.js";
+import { formatHttpErrorDetail, parseApiErrorDetail, sanitizeErrorMessage } from "./sanitize-error.js";
 
 const FOLDER_MIME = "application/vnd.google-apps.folder";
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg"]);
@@ -65,7 +66,10 @@ async function readJson(response) {
   const text = await response.text();
   const payload = text === "" ? {} : JSON.parse(text);
   if (!response.ok) {
-    const message = payload.error?.message ?? text.slice(0, 300);
+    const message =
+      typeof payload.error?.message === "string"
+        ? sanitizeErrorMessage(payload.error.message)
+        : parseApiErrorDetail(text).slice(0, 200) || response.statusText || String(response.status);
     throw new Error(`Drive API ${response.status}: ${message}`);
   }
   return payload;
@@ -149,7 +153,7 @@ export function createDriveClient({ serviceAccount, authClient, fetchImpl = fetc
       const response = await request(url);
       if (!response.ok) {
         const text = await response.text();
-        throw new Error(`Drive download ${response.status}: ${text.slice(0, 300)}`);
+        throw new Error(`Drive download ${formatHttpErrorDetail(response.status, text, response.statusText)}`);
       }
       return Buffer.from(await response.arrayBuffer());
     },
@@ -159,12 +163,8 @@ export function createDriveClient({ serviceAccount, authClient, fetchImpl = fetc
       const response = await request(url, { method: "DELETE" });
       if (response.ok) return;
       const text = await response.text();
-      let message = text.slice(0, 300);
-      try {
-        message = JSON.parse(text).error?.message ?? message;
-      } catch {
-        // Keep the raw response excerpt.
-      }
+      const message =
+        parseApiErrorDetail(text).slice(0, 200) || response.statusText || String(response.status);
       const error = new Error(`Drive API ${response.status}: ${message}`);
       error.status = response.status;
       throw error;

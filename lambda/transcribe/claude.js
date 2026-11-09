@@ -11,6 +11,7 @@ import {
   TRANSCRIBE_USER_PROMPT,
 } from "../const.js";
 import { withFetchTimeout } from "../fetch-with-timeout.js";
+import { sanitizeErrorMessage } from "../sanitize-error.js";
 
 export { MAX_IMAGE_BYTES as maxImageBytes };
 
@@ -64,7 +65,7 @@ export function createTranscriber({
     );
     const payload = await response.json();
     if (!response.ok) {
-      const detail = payload.error?.message ?? response.statusText;
+      const detail = sanitizeErrorMessage(payload.error?.message ?? response.statusText);
       throw new Error(`Claude transcription failed: ${response.status} ${detail}`);
     }
     await recordUsage({
