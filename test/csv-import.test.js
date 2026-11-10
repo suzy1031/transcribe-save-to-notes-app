@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { importCsvFiles } from "../lambda/csv-import.js";
 import {
+  appendTotalRow,
   gridSize,
   isCsvFile,
   parseCsv,
@@ -34,6 +35,55 @@ test("sheetTitle は日付とファイル名から作り、使えない文字を
   assert.equal(sheetTitle({ date: "2026-11-15", fileName: ".csv" }), "2026-11-15_csv");
   const long = `${"あ".repeat(120)}.csv`;
   assert.equal(sheetTitle({ date: "2026-11-15", fileName: long }).length, 100);
+});
+
+test("appendTotalRow は金額列を合計し、カンマと円記号を外す", () => {
+  assert.deepEqual(
+    appendTotalRow([
+      ["品目", "金額"],
+      ["pen", "¥1,200"],
+      ["note", "￥800円"],
+      ["empty", ""],
+    ]),
+    [
+      ["品目", "金額"],
+      ["pen", "¥1,200"],
+      ["note", "￥800円"],
+      ["empty", ""],
+      ["合計", "2000"],
+    ],
+  );
+});
+
+test("appendTotalRow は金額列が無いとき右端の数値列を合計する", () => {
+  assert.deepEqual(
+    appendTotalRow([
+      ["name", "qty"],
+      ["pen", "2"],
+      ["note", "3"],
+    ]),
+    [
+      ["name", "qty"],
+      ["pen", "2"],
+      ["note", "3"],
+      ["合計", "5"],
+    ],
+  );
+});
+
+test("appendTotalRow は金額列に数値でない値があると失敗する", () => {
+  assert.throws(
+    () =>
+      appendTotalRow([
+        ["品目", "金額"],
+        ["pen", "未定"],
+      ]),
+    /金額にできない値です/,
+  );
+});
+
+test("appendTotalRow はヘッダーだけのCSVを失敗にする", () => {
+  assert.throws(() => appendTotalRow([["金額"]]), /合計する数値がありません/);
 });
 
 test("spreadsheetAppLink はSheetsアプリで開くURLを返す", () => {
@@ -86,6 +136,7 @@ test("CSVを新しいシートへ書き、成功後に移動してLINEする", a
       assert.deepEqual(rows, [
         ["name", "qty"],
         ["pen", "2"],
+        ["合計", "2"],
       ]);
     },
     moveToProcessed: async (file) => {
@@ -142,7 +193,7 @@ test("書き込みに失敗したファイルは移動しない", async () => {
   let moved = false;
   const result = await importCsvFiles({
     files: [{ id: "file-1", name: "sales.csv" }],
-    download: async () => Buffer.from("a\n"),
+    download: async () => Buffer.from("name,qty\npen,2\n"),
     existingSheetTitles: [],
     writeSheet: async () => {
       throw new Error("sheets down");

@@ -99,3 +99,73 @@ export function gridSize(rows) {
   const columnCount = rows.reduce((max, row) => Math.max(max, row.length), 1);
   return { rowCount: Math.max(rows.length, 1), columnCount };
 }
+
+const AMOUNT_PATTERN = /^-?\d+(\.\d+)?$/;
+
+function parseAmount(value) {
+  const trimmed = String(value ?? "").trim();
+  if (trimmed === "") return null;
+  const normalized = trimmed.replace(/[¥￥円,\s]/g, "");
+  if (!AMOUNT_PATTERN.test(normalized)) {
+    throw new Error(`金額にできない値です: ${trimmed}`);
+  }
+  return Number(normalized);
+}
+
+function formatTotal(sum) {
+  if (Number.isInteger(sum)) return String(sum);
+  return String(Math.round(sum * 100) / 100);
+}
+
+function amountColumnIndex(rows) {
+  const header = rows[0].map((cell) => String(cell).trim());
+  const exact = [];
+  const contains = [];
+  header.forEach((name, index) => {
+    if (name === "金額" || name === "合計金額") exact.push(index);
+    else if (name.includes("金額")) contains.push(index);
+  });
+  if (exact.length > 0) return exact[exact.length - 1];
+  if (contains.length > 0) return contains[contains.length - 1];
+
+  const width = rows.reduce((max, row) => Math.max(max, row.length), 0);
+  for (let column = width - 1; column >= 0; column -= 1) {
+    let hasValue = false;
+    let numeric = true;
+    for (const row of rows.slice(1)) {
+      const cell = String(row[column] ?? "").trim();
+      if (cell === "") continue;
+      hasValue = true;
+      try {
+        parseAmount(cell);
+      } catch {
+        numeric = false;
+      }
+    }
+    if (numeric && hasValue) return column;
+  }
+  throw new Error("合計する数値の列がありません");
+}
+
+export function appendTotalRow(rows) {
+  if (rows.length < 2) throw new Error("合計する数値がありません");
+  const column = amountColumnIndex(rows);
+  let sum = 0;
+  let count = 0;
+  for (const row of rows.slice(1)) {
+    const parsed = parseAmount(row[column] ?? "");
+    if (parsed === null) continue;
+    sum += parsed;
+    count += 1;
+  }
+  if (count === 0) throw new Error("合計する数値がありません");
+
+  const width = Math.max(
+    rows.reduce((max, row) => Math.max(max, row.length), 0),
+    column + 1,
+  );
+  const total = Array.from({ length: width }, () => "");
+  if (column !== 0) total[0] = "合計";
+  total[column] = formatTotal(sum);
+  return [...rows, total];
+}

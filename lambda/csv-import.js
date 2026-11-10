@@ -4,7 +4,7 @@ import {
   DEFAULT_CSV_PROCESSED_FOLDER,
   DEFAULT_CSV_SPREADSHEET_ID,
 } from "./const.js";
-import { parseCsv, sheetTitle, spreadsheetAppLink, tokyoDate } from "./csv.js";
+import { parseCsv, sheetTitle, spreadsheetAppLink, tokyoDate, appendTotalRow } from "./csv.js";
 import { createDriveClient } from "./drive.js";
 import { loadCredentials, settingsFromEnv } from "./index.js";
 import {
@@ -58,8 +58,7 @@ export async function importCsvFiles({
     try {
       const bytes = await download(file);
       const text = Buffer.from(bytes).toString("utf8");
-      const rows = parseCsv(text);
-      if (rows.length === 0) throw new Error("CSVが空です");
+      const rows = appendTotalRow(parseCsv(text));
       await writeSheet({ title, rows });
       titles.add(title.toLowerCase());
     } catch (error) {
