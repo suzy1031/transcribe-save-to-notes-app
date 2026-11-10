@@ -87,6 +87,10 @@ export function spreadsheetUrl(spreadsheetId) {
   return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`;
 }
 
+export function spreadsheetAppLink(spreadsheetId) {
+  return `googlesheets://${spreadsheetUrl(spreadsheetId)}`;
+}
+
 export function valuesRange(title) {
   return `'${String(title).replaceAll("'", "''")}'!A1`;
 }

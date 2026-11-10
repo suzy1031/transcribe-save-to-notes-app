@@ -249,7 +249,7 @@ sequenceDiagram
 
 ## CsvImport — CSV をスプレッドシートへ取り込む (`lambda/csv-import.js`)
 
-Drive の `csv_inbox` にある CSV を読み、`CSV_SPREADSHEET_ID` のスプレッドシートへ実行日（JST）とファイル名の新しいシートとして書く。成功したファイルだけ `csv_processed` へ移動する。0件は LINE に「今週対象のCSVはありませんでした」。1件以上は成功件数、失敗件数、スプレッドシート URL、失敗ファイルを1通で通知する。同名シートがあるファイルは上書きしない。
+Drive の `csv_inbox` にある CSV を読み、`CSV_SPREADSHEET_ID` のスプレッドシートへ実行日（JST）とファイル名の新しいシートとして書く。成功したファイルだけ `csv_processed` へ移動する。0件は LINE に「今週対象のCSVはありませんでした」。1件以上は成功件数、失敗件数、Sheets アプリで開くリンク（`googlesheets://`）、失敗ファイルを1通で通知する。同名シートがあるファイルは上書きしない。
 
 ```mermaid
 sequenceDiagram

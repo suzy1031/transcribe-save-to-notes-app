@@ -6,6 +6,7 @@ import {
   isCsvFile,
   parseCsv,
   sheetTitle,
+  spreadsheetAppLink,
   valuesRange,
 } from "../lambda/csv.js";
 import { csvImportSummaryMessage, EMPTY_CSV_MESSAGE } from "../lambda/line.js";
@@ -35,6 +36,13 @@ test("sheetTitle は日付とファイル名から作り、使えない文字を
   assert.equal(sheetTitle({ date: "2026-11-15", fileName: long }).length, 100);
 });
 
+test("spreadsheetAppLink はSheetsアプリで開くURLを返す", () => {
+  assert.equal(
+    spreadsheetAppLink("sheet-1"),
+    "googlesheets://https://docs.google.com/spreadsheets/d/sheet-1/edit",
+  );
+});
+
 test("isCsvFile はcsv拡張子かtext/csvを受け、Googleスプレッドシートは除く", () => {
   assert.equal(isCsvFile({ name: "week.csv", mimeType: "application/octet-stream" }), true);
   assert.equal(isCsvFile({ name: "week.CSV", mimeType: "text/plain" }), true);
@@ -60,7 +68,7 @@ test("CSVが0件ならシートを作らず対象なしを通知する", async (
     pushLine: async (text) => {
       messages.push(text);
     },
-    spreadsheetUrl: "https://docs.google.com/spreadsheets/d/sheet/edit",
+    spreadsheetUrl: "googlesheets://https://docs.google.com/spreadsheets/d/sheet/edit",
   });
   assert.deepEqual(result, { imported: 0, failed: 0, failures: [] });
   assert.deepEqual(messages, [EMPTY_CSV_MESSAGE]);
@@ -86,7 +94,7 @@ test("CSVを新しいシートへ書き、成功後に移動してLINEする", a
     pushLine: async (text) => {
       order.push(text);
     },
-    spreadsheetUrl: "https://docs.google.com/spreadsheets/d/sheet/edit",
+    spreadsheetUrl: "googlesheets://https://docs.google.com/spreadsheets/d/sheet/edit",
     now: new Date("2026-11-15T01:00:00.000Z"),
   });
   assert.equal(result.imported, 1);
@@ -97,7 +105,7 @@ test("CSVを新しいシートへ書き、成功後に移動してLINEする", a
     csvImportSummaryMessage({
       imported: 1,
       failed: 0,
-      spreadsheetUrl: "https://docs.google.com/spreadsheets/d/sheet/edit",
+      spreadsheetUrl: "googlesheets://https://docs.google.com/spreadsheets/d/sheet/edit",
       failures: [],
     }),
   ]);
@@ -120,7 +128,7 @@ test("同名シートがあるファイルは上書きも移動もしない", as
       moved = true;
     },
     pushLine: async () => {},
-    spreadsheetUrl: "https://docs.google.com/spreadsheets/d/sheet/edit",
+    spreadsheetUrl: "googlesheets://https://docs.google.com/spreadsheets/d/sheet/edit",
     now: new Date("2026-11-15T01:00:00.000Z"),
   });
   assert.equal(downloaded, false);
@@ -143,7 +151,7 @@ test("書き込みに失敗したファイルは移動しない", async () => {
       moved = true;
     },
     pushLine: async () => {},
-    spreadsheetUrl: "https://docs.google.com/spreadsheets/d/sheet/edit",
+    spreadsheetUrl: "googlesheets://https://docs.google.com/spreadsheets/d/sheet/edit",
     now: new Date("2026-11-15T01:00:00.000Z"),
   });
   assert.equal(moved, false);

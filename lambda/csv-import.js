@@ -4,7 +4,7 @@ import {
   DEFAULT_CSV_PROCESSED_FOLDER,
   DEFAULT_CSV_SPREADSHEET_ID,
 } from "./const.js";
-import { parseCsv, sheetTitle, spreadsheetUrl, tokyoDate } from "./csv.js";
+import { parseCsv, sheetTitle, spreadsheetAppLink, tokyoDate } from "./csv.js";
 import { createDriveClient } from "./drive.js";
 import { loadCredentials, settingsFromEnv } from "./index.js";
 import {
@@ -152,7 +152,7 @@ async function runCsvImport() {
         removeParentId: inbox.id,
       }),
     pushLine: (text) => pushLine(line, text),
-    spreadsheetUrl: spreadsheetUrl(settings.spreadsheetId),
+    spreadsheetUrl: spreadsheetAppLink(settings.spreadsheetId),
   });
 }
 
