@@ -14,6 +14,9 @@ import {
   DEFAULT_BEDROCK_MODEL_ID,
   DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
   DEFAULT_CLAUDE_WEEKLY_MODEL_ID,
+  DEFAULT_CSV_INBOX_FOLDER,
+  DEFAULT_CSV_PROCESSED_FOLDER,
+  DEFAULT_CSV_SPREADSHEET_ID,
   DEFAULT_CRAFT_PROCESSED_FOLDER,
   DEFAULT_CRAFT_SUMMARY_FOLDER,
   DEFAULT_CRAFT_TRANSCRIBE_FOLDER,
@@ -149,6 +152,28 @@ class NotesPipelineStack extends Stack {
 
     secret.grantRead(reminder);
 
+    const csvImport = new NodejsFunction(this, "CsvImport", {
+      functionName: "csv-spreadsheet-import",
+      entry: path.join(__dirname, "../lambda/csv-import.js"),
+      projectRoot: path.join(__dirname, ".."),
+      depsLockFilePath: path.join(__dirname, "../package-lock.json"),
+      handler: "handler",
+      runtime,
+      memorySize: 512,
+      timeout: Duration.minutes(3),
+      reservedConcurrentExecutions: 1,
+      environment: {
+        SECRET_ID: secret.secretArn,
+        CSV_INBOX_FOLDER_NAME: DEFAULT_CSV_INBOX_FOLDER,
+        CSV_PROCESSED_FOLDER_NAME: DEFAULT_CSV_PROCESSED_FOLDER,
+        CSV_SPREADSHEET_ID: DEFAULT_CSV_SPREADSHEET_ID,
+      },
+      bundling,
+      logRetention: lambdaLogRetention,
+    });
+
+    secret.grantRead(csvImport);
+
     const kindle = new NodejsFunction(this, "KindleSummarizer", {
       functionName: "craft-kindle-summarizer",
       entry: path.join(__dirname, "../lambda/kindle.js"),
@@ -237,6 +262,16 @@ class NotesPipelineStack extends Stack {
         timeZone: TimeZone.ASIA_TOKYO,
       }),
       target: new LambdaInvoke(reminder, { retryAttempts: 0 }),
+    });
+
+    new Schedule(this, "CsvImportSchedule", {
+      schedule: ScheduleExpression.cron({
+        minute: "0",
+        hour: "10",
+        weekDay: "SUN",
+        timeZone: TimeZone.ASIA_TOKYO,
+      }),
+      target: new LambdaInvoke(csvImport, { retryAttempts: 0 }),
     });
 
     new Schedule(this, "KindleSummary", {

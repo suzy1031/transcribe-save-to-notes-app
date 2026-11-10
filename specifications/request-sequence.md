@@ -9,6 +9,7 @@
 | Handler | (スタック生成名) | `lambda/index.js` | 毎日 8:00–11:50、10分間隔 |
 | WeeklySummarizer | `craft-weekly-summarizer` | `lambda/weekly.js` | 毎週日曜 9:00 |
 | WeeklyReminder | `craft-weekly-reminder` | `lambda/reminder.js` | 毎週日曜 9:00 |
+| CsvImport | `csv-spreadsheet-import` | `lambda/csv-import.js` | 毎週日曜 10:00 |
 | KindleSummarizer | `craft-kindle-summarizer` | `lambda/kindle.js` | 毎週月曜 6:00 |
 
 共通: Secrets Manager (`SECRET_ID`)、`TRANSCRIPTION_PROVIDER` は `claude` または `bedrock`。
@@ -246,13 +247,59 @@ sequenceDiagram
 
 ---
 
+## CsvImport — CSV をスプレッドシートへ取り込む (`lambda/csv-import.js`)
+
+Drive の `csv_inbox` にある CSV を読み、`CSV_SPREADSHEET_ID` のスプレッドシートへ実行日（JST）とファイル名の新しいシートとして書く。成功したファイルだけ `csv_processed` へ移動する。0件は LINE に「今週対象のCSVはありませんでした」。1件以上は成功件数、失敗件数、スプレッドシート URL、失敗ファイルを1通で通知する。同名シートがあるファイルは上書きしない。
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Scheduler as EventBridge Scheduler<br/>(日曜 10:00 JST)
+    participant Csv as lambda/csv-import.js
+    participant SM as Secrets Manager
+    participant Drive as Google Drive<br/>(drive.js)
+    participant Parse as csv.js
+    participant Sheets as Google Sheets<br/>(sheets.js)
+    participant Line as LINE Push<br/>(line.js)
+
+    Scheduler->>Csv: handler
+    Csv->>SM: GetSecretValue
+    SM-->>Csv: googleServiceAccount, line
+    Csv->>Drive: findUniqueFolder(csv_inbox, csv_processed)
+    alt フォルダが一意でない
+        Csv->>Line: csvImportFailedMessage
+    else フォルダあり
+        Csv->>Drive: listCsvFiles
+        alt CSVが0件
+            Csv->>Line: 今週対象のCSVはありませんでした
+        else 1件以上
+            Csv->>Sheets: listSheetTitles
+            loop 各CSV
+                alt 同名シートあり
+                    Csv->>Csv: 失敗として残す
+                else 新規
+                    Csv->>Drive: download
+                    Csv->>Parse: parseCsv
+                    Csv->>Sheets: addSheet + values.update RAW
+                    Csv->>Drive: moveFile → csv_processed
+                end
+            end
+            Csv->>Line: csvImportSummaryMessage
+        end
+    end
+    Csv-->>Scheduler: imported / failed
+```
+
+---
+
 ## モジュール対応表（Lambda 横断）
 
-| モジュール | Handler | Weekly | Reminder | Kindle |
-|------------|:-------:|:------:|:--------:|:------:|
-| `drive.js` | ○ | — | — | ○ |
-| `craft.js` | ○ | ○ | ○ | ○ |
-| `line.js` | ○ | ○ | ○ | ○ |
-| `transcribe/*` + `prompt.js` | ○ | — | — | — |
-| `summarize.js` + `summary-prompt.js` | — | ○ | — | — |
-| `kindle-summarize.js` + `kindle-prompt.js` | — | — | — | ○ |
+| モジュール | Handler | Weekly | Reminder | Kindle | Csv |
+|------------|:-------:|:------:|:--------:|:------:|:---:|
+| `drive.js` | ○ | — | — | ○ | ○ |
+| `craft.js` | ○ | ○ | ○ | ○ | — |
+| `line.js` | ○ | ○ | ○ | ○ | ○ |
+| `transcribe/*` + `prompt.js` | ○ | — | — | — | — |
+| `summarize.js` + `summary-prompt.js` | — | ○ | — | — | — |
+| `kindle-summarize.js` + `kindle-prompt.js` | — | — | — | ○ | — |
+| `csv.js` + `sheets.js` | — | — | — | — | ○ |

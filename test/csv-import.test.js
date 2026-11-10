@@ -1,0 +1,179 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { importCsvFiles } from "../lambda/csv-import.js";
+import {
+  gridSize,
+  isCsvFile,
+  parseCsv,
+  sheetTitle,
+  valuesRange,
+} from "../lambda/csv.js";
+import { csvImportSummaryMessage, EMPTY_CSV_MESSAGE } from "../lambda/line.js";
+import { createSheetsClient } from "../lambda/sheets.js";
+
+test("parseCsv は引用符、カンマ、セル内改行、BOM、CRLFを読む", () => {
+  const text = '\uFEFFname,note\r\n"a,b","line1\nline2"\r\nplain,"say ""hi"""\r\n';
+  assert.deepEqual(parseCsv(text), [
+    ["name", "note"],
+    ["a,b", "line1\nline2"],
+    ["plain", 'say "hi"'],
+  ]);
+});
+
+test("parseCsv は閉じていない引用符を拒否する", () => {
+  assert.throws(() => parseCsv('"open'), /引用符が閉じていません/);
+});
+
+test("sheetTitle は日付とファイル名から作り、使えない文字を除く", () => {
+  assert.equal(sheetTitle({ date: "2026-11-15", fileName: "sales.csv" }), "2026-11-15_sales");
+  assert.equal(
+    sheetTitle({ date: "2026-11-15", fileName: "a:b?c*.csv" }),
+    "2026-11-15_abc",
+  );
+  assert.equal(sheetTitle({ date: "2026-11-15", fileName: ".csv" }), "2026-11-15_csv");
+  const long = `${"あ".repeat(120)}.csv`;
+  assert.equal(sheetTitle({ date: "2026-11-15", fileName: long }).length, 100);
+});
+
+test("isCsvFile はcsv拡張子かtext/csvを受け、Googleスプレッドシートは除く", () => {
+  assert.equal(isCsvFile({ name: "week.csv", mimeType: "application/octet-stream" }), true);
+  assert.equal(isCsvFile({ name: "week.CSV", mimeType: "text/plain" }), true);
+  assert.equal(isCsvFile({ name: "week", mimeType: "text/csv" }), true);
+  assert.equal(isCsvFile({ name: "week.csv", mimeType: "application/vnd.google-apps.spreadsheet" }), false);
+  assert.equal(isCsvFile({ name: "week.png", mimeType: "image/png" }), false);
+});
+
+test("CSVが0件ならシートを作らず対象なしを通知する", async () => {
+  const messages = [];
+  const result = await importCsvFiles({
+    files: [],
+    download: async () => {
+      throw new Error("download");
+    },
+    existingSheetTitles: [],
+    writeSheet: async () => {
+      throw new Error("write");
+    },
+    moveToProcessed: async () => {
+      throw new Error("move");
+    },
+    pushLine: async (text) => {
+      messages.push(text);
+    },
+    spreadsheetUrl: "https://docs.google.com/spreadsheets/d/sheet/edit",
+  });
+  assert.deepEqual(result, { imported: 0, failed: 0, failures: [] });
+  assert.deepEqual(messages, [EMPTY_CSV_MESSAGE]);
+});
+
+test("CSVを新しいシートへ書き、成功後に移動してLINEする", async () => {
+  const order = [];
+  const result = await importCsvFiles({
+    files: [{ id: "file-1", name: "sales.csv" }],
+    download: async () => Buffer.from("name,qty\npen,2\n"),
+    existingSheetTitles: [],
+    writeSheet: async ({ title, rows }) => {
+      order.push("write");
+      assert.equal(title, "2026-11-15_sales");
+      assert.deepEqual(rows, [
+        ["name", "qty"],
+        ["pen", "2"],
+      ]);
+    },
+    moveToProcessed: async (file) => {
+      order.push(`move:${file.id}`);
+    },
+    pushLine: async (text) => {
+      order.push(text);
+    },
+    spreadsheetUrl: "https://docs.google.com/spreadsheets/d/sheet/edit",
+    now: new Date("2026-11-15T01:00:00.000Z"),
+  });
+  assert.equal(result.imported, 1);
+  assert.equal(result.failed, 0);
+  assert.deepEqual(order, [
+    "write",
+    "move:file-1",
+    csvImportSummaryMessage({
+      imported: 1,
+      failed: 0,
+      spreadsheetUrl: "https://docs.google.com/spreadsheets/d/sheet/edit",
+      failures: [],
+    }),
+  ]);
+});
+
+test("同名シートがあるファイルは上書きも移動もしない", async () => {
+  let downloaded = false;
+  let moved = false;
+  const result = await importCsvFiles({
+    files: [{ id: "file-1", name: "sales.csv" }],
+    download: async () => {
+      downloaded = true;
+      return Buffer.from("a\n");
+    },
+    existingSheetTitles: ["2026-11-15_Sales"],
+    writeSheet: async () => {
+      throw new Error("write");
+    },
+    moveToProcessed: async () => {
+      moved = true;
+    },
+    pushLine: async () => {},
+    spreadsheetUrl: "https://docs.google.com/spreadsheets/d/sheet/edit",
+    now: new Date("2026-11-15T01:00:00.000Z"),
+  });
+  assert.equal(downloaded, false);
+  assert.equal(moved, false);
+  assert.equal(result.imported, 0);
+  assert.equal(result.failed, 1);
+  assert.match(result.failures[0].reason, /既にあります/);
+});
+
+test("書き込みに失敗したファイルは移動しない", async () => {
+  let moved = false;
+  const result = await importCsvFiles({
+    files: [{ id: "file-1", name: "sales.csv" }],
+    download: async () => Buffer.from("a\n"),
+    existingSheetTitles: [],
+    writeSheet: async () => {
+      throw new Error("sheets down");
+    },
+    moveToProcessed: async () => {
+      moved = true;
+    },
+    pushLine: async () => {},
+    spreadsheetUrl: "https://docs.google.com/spreadsheets/d/sheet/edit",
+    now: new Date("2026-11-15T01:00:00.000Z"),
+  });
+  assert.equal(moved, false);
+  assert.equal(result.failed, 1);
+  assert.equal(result.failures[0].reason, "sheets down");
+});
+
+test("addSheetWithValues はシートを追加してRAWで書き込む", async () => {
+  const calls = [];
+  const fetchImpl = async (url, options = {}) => {
+    calls.push({ url: String(url), body: options.body ? JSON.parse(options.body) : null });
+    if (String(url).includes(":batchUpdate")) {
+      return new Response(
+        JSON.stringify({ replies: [{ addSheet: { properties: { sheetId: 7, title: "2026-11-15_sales" } } }] }),
+        { status: 200 },
+      );
+    }
+    return new Response(JSON.stringify({ updatedCells: 2 }), { status: 200 });
+  };
+  const sheets = createSheetsClient({
+    authClient: { getAccessToken: async () => "token" },
+    fetchImpl,
+  });
+  await sheets.addSheetWithValues({
+    spreadsheetId: "sheet-id",
+    title: "2026-11-15_sales",
+    rows: [["name"], ["pen"]],
+  });
+  assert.equal(calls[1].url.includes("valueInputOption=RAW"), true);
+  assert.deepEqual(calls[1].body.values, [["name"], ["pen"]]);
+  assert.deepEqual(gridSize([["name"], ["pen"]]), { rowCount: 2, columnCount: 1 });
+  assert.equal(valuesRange("it's"), "'it''s'!A1");
+});
