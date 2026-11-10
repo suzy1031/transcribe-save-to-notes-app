@@ -6,6 +6,7 @@ export const LINE_PUSH_URL = "https://api.line.me/v2/bot/message/push";
 export const LINE_TEXT_LIMIT = 5000;
 export const EMPTY_WEEK_MESSAGE = "今週対象のノートはありませんでした";
 export const EMPTY_REMINDER_MESSAGE = "リマインドはありませんでした。";
+export const EMPTY_CSV_MESSAGE = "今週対象のCSVはありませんでした";
 
 export function transcriptionSavedMessage(title, appLink) {
   const lines = [String(title).trim()];
@@ -40,6 +41,19 @@ export function kindleRunSummaryMessage({ summarized, failed, links }) {
 
 export function reminderFailedMessage(reason) {
   return fitLineText(`週次リマインドに失敗しました\n${sanitizeErrorMessage(reason)}`);
+}
+
+export function csvImportFailedMessage(reason) {
+  return fitLineText(`CSV取り込みに失敗しました\n${sanitizeErrorMessage(reason)}`);
+}
+
+export function csvImportSummaryMessage({ imported, failed, spreadsheetUrl, failures = [] }) {
+  const lines = ["CSV取り込み完了", `成功: ${imported}件 / 失敗: ${failed}件`];
+  if (spreadsheetUrl) lines.push(spreadsheetUrl);
+  for (const failure of failures) {
+    lines.push(`${failure.fileName}: ${sanitizeErrorMessage(failure.reason)}`);
+  }
+  return fitLineText(lines.join("\n"));
 }
 
 export function fitLineText(text, limit = LINE_TEXT_LIMIT) {

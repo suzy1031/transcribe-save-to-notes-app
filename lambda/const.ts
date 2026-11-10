@@ -13,6 +13,10 @@ export const DEFAULT_KINDLE_BOOK_PREFIX = "kindle_";
 export const DEFAULT_KINDLE_PROCESSED_FOLDER = "processed";
 export const DEFAULT_KINDLE_SUMMARY_DOC_TITLE = "要約";
 
+export const DEFAULT_CSV_INBOX_FOLDER = "csv_inbox";
+export const DEFAULT_CSV_PROCESSED_FOLDER = "csv_processed";
+export const DEFAULT_CSV_SPREADSHEET_ID = "1nKB9S7EHVue05Kcwb3F_VGVOHHuYBJ1F84-pUwQCHNU";
+
 export const ALL_CRAFT_DOCUMENTS_SINCE = "1970-01-01";
 export const MIN_REMAINING_MS = 60_000;
 export const REMINDER_LOOKBACK_DAYS = 7;

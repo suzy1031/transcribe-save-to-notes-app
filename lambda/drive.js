@@ -1,5 +1,6 @@
 import path from "node:path";
 import { JWT } from "google-auth-library";
+import { isCsvFile } from "./csv.js";
 import { DEFAULT_KINDLE_BOOK_PREFIX, JSON_CONTENT_TYPE } from "./const.js";
 import { withFetchTimeout } from "./fetch-with-timeout.js";
 import { formatHttpErrorDetail, parseApiErrorDetail, sanitizeErrorMessage } from "./sanitize-error.js";
@@ -135,6 +136,14 @@ export function createDriveClient({ serviceAccount, authClient, fetchImpl = fetc
         "id,name,mimeType,size,appProperties",
       );
       return files.filter(isSupportedImage);
+    },
+
+    async listCsvFiles(folderId) {
+      const files = await listAll(
+        `'${folderId}' in parents and trashed = false`,
+        "id,name,mimeType",
+      );
+      return files.filter(isCsvFile);
     },
 
     async listTextFiles(folderId) {
