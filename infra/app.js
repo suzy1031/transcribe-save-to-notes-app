@@ -31,7 +31,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const bundling = {
   format: OutputFormat.ESM,
-  target: "node22",
+  target: "node26",
   mainFields: ["module", "main"],
   banner: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
 };
