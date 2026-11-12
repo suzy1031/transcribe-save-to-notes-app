@@ -4,7 +4,14 @@ import {
   DEFAULT_CSV_PROCESSED_FOLDER,
   DEFAULT_CSV_SPREADSHEET_ID,
 } from "./const.ts";
-import { parseCsv, sheetTitle, spreadsheetAppLink, tokyoDate, appendTotalRow } from "./csv.ts";
+import {
+  appendDebitTotalRow,
+  appendTotalRow,
+  parseCsv,
+  sheetTitle,
+  spreadsheetAppLink,
+  tokyoDate,
+} from "./csv.ts";
 import { createDriveClient, type DriveFile } from "./drive.ts";
 import { loadCredentials, settingsFromEnv, type BaseSettings } from "./index.ts";
 import {
@@ -82,7 +89,7 @@ export async function importCsvFiles({
     try {
       const bytes = await download(file);
       const text = Buffer.from(bytes).toString("utf8");
-      const rows = appendTotalRow(parseCsv(text));
+      const rows = appendDebitTotalRow(appendTotalRow(parseCsv(text)));
       await writeSheet({ title, rows });
       titles.add(title.toLowerCase());
     } catch (error) {

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { importCsvFiles } from "../lambda/csv-import.ts";
 import {
+  appendDebitTotalRow,
   appendTotalRow,
   gridSize,
   isCsvFile,
@@ -86,6 +87,53 @@ test("appendTotalRow はヘッダーだけのCSVを失敗にする", () => {
   assert.throws(() => appendTotalRow([["金額"]]), /合計する数値がありません/);
 });
 
+test("appendDebitTotalRow はD列がデビット支払いの行のみA列を合計し最終行へ追加する", () => {
+  assert.deepEqual(
+    appendDebitTotalRow([
+      ["金額", "日付", "内容", "カテゴリー"],
+      ["¥1,200", "2026-11-01", "ランチ", "デビット支払い"],
+      ["500", "2026-11-02", "カフェ", "現金"],
+      ["￥800円", "2026-11-03", "書籍", "デビット支払い"],
+      ["", "2026-11-04", "空欄", "デビット支払い"],
+    ]),
+    [
+      ["金額", "日付", "内容", "カテゴリー"],
+      ["¥1,200", "2026-11-01", "ランチ", "デビット支払い"],
+      ["500", "2026-11-02", "カフェ", "現金"],
+      ["￥800円", "2026-11-03", "書籍", "デビット支払い"],
+      ["", "2026-11-04", "空欄", "デビット支払い"],
+      ["2000", "", "", "デビット支払い合計"],
+    ],
+  );
+});
+
+test("appendDebitTotalRow はデビット支払いの行が0件ならA列を0として最終行を追加する", () => {
+  assert.deepEqual(
+    appendDebitTotalRow([
+      ["品目", "金額"],
+      ["pen", "1200"],
+      ["合計", "1200"],
+    ]),
+    [
+      ["品目", "金額"],
+      ["pen", "1200"],
+      ["合計", "1200"],
+      ["0", "", "", "デビット支払い合計"],
+    ],
+  );
+});
+
+test("appendDebitTotalRow はデビット支払い行のA列が数値でないと失敗する", () => {
+  assert.throws(
+    () =>
+      appendDebitTotalRow([
+        ["金額", "日付", "内容", "カテゴリー"],
+        ["未定", "2026-11-01", "ランチ", "デビット支払い"],
+      ]),
+    /金額にできない値です/,
+  );
+});
+
 test("spreadsheetAppLink はSheetsアプリで開くURLを返す", () => {
   assert.equal(
     spreadsheetAppLink("sheet-1"),
@@ -137,6 +185,7 @@ test("CSVを新しいシートへ書き、成功後に移動してLINEする", a
         ["name", "qty"],
         ["pen", "2"],
         ["合計", "2"],
+        ["0", "", "", "デビット支払い合計"],
       ]);
     },
     moveToProcessed: async (file) => {
