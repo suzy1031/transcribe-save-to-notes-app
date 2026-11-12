@@ -4,6 +4,8 @@
   "type": "module",
   "scripts": {
     "test": "node --test",
+    "check": "biome check .",
+    "format": "biome check --write .",
     "cdk": "cdk"
   },
   "dependencies": {
@@ -14,6 +16,7 @@
     "google-auth-library": "11.3.2"
   },
   "devDependencies": {
+    "@biomejs/biome": "2.6.7",
     "aws-cdk": "2.1146.1",
     "aws-cdk-lib": "2.275.0",
     "constructs": "10.8.1",

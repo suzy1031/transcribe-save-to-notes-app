@@ -10,7 +10,13 @@ test("summaryDocumentState は0件または1件のドキュメントを受け付
     action: "append",
     documentId: "doc-1",
   });
-  assert.equal(summaryDocumentState([{ id: "a", title: "a" }, { id: "b", title: "b" }]).action, "error");
+  assert.equal(
+    summaryDocumentState([
+      { id: "a", title: "a" },
+      { id: "b", title: "b" },
+    ]).action,
+    "error",
+  );
 });
 
 test("kindleRunSummaryMessage にフォルダ名とCraftリンクが列挙される", () => {

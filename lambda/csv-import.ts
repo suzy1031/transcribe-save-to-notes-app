@@ -1,25 +1,14 @@
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import {
-  DEFAULT_CSV_INBOX_FOLDER,
-  DEFAULT_CSV_PROCESSED_FOLDER,
-  DEFAULT_CSV_SPREADSHEET_ID,
-} from "./const.ts";
-import {
-  appendDebitTotalRow,
-  appendTotalRow,
-  parseCsv,
-  sheetTitle,
-  spreadsheetAppLink,
-  tokyoDate,
-} from "./csv.ts";
+import { DEFAULT_CSV_INBOX_FOLDER, DEFAULT_CSV_PROCESSED_FOLDER, DEFAULT_CSV_SPREADSHEET_ID } from "./const.ts";
+import { appendDebitTotalRow, appendTotalRow, parseCsv, sheetTitle, spreadsheetAppLink, tokyoDate } from "./csv.ts";
 import { createDriveClient, type DriveFile } from "./drive.ts";
-import { loadCredentials, settingsFromEnv, type BaseSettings } from "./index.ts";
+import { type BaseSettings, loadCredentials, settingsFromEnv } from "./index.ts";
 import {
+  type CsvImportFailure,
   createLineClient,
   csvImportFailedMessage,
   csvImportSummaryMessage,
   EMPTY_CSV_MESSAGE,
-  type CsvImportFailure,
   type LineClient,
 } from "./line.ts";
 import { sanitizeErrorMessage } from "./sanitize-error.ts";
@@ -132,10 +121,7 @@ export async function handler(event: unknown, context: unknown): Promise<CsvImpo
 
 async function runCsvImport(): Promise<CsvImportResult> {
   const settings = csvImportSettingsFromEnv();
-  const credentials = await loadCredentials(
-    settings,
-    new SecretsManagerClient({ region: settings.bedrockRegion }),
-  );
+  const credentials = await loadCredentials(settings, new SecretsManagerClient({ region: settings.bedrockRegion }));
   const line =
     credentials.lineChannelAccessToken && credentials.lineUserId
       ? createLineClient({
@@ -165,8 +151,7 @@ async function runCsvImport(): Promise<CsvImportResult> {
   }
 
   const files = await drive.listCsvFiles(inbox.id);
-  const existingSheetTitles =
-    files.length === 0 ? [] : await sheets.listSheetTitles(settings.spreadsheetId);
+  const existingSheetTitles = files.length === 0 ? [] : await sheets.listSheetTitles(settings.spreadsheetId);
   return importCsvFiles({
     files,
     download: (file) => drive.download(file.id),

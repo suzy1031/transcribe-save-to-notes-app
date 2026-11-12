@@ -82,6 +82,7 @@ export function sheetTitle({ date, fileName }: { date: string; fileName?: string
   const stem = path.basename(fileName ?? "", path.extname(fileName ?? ""));
   const cleaned = stem
     .replace(INVALID_SHEET_CHARS, "")
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: sheet titles cannot contain control characters
     .replace(/[\u0000-\u001f]/g, "")
     .replace(/^\.+/, "")
     .trim();

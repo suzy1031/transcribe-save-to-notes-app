@@ -1,12 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { estimateUsdMicros, microToUsdDecimal, normalizeUsage } from "../lambda/claude-pricing.ts";
-import {
-  formatWeeklyUsage,
-  getWeeklyUsage,
-  isoWeekKey,
-  recordWeeklyUsage,
-} from "../lambda/claude-usage.ts";
+import { formatWeeklyUsage, getWeeklyUsage, isoWeekKey, recordWeeklyUsage } from "../lambda/claude-usage.ts";
 import { createClaudeKindleSummarizer } from "../lambda/kindle-summarize.ts";
 import { createClaudeSummarizer } from "../lambda/summarize.ts";
 import { createTranscriber } from "../lambda/transcribe/claude.ts";
@@ -151,7 +146,13 @@ test("reportWeeklyUsage は記録があるときだけ LINE する", async () =>
   const pushed = [];
   const logs = [];
   const reported = await reportWeeklyUsage({
-    getUsage: async () => ({ pk: "WEEK#2026-W45", callCount: 1, inputTokens: 1, outputTokens: 1, estimatedUsd: 0.000012 }),
+    getUsage: async () => ({
+      pk: "WEEK#2026-W45",
+      callCount: 1,
+      inputTokens: 1,
+      outputTokens: 1,
+      estimatedUsd: 0.000012,
+    }),
     pushLine: async (text) => pushed.push(text),
     log: (text) => logs.push(text),
   });
@@ -188,14 +189,19 @@ test("文字起こし成功時だけ index の利用量を記録する", async (
     recordUsage: async (input) => calls.push(input),
   });
   await transcribe({ bytes: Buffer.from("png"), mimeType: "image/png" });
-  assert.deepEqual(calls, [{ functionName: "index", modelId: "claude-sonnet-5-5", usage: { input_tokens: 3, output_tokens: 4 } }]);
+  assert.deepEqual(calls, [
+    { functionName: "index", modelId: "claude-sonnet-5-5", usage: { input_tokens: 3, output_tokens: 4 } },
+  ]);
 
   const failing = createTranscriber({
     apiKey: "key",
     fetchImpl: claudeResponse({}, { ok: false }),
     recordUsage: async () => calls.push("fail"),
   });
-  await assert.rejects(() => failing({ bytes: Buffer.from("png"), mimeType: "image/png" }), /Claude transcription failed/);
+  await assert.rejects(
+    () => failing({ bytes: Buffer.from("png"), mimeType: "image/png" }),
+    /Claude transcription failed/,
+  );
   assert.equal(calls.length, 1);
 });
 
@@ -204,9 +210,16 @@ test("週次要約と Kindle 要約は成功時だけ利用量を記録する", 
   const summarize = createClaudeSummarizer({
     apiKey: "key",
     fetchImpl: async () =>
-      new Response(JSON.stringify({ model: "claude-haiku-5-5", usage: { input_tokens: 8 }, content: [{ type: "text", text: "まとめ" }] }), {
-        status: 200,
-      }),
+      new Response(
+        JSON.stringify({
+          model: "claude-haiku-5-5",
+          usage: { input_tokens: 8 },
+          content: [{ type: "text", text: "まとめ" }],
+        }),
+        {
+          status: 200,
+        },
+      ),
     recordUsage: async (input) => calls.push(input),
   });
   assert.equal(await summarize("ノート"), "まとめ");

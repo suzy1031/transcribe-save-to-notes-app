@@ -42,6 +42,7 @@ test/                   node:test
 
 ```sh
 npm install
+npm run check
 npm test
 npx cdk synth
 npx cdk deploy
