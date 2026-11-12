@@ -1,13 +1,13 @@
-import { DynamoDBClient, UpdateItemCommand, type AttributeValue } from "@aws-sdk/client-dynamodb";
+import { type AttributeValue, DynamoDBClient, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
-import { TOKYO_TIME_ZONE } from "./const.ts";
 import {
   estimateUsdMicros,
   microToUsdDecimal,
-  normalizeUsage,
   type NormalizedUsage,
+  normalizeUsage,
   type RawClaudeUsage,
 } from "./claude-pricing.ts";
+import { TOKYO_TIME_ZONE } from "./const.ts";
 
 const FUNCTION_NAME = /^[A-Za-z][A-Za-z0-9_-]*$/;
 
@@ -164,14 +164,16 @@ function documentClient(document?: DynamoLike, dynamo?: DynamoLike): DynamoLike 
   return DynamoDBDocumentClient.from(dynamoClient(dynamo) as DynamoDBClient);
 }
 
-export async function recordWeeklyUsage({
-  functionName,
-  modelId = "",
-  usage,
-  tableName = process.env.CLAUDE_USAGE_TABLE_NAME ?? "",
-  dynamo,
-  now = new Date(),
-}: RecordWeeklyUsageOptions = { modelId: "" }): Promise<(NormalizedUsage & { pk: string; estimatedUsd: string }) | null> {
+export async function recordWeeklyUsage(
+  {
+    functionName,
+    modelId = "",
+    usage,
+    tableName = process.env.CLAUDE_USAGE_TABLE_NAME ?? "",
+    dynamo,
+    now = new Date(),
+  }: RecordWeeklyUsageOptions = { modelId: "" },
+): Promise<(NormalizedUsage & { pk: string; estimatedUsd: string }) | null> {
   if (!tableName) return null;
   if (!FUNCTION_NAME.test(functionName ?? "")) throw new Error(`Invalid functionName: ${functionName}`);
   const validFunctionName = functionName as string;

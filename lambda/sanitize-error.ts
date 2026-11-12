@@ -1,6 +1,6 @@
 export const API_ERROR_DETAIL_MAX = 200;
 
-const SECRET_REPLACEMENTS: ReadonlyArray< readonly [RegExp, string]> = [
+const SECRET_REPLACEMENTS: ReadonlyArray<readonly [RegExp, string]> = [
   [/Bearer\s+\S+/gi, "Bearer [REDACTED]"],
   [/\b(sk-ant-|sk-)[a-zA-Z0-9_-]{8,}\b/g, "[REDACTED]"],
   [/"private_key"\s*:\s*"[^"]*"/g, '"private_key":"[REDACTED]"'],
@@ -38,11 +38,7 @@ export function parseApiErrorDetail(text: unknown): string {
   return redactSecrets(text.trim());
 }
 
-export function formatHttpErrorDetail(
-  status: number | string,
-  bodyText: string = "",
-  statusText: string = "",
-): string {
+export function formatHttpErrorDetail(status: number | string, bodyText: string = "", statusText: string = ""): string {
   const detail = parseApiErrorDetail(bodyText).slice(0, API_ERROR_DETAIL_MAX);
   if (detail) return `${status} ${detail}`;
   const safeStatusText = redactSecrets(String(statusText)).trim().slice(0, API_ERROR_DETAIL_MAX);

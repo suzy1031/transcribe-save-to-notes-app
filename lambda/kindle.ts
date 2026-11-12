@@ -1,28 +1,5 @@
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
 import {
-  connectionSpaceId,
-  craftAppDocumentLink,
-  createCraftClient,
-  type CraftListedDocument,
-} from "./craft.ts";
-import { createDriveClient, type DriveFile } from "./drive.ts";
-import {
-  loadCredentials,
-  settingsFromEnv,
-  type BaseSettings,
-  type LambdaContextLike,
-  type LoggerLike,
-} from "./index.ts";
-import { createKindleSummarizer } from "./kindle-summarize.ts";
-import {
-  createLineClient,
-  kindleFailedMessage,
-  kindleRunSummaryMessage,
-  type LineClient,
-} from "./line.ts";
-import { sanitizeErrorMessage } from "./sanitize-error.ts";
-import type { TranscribeInput } from "./transcribe/claude.ts";
-import {
   ALL_CRAFT_DOCUMENTS_SINCE,
   DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
   DEFAULT_KINDLE_BOOK_PREFIX,
@@ -31,6 +8,19 @@ import {
   DEFAULT_KINDLE_SUMMARY_DOC_TITLE,
   MIN_REMAINING_MS,
 } from "./const.ts";
+import { type CraftListedDocument, connectionSpaceId, craftAppDocumentLink, createCraftClient } from "./craft.ts";
+import { createDriveClient, type DriveFile } from "./drive.ts";
+import {
+  type BaseSettings,
+  type LambdaContextLike,
+  type LoggerLike,
+  loadCredentials,
+  settingsFromEnv,
+} from "./index.ts";
+import { createKindleSummarizer } from "./kindle-summarize.ts";
+import { createLineClient, kindleFailedMessage, kindleRunSummaryMessage, type LineClient } from "./line.ts";
+import { sanitizeErrorMessage } from "./sanitize-error.ts";
+import type { TranscribeInput } from "./transcribe/claude.ts";
 
 export interface KindleSettings extends BaseSettings {
   driveParentFolderName: string;
@@ -63,14 +53,11 @@ export function kindleSettingsFromEnv(env: NodeJS.ProcessEnv = process.env): Kin
     bookFolderPrefix: env.KINDLE_BOOK_FOLDER_PREFIX || DEFAULT_KINDLE_BOOK_PREFIX,
     processedFolderName: env.KINDLE_PROCESSED_FOLDER_NAME || DEFAULT_KINDLE_PROCESSED_FOLDER,
     summaryDocTitle: env.KINDLE_SUMMARY_DOC_TITLE || DEFAULT_KINDLE_SUMMARY_DOC_TITLE,
-    kindleClaudeModelId:
-      env.KINDLE_CLAUDE_MODEL_ID || env.CLAUDE_MODEL_ID || DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
+    kindleClaudeModelId: env.KINDLE_CLAUDE_MODEL_ID || env.CLAUDE_MODEL_ID || DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
   };
 }
 
-export function summaryDocumentState(
-  documents: ReadonlyArray<{ id: string }>,
-): SummaryDocumentState {
+export function summaryDocumentState(documents: ReadonlyArray<{ id: string }>): SummaryDocumentState {
   if (documents.length === 0) return { action: "create" };
   if (documents.length === 1) {
     return { action: "append", documentId: documents[0].id };
@@ -104,11 +91,7 @@ export async function processKindleBooks({
   appendSummary: (input: { documentId: string; markdown: string }) => Promise<void>;
   summarizeImage: (input: TranscribeInput) => Promise<string>;
   ensureProcessedFolder: (bookFolderId: string) => Promise<string>;
-  moveImageToProcessed: (input: {
-    file: DriveFile;
-    bookFolderId: string;
-    processedFolderId: string;
-  }) => Promise<void>;
+  moveImageToProcessed: (input: { file: DriveFile; bookFolderId: string; processedFolderId: string }) => Promise<void>;
   getRemainingTimeMs?: () => number;
   log?: LoggerLike;
 }): Promise<Required<Omit<ProcessKindleResult, "folderLookup">>> {
@@ -207,10 +190,7 @@ export async function handler(event: unknown, context: LambdaContextLike): Promi
 
 async function runKindle(context: LambdaContextLike): Promise<ProcessKindleResult> {
   const settings = kindleSettingsFromEnv();
-  const credentials = await loadCredentials(
-    settings,
-    new SecretsManagerClient({ region: settings.bedrockRegion }),
-  );
+  const credentials = await loadCredentials(settings, new SecretsManagerClient({ region: settings.bedrockRegion }));
   const drive = createDriveClient({ serviceAccount: credentials.serviceAccount });
   const craft = createCraftClient({
     baseUrl: credentials.craftApiBaseUrl,
@@ -257,19 +237,16 @@ async function runKindle(context: LambdaContextLike): Promise<ProcessKindleResul
     listImages: (folderId) => drive.listImages(folderId),
     download: (file) => drive.download(file.id),
     findCraftFolderId: (name) => craft.findFolder(name),
-    listCraftDocuments: (folderId) =>
-      craft.listDocuments({ folderId, createdDateGte: ALL_CRAFT_DOCUMENTS_SINCE }),
+    listCraftDocuments: (folderId) => craft.listDocuments({ folderId, createdDateGte: ALL_CRAFT_DOCUMENTS_SINCE }),
     createSummaryDocument: ({ folderId, markdown }) =>
       craft.createDocument({
         title: settings.summaryDocTitle,
         markdown,
         folderId,
       }),
-    appendSummary: ({ documentId, markdown }) =>
-      craft.appendMarkdown({ pageId: documentId, markdown }),
+    appendSummary: ({ documentId, markdown }) => craft.appendMarkdown({ pageId: documentId, markdown }),
     summarizeImage,
-    ensureProcessedFolder: (bookFolderId) =>
-      drive.ensureChildFolder(bookFolderId, settings.processedFolderName),
+    ensureProcessedFolder: (bookFolderId) => drive.ensureChildFolder(bookFolderId, settings.processedFolderName),
     moveImageToProcessed: ({ file, bookFolderId, processedFolderId }) =>
       drive.moveFile({
         fileId: file.id,
@@ -282,8 +259,7 @@ async function runKindle(context: LambdaContextLike): Promise<ProcessKindleResul
   if (summary.imagesSummarized > 0 || summary.imagesFailed > 0) {
     const links = summary.links.map(({ folderName, documentId }) => ({
       folderName,
-      appLink:
-        craftSpaceId && documentId ? craftAppDocumentLink(craftSpaceId, documentId) : "",
+      appLink: craftSpaceId && documentId ? craftAppDocumentLink(craftSpaceId, documentId) : "",
     }));
     await pushLine(
       line,

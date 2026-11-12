@@ -35,9 +35,7 @@ export function reminderDeliveredMessage(title: unknown, appLink?: string): stri
 }
 
 export function transcriptionFailedMessage(fileName: string, reason: unknown): string {
-  return fitLineText(
-    `文字起こしに失敗しました\n${fileName}\n${sanitizeErrorMessage(reason)}`,
-  );
+  return fitLineText(`文字起こしに失敗しました\n${fileName}\n${sanitizeErrorMessage(reason)}`);
 }
 
 export function kindleFailedMessage(reason: unknown): string {

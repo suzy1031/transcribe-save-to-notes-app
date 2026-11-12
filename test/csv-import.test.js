@@ -1,6 +1,5 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { importCsvFiles } from "../lambda/csv-import.ts";
 import {
   appendDebitTotalRow,
   appendTotalRow,
@@ -11,6 +10,7 @@ import {
   spreadsheetAppLink,
   valuesRange,
 } from "../lambda/csv.ts";
+import { importCsvFiles } from "../lambda/csv-import.ts";
 import { csvImportSummaryMessage, EMPTY_CSV_MESSAGE } from "../lambda/line.ts";
 import { createSheetsClient } from "../lambda/sheets.ts";
 
@@ -29,10 +29,7 @@ test("parseCsv は閉じていない引用符を拒否する", () => {
 
 test("sheetTitle は日付とファイル名から作り、使えない文字を除く", () => {
   assert.equal(sheetTitle({ date: "2026-11-15", fileName: "sales.csv" }), "2026-11-15_sales");
-  assert.equal(
-    sheetTitle({ date: "2026-11-15", fileName: "a:b?c*.csv" }),
-    "2026-11-15_abc",
-  );
+  assert.equal(sheetTitle({ date: "2026-11-15", fileName: "a:b?c*.csv" }), "2026-11-15_abc");
   assert.equal(sheetTitle({ date: "2026-11-15", fileName: ".csv" }), "2026-11-15_csv");
   const long = `${"あ".repeat(120)}.csv`;
   assert.equal(sheetTitle({ date: "2026-11-15", fileName: long }).length, 100);
@@ -135,10 +132,7 @@ test("appendDebitTotalRow はデビット支払い行のA列が数値でない�
 });
 
 test("spreadsheetAppLink はSheetsアプリで開くURLを返す", () => {
-  assert.equal(
-    spreadsheetAppLink("sheet-1"),
-    "googlesheets://https://docs.google.com/spreadsheets/d/sheet-1/edit",
-  );
+  assert.equal(spreadsheetAppLink("sheet-1"), "googlesheets://https://docs.google.com/spreadsheets/d/sheet-1/edit");
 });
 
 test("isCsvFile はcsv拡張子かtext/csvを受け、Googleスプレッドシートは除く", () => {
