@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { craftAppDocumentLink } from "../lambda/craft.js";
-import { EMPTY_REMINDER_MESSAGE, reminderDeliveredMessage, reminderFailedMessage } from "../lambda/line.js";
+import { craftAppDocumentLink } from "../lambda/craft.ts";
+import { EMPTY_REMINDER_MESSAGE, reminderDeliveredMessage, reminderFailedMessage } from "../lambda/line.ts";
 import {
   filterDocumentsByReminderTitle,
   listReminderDocuments,
@@ -9,8 +9,8 @@ import {
   processReminder,
   reminderTargetDate,
   reminderTitleCandidates,
-} from "../lambda/reminder.js";
-import { tokyoDate } from "../lambda/weekly.js";
+} from "../lambda/reminder.ts";
+import { tokyoDate } from "../lambda/weekly.ts";
 
 const sundayNov8 = new Date("2026-11-07T15:00:00Z");
 

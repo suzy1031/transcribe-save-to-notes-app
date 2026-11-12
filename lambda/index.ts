@@ -1,8 +1,20 @@
 import { readFile } from "node:fs/promises";
 import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import { connectionSpaceId, createCraftClient, craftAppDocumentLink } from "./craft.js";
-import { createDriveClient, fileStem, orphanTextFiles } from "./drive.js";
-import { createLineClient, transcriptionFailedMessage, transcriptionSavedMessage } from "./line.js";
+import { connectionSpaceId, createCraftClient, craftAppDocumentLink } from "./craft.ts";
+import {
+  createDriveClient,
+  fileStem,
+  orphanTextFiles,
+  type DriveClient,
+  type DriveFile,
+  type GoogleServiceAccount,
+} from "./drive.ts";
+import {
+  createLineClient,
+  transcriptionFailedMessage,
+  transcriptionSavedMessage,
+  type LineClient,
+} from "./line.ts";
 import {
   DEFAULT_AWS_REGION,
   DEFAULT_BEDROCK_MODEL_ID,
@@ -12,11 +24,58 @@ import {
   INBOX_FOLDER_NAME,
   MIN_REMAINING_MS,
   PROCESSED_DRIVE_FOLDER_NAME,
-} from "./const.js";
-import { sanitizeErrorMessage } from "./sanitize-error.js";
-import { createTranscription, MAX_IMAGE_BYTES } from "./transcribe/index.js";
+} from "./const.ts";
+import { sanitizeErrorMessage } from "./sanitize-error.ts";
+import { createTranscription, MAX_IMAGE_BYTES } from "./transcribe/index.ts";
+import type { ParsedTranscription } from "./transcribe/parse.ts";
+import type { TranscribeInput } from "./transcribe/claude.ts";
 
-export function settingsFromEnv(env = process.env) {
+export interface BaseSettings {
+  secretId: string;
+  bedrockModelId: string;
+  bedrockRegion: string;
+  craftFolderName: string;
+  craftApiBaseUrl: string;
+  craftApiKey: string;
+  anthropicApiKey: string;
+  claudeModelId: string;
+  transcriptionProvider: string;
+  googleServiceAccountJson: string;
+  lineChannelAccessToken: string;
+  lineUserId: string;
+}
+
+export interface Credentials {
+  serviceAccount?: GoogleServiceAccount;
+  craftApiBaseUrl: string;
+  craftApiKey: string;
+  anthropicApiKey?: string;
+  lineChannelAccessToken: string;
+  lineUserId: string;
+}
+
+export interface SecretsClientLike {
+  send(command: GetSecretValueCommand): Promise<{ SecretString?: string }>;
+}
+
+export interface LambdaContextLike {
+  getRemainingTimeInMillis(): number;
+}
+
+export interface LoggerLike {
+  info(...args: unknown[]): void;
+  error(...args: unknown[]): void;
+}
+
+export interface ProcessInboxSummary {
+  processed: number;
+  failed: number;
+  skipped: number;
+  deferred: number;
+  folderLookup?: string;
+}
+
+export function settingsFromEnv(env: NodeJS.ProcessEnv = process.env): BaseSettings {
   return {
     secretId: env.SECRET_ID ?? "",
     bedrockModelId: env.BEDROCK_MODEL_ID || DEFAULT_BEDROCK_MODEL_ID,
@@ -33,12 +92,22 @@ export function settingsFromEnv(env = process.env) {
   };
 }
 
-export async function loadCredentials(settings, secretsClient) {
+export async function loadCredentials(
+  settings: BaseSettings,
+  secretsClient: SecretsClientLike,
+): Promise<Credentials> {
   if (settings.secretId) {
     const output = await secretsClient.send(
       new GetSecretValueCommand({ SecretId: settings.secretId }),
     );
-    const parsed = JSON.parse(output.SecretString ?? "");
+    const parsed = JSON.parse(output.SecretString ?? "") as {
+      googleServiceAccount?: GoogleServiceAccount;
+      craftApiBaseUrl: string;
+      craftApiKey: string;
+      anthropicApiKey?: string;
+      lineChannelAccessToken?: string;
+      lineUserId?: string;
+    };
     return {
       serviceAccount: parsed.googleServiceAccount,
       craftApiBaseUrl: parsed.craftApiBaseUrl,
@@ -55,7 +124,7 @@ export async function loadCredentials(settings, secretsClient) {
     ? settings.googleServiceAccountJson
     : await readFile(settings.googleServiceAccountJson, "utf8");
   return {
-    serviceAccount: JSON.parse(raw),
+    serviceAccount: JSON.parse(raw) as GoogleServiceAccount,
     craftApiBaseUrl: settings.craftApiBaseUrl,
     craftApiKey: settings.craftApiKey,
     anthropicApiKey: settings.anthropicApiKey,
@@ -77,8 +146,21 @@ export async function processInbox({
   getRemainingTimeMs = () => Number.POSITIVE_INFINITY,
   maxImageBytes = MAX_IMAGE_BYTES,
   log = console,
-}) {
-  const summary = { processed: 0, failed: 0, skipped: 0, deferred: 0 };
+}: {
+  files: ReadonlyArray<DriveFile>;
+  download: (file: DriveFile) => Promise<Uint8Array | Buffer>;
+  transcribe: (input: TranscribeInput) => Promise<ParsedTranscription>;
+  ensureFolder: () => Promise<string>;
+  createDocument: (input: { title: string; markdown: string; folderId: string }) => Promise<string>;
+  moveToProcessed: (input: { file: DriveFile; craftDocumentId: string }) => Promise<void>;
+  removeTextFiles?: (file: DriveFile) => Promise<void>;
+  notifySaved?: (input: { title: string; documentId: string }) => Promise<void>;
+  notifyFailed?: (input: { fileName: string; reason: string }) => Promise<void>;
+  getRemainingTimeMs?: () => number;
+  maxImageBytes?: number;
+  log?: LoggerLike;
+}): Promise<ProcessInboxSummary> {
+  const summary: ProcessInboxSummary = { processed: 0, failed: 0, skipped: 0, deferred: 0 };
   if (files.length === 0) {
     log.info("画像ファイル取得なし");
     return summary;
@@ -137,7 +219,8 @@ export async function processInbox({
       await notifySaved({ title: note.title, documentId: craftDocumentId });
     } catch (error) {
       summary.failed += 1;
-      const message = sanitizeErrorMessage(error.message);
+      const err = error as Error;
+      const message = sanitizeErrorMessage(err.message);
       if (stage === "画像ファイル取得") {
         log.error(`画像ファイル取得失敗 ${file.name}: ${message}`);
       } else if (stage === "移動") {
@@ -152,7 +235,7 @@ export async function processInbox({
   return summary;
 }
 
-export async function handler(event, context) {
+export async function handler(event: unknown, context: LambdaContextLike): Promise<ProcessInboxSummary> {
   console.log("start");
   try {
     return await runPipeline(context);
@@ -161,7 +244,7 @@ export async function handler(event, context) {
   }
 }
 
-async function runPipeline(context) {
+async function runPipeline(context: LambdaContextLike): Promise<ProcessInboxSummary> {
   const settings = settingsFromEnv();
   const credentials = await loadCredentials(
     settings,
@@ -182,8 +265,8 @@ async function runPipeline(context) {
 
   const files = await drive.listImages(inbox.id);
   const textFiles = await drive.listTextFiles(inbox.id);
-  const removedTextIds = new Set();
-  const discardText = (textFile) =>
+  const removedTextIds = new Set<string>();
+  const discardText = (textFile: DriveFile) =>
     discardInboxText({
       drive,
       textFile,
@@ -199,7 +282,7 @@ async function runPipeline(context) {
   try {
     craftSpaceId = connectionSpaceId(await craft.getConnection());
   } catch (error) {
-    console.error(`Craft connection lookup failed: ${sanitizeErrorMessage(error.message)}`);
+    console.error(`Craft connection lookup failed: ${sanitizeErrorMessage((error as Error).message)}`);
   }
   const transcription = createTranscription({
     provider: settings.transcriptionProvider,
@@ -245,7 +328,7 @@ async function runPipeline(context) {
   return summary;
 }
 
-function createLineNotifier(credentials) {
+function createLineNotifier(credentials: Credentials) {
   const line =
     credentials.lineChannelAccessToken && credentials.lineUserId
       ? createLineClient({
@@ -254,18 +337,18 @@ function createLineNotifier(credentials) {
         })
       : null;
   return {
-    async saved({ title, documentId, spaceId }) {
+    async saved({ title, documentId, spaceId }: { title: string; documentId: string; spaceId: string }) {
       const appLink =
         spaceId && documentId ? craftAppDocumentLink(spaceId, documentId) : "";
       await pushLine(line, transcriptionSavedMessage(title, appLink));
     },
-    async failed({ fileName, reason }) {
+    async failed({ fileName, reason }: { fileName: string; reason: string }) {
       await pushLine(line, transcriptionFailedMessage(fileName, reason));
     },
   };
 }
 
-async function pushLine(line, text) {
+async function pushLine(line: LineClient | null, text: string): Promise<void> {
   if (!line) {
     console.error("LINE通知失敗: credentials are missing");
     return;
@@ -274,7 +357,7 @@ async function pushLine(line, text) {
     await line.push(text);
     console.log("LINE通知");
   } catch (error) {
-    console.error(`LINE通知失敗: ${sanitizeErrorMessage(error.message)}`);
+    console.error(`LINE通知失敗: ${sanitizeErrorMessage((error as Error).message)}`);
   }
 }
 
@@ -284,15 +367,22 @@ async function discardInboxText({
   inboxFolderId,
   processedFolderId,
   removedTextIds,
-}) {
+}: {
+  drive: DriveClient;
+  textFile: DriveFile;
+  inboxFolderId: string;
+  processedFolderId: string;
+  removedTextIds: Set<string>;
+}): Promise<void> {
   if (removedTextIds.has(textFile.id)) return;
   removedTextIds.add(textFile.id);
   try {
     await drive.deleteFile(textFile.id);
     console.log(`txt削除 ${textFile.name}`);
   } catch (error) {
-    if (error.status !== 403) {
-      console.error(`txt削除失敗 ${textFile.name}: ${sanitizeErrorMessage(error.message)}`);
+    const err = error as Error & { status?: number };
+    if (err.status !== 403) {
+      console.error(`txt削除失敗 ${textFile.name}: ${sanitizeErrorMessage(err.message)}`);
       return;
     }
     try {
@@ -303,7 +393,7 @@ async function discardInboxText({
       });
       console.log(`txt移動 ${textFile.name}`);
     } catch (moveError) {
-      console.error(`txt削除失敗 ${textFile.name}: ${sanitizeErrorMessage(moveError.message)}`);
+      console.error(`txt削除失敗 ${textFile.name}: ${sanitizeErrorMessage((moveError as Error).message)}`);
     }
   }
 }

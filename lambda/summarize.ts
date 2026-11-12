@@ -1,6 +1,6 @@
 import { BedrockRuntimeClient, ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
-import { recordWeeklyUsage } from "./claude-usage.js";
-import { SUMMARY_SYSTEM_PROMPT, wrapSummaryNotes } from "./summary-prompt.js";
+import { recordWeeklyUsage, type RecordWeeklyUsageOptions } from "./claude-usage.ts";
+import { SUMMARY_SYSTEM_PROMPT, wrapSummaryNotes } from "./summary-prompt.ts";
 import {
   ANTHROPIC_API_VERSION,
   CLAUDE_API_URL,
@@ -9,22 +9,36 @@ import {
   DEFAULT_TRANSCRIPTION_PROVIDER,
   JSON_CONTENT_TYPE,
   MAX_SUMMARY_TOKENS,
-} from "./const.js";
-import { withFetchTimeout } from "./fetch-with-timeout.js";
-import { sanitizeErrorMessage } from "./sanitize-error.js";
+} from "./const.ts";
+import { withFetchTimeout } from "./fetch-with-timeout.ts";
+import { sanitizeErrorMessage } from "./sanitize-error.ts";
+import type { BedrockClientLike } from "./transcribe/bedrock.ts";
 
-function textFromClaude(payload) {
+export interface ClaudeSummarizerOptions {
+  apiKey?: string;
+  modelId?: string;
+  fetchImpl?: typeof fetch;
+  recordUsage?: (options: RecordWeeklyUsageOptions) => Promise<unknown>;
+}
+
+export interface BedrockSummarizerOptions {
+  region?: string;
+  modelId?: string;
+  client?: BedrockClientLike;
+}
+
+function textFromClaude(payload: any): string {
   return (payload.content ?? [])
-    .filter((block) => block.type === "text")
-    .map((block) => block.text ?? "")
+    .filter((block: any) => block.type === "text")
+    .map((block: any) => block.text ?? "")
     .join("");
 }
 
-function textFromBedrock(response) {
-  return (response.output?.message?.content ?? []).map((block) => block.text ?? "").join("");
+function textFromBedrock(response: any): string {
+  return (response.output?.message?.content ?? []).map((block: any) => block.text ?? "").join("");
 }
 
-function requireSummary(text) {
+function requireSummary(text: string): string {
   if (String(text).trim() === "") throw new Error("Summary was empty");
   return text;
 }
@@ -34,9 +48,9 @@ export function createClaudeSummarizer({
   modelId = DEFAULT_CLAUDE_WEEKLY_MODEL_ID,
   fetchImpl = fetch,
   recordUsage = recordWeeklyUsage,
-} = {}) {
+}: ClaudeSummarizerOptions = {}): (notesText: string) => Promise<string> {
   if (!apiKey) throw new Error("Anthropic API key is required");
-  return async function summarize(notesText) {
+  return async function summarize(notesText: string): Promise<string> {
     const userContent = wrapSummaryNotes(notesText);
     const response = await fetchImpl(
       CLAUDE_API_URL,
@@ -55,7 +69,7 @@ export function createClaudeSummarizer({
         }),
       }),
     );
-    const payload = await response.json();
+    const payload = (await response.json()) as any;
     if (!response.ok) {
       const detail = sanitizeErrorMessage(payload.error?.message ?? response.statusText);
       throw new Error(`Claude summary failed: ${response.status} ${detail}`);
@@ -73,8 +87,8 @@ export function createBedrockSummarizer({
   region,
   modelId = DEFAULT_BEDROCK_MODEL_ID,
   client = new BedrockRuntimeClient({ region }),
-} = {}) {
-  return async function summarize(notesText) {
+}: BedrockSummarizerOptions = {}): (notesText: string) => Promise<string> {
+  return async function summarize(notesText: string): Promise<string> {
     const response = await client.send(
       new ConverseCommand({
         modelId,
@@ -87,7 +101,15 @@ export function createBedrockSummarizer({
   };
 }
 
-export function createSummarizer({ provider = DEFAULT_TRANSCRIPTION_PROVIDER, claude: claudeOptions, bedrock: bedrockOptions }) {
+export function createSummarizer({
+  provider = DEFAULT_TRANSCRIPTION_PROVIDER,
+  claude: claudeOptions,
+  bedrock: bedrockOptions,
+}: {
+  provider?: string;
+  claude?: ClaudeSummarizerOptions;
+  bedrock?: BedrockSummarizerOptions;
+}): (notesText: string) => Promise<string> {
   if (provider === "bedrock") return createBedrockSummarizer(bedrockOptions);
   if (provider === "claude") return createClaudeSummarizer(claudeOptions);
   throw new Error(`Unknown transcription provider: ${provider}`);

@@ -2,7 +2,39 @@
 // https://platform.claude.com/docs/en/about-claude/pricing
 const HAIKU_LONG_CONTEXT_TOKENS = 100_000;
 
-export const MODEL_PRICING = {
+export interface RateTable {
+  inputPerMTok: number;
+  outputPerMTok: number;
+  cacheReadPerMTok: number;
+  cacheWrite5mPerMTok: number;
+  cacheWrite1hPerMTok: number;
+}
+
+export interface ModelPricing extends RateTable {
+  longContext?: RateTable & { thresholdTokens: number };
+}
+
+export interface RawClaudeUsage {
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_read_input_tokens?: number;
+  cache_creation_input_tokens?: number;
+  cache_creation?: {
+    ephemeral_5m_input_tokens?: number;
+    ephemeral_1h_input_tokens?: number;
+  };
+}
+
+export interface NormalizedUsage {
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadInputTokens: number;
+  cacheCreationInputTokens: number;
+  cacheCreation5mTokens: number;
+  cacheCreation1hTokens: number;
+}
+
+export const MODEL_PRICING: Record<string, ModelPricing> = {
   "claude-sonnet-5-5": {
     inputPerMTok: 2,
     outputPerMTok: 10,
@@ -27,13 +59,13 @@ export const MODEL_PRICING = {
   },
 };
 
-function asCount(value) {
+function asCount(value: unknown): number {
   const count = Number(value ?? 0);
   if (!Number.isFinite(count) || count < 0) return 0;
   return Math.floor(count);
 }
 
-export function normalizeUsage(usage = {}) {
+export function normalizeUsage(usage: RawClaudeUsage = {}): NormalizedUsage {
   const creation = usage.cache_creation ?? {};
   const cache5m = asCount(creation.ephemeral_5m_input_tokens);
   const cache1h = asCount(creation.ephemeral_1h_input_tokens);
@@ -49,18 +81,21 @@ export function normalizeUsage(usage = {}) {
   };
 }
 
-function ratesFor(pricing, tokens) {
+function ratesFor(pricing: ModelPricing, tokens: NormalizedUsage): RateTable {
   const promptTokens = tokens.inputTokens + tokens.cacheReadInputTokens + tokens.cacheCreationInputTokens;
   if (pricing.longContext && promptTokens > pricing.longContext.thresholdTokens) return pricing.longContext;
   return pricing;
 }
 
-function microFromTokens(tokens, dollarsPerMTok) {
+function microFromTokens(tokens: number, dollarsPerMTok: number): number {
   const priceMicroPerMTok = Math.round(dollarsPerMTok * 1_000_000);
   return Math.round((tokens * priceMicroPerMTok) / 1_000_000);
 }
 
-export function estimateUsdMicros(modelId, usage) {
+export function estimateUsdMicros(
+  modelId: string,
+  usage?: RawClaudeUsage,
+): { micros: number; priced: boolean; tokens: NormalizedUsage } {
   const pricing = MODEL_PRICING[modelId];
   const tokens = normalizeUsage(usage);
   if (!pricing) return { micros: 0, priced: false, tokens };
@@ -74,7 +109,7 @@ export function estimateUsdMicros(modelId, usage) {
   return { micros, priced: true, tokens };
 }
 
-export function microToUsdDecimal(micros) {
+export function microToUsdDecimal(micros: number): string {
   const rounded = Math.round(micros);
   const sign = rounded < 0 ? "-" : "";
   const abs = Math.abs(rounded);

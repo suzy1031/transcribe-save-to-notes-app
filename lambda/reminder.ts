@@ -1,27 +1,44 @@
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import { connectionSpaceId, craftAppDocumentLink, createCraftClient } from "./craft.js";
-import { loadCredentials, settingsFromEnv } from "./index.js";
+import {
+  connectionSpaceId,
+  craftAppDocumentLink,
+  createCraftClient,
+  type CraftClient,
+  type CraftListedDocument,
+} from "./craft.ts";
+import {
+  loadCredentials,
+  settingsFromEnv,
+  type BaseSettings,
+  type Credentials,
+  type SecretsClientLike,
+} from "./index.ts";
 import {
   createLineClient,
   EMPTY_REMINDER_MESSAGE,
   reminderFailedMessage,
   reminderDeliveredMessage,
-} from "./line.js";
+  type LineClient,
+} from "./line.ts";
 import {
   ALL_CRAFT_DOCUMENTS_SINCE,
   DEFAULT_CRAFT_SUMMARY_FOLDER,
   REMINDER_LOOKBACK_DAYS,
-} from "./const.js";
-import { sanitizeErrorMessage } from "./sanitize-error.js";
-import { daysBeforeTokyoDate } from "./weekly.js";
+} from "./const.ts";
+import { sanitizeErrorMessage } from "./sanitize-error.ts";
+import { daysBeforeTokyoDate } from "./weekly.ts";
 
 export const REMINDER_TITLE_PREFIX = "週次まとめ ";
 
-export function reminderTargetDate(now = new Date()) {
+export interface ReminderSettings extends BaseSettings {
+  summaryFolderName: string;
+}
+
+export function reminderTargetDate(now: Date = new Date()): string {
   return daysBeforeTokyoDate(now, REMINDER_LOOKBACK_DAYS);
 }
 
-export function reminderTitleCandidates(targetDate) {
+export function reminderTitleCandidates(targetDate: string): [string, string] {
   const [year, month, day] = targetDate.split("-").map(Number);
   if (!year || !month || !day) {
     throw new Error(`Invalid reminder targetDate: ${targetDate}`);
@@ -33,12 +50,22 @@ export function reminderTitleCandidates(targetDate) {
   ];
 }
 
-export function filterDocumentsByReminderTitle(documents, targetDate) {
-  const candidates = new Set(reminderTitleCandidates(targetDate));
+export function filterDocumentsByReminderTitle<T extends { title?: string }>(
+  documents: ReadonlyArray<T>,
+  targetDate: string,
+): T[] {
+  const candidates = new Set<string>(reminderTitleCandidates(targetDate));
   return documents.filter((doc) => candidates.has(String(doc.title ?? "").trim()));
 }
 
-export async function listReminderDocuments(craft, summaryFolderId, targetDate) {
+export async function listReminderDocuments(
+  craft: Pick<CraftClient, "listDocuments">,
+  summaryFolderId: string,
+  targetDate: string,
+): Promise<{
+  documents: CraftListedDocument[];
+  matchedBy: "createdDate" | "title" | "none";
+}> {
   const byCreatedDate = await craft.listDocuments({
     folderId: summaryFolderId,
     createdDateGte: targetDate,
@@ -56,14 +83,17 @@ export async function listReminderDocuments(craft, summaryFolderId, targetDate) 
   return { documents: byTitle, matchedBy: byTitle.length > 0 ? "title" : "none" };
 }
 
-export function reminderSettingsFromEnv(env = process.env) {
+export function reminderSettingsFromEnv(env: NodeJS.ProcessEnv = process.env): ReminderSettings {
   return {
     ...settingsFromEnv(env),
     summaryFolderName: env.CRAFT_SUMMARY_FOLDER_NAME || DEFAULT_CRAFT_SUMMARY_FOLDER,
   };
 }
 
-export async function loadReminderCredentials(settings, secretsClient) {
+export async function loadReminderCredentials(
+  settings: ReminderSettings,
+  secretsClient: SecretsClientLike,
+): Promise<Credentials> {
   if (settings.secretId) return loadCredentials(settings, secretsClient);
   if (!settings.craftApiBaseUrl || !settings.craftApiKey) {
     throw new Error("SECRET_ID or local Craft credentials are required");
@@ -76,7 +106,17 @@ export async function loadReminderCredentials(settings, secretsClient) {
   };
 }
 
-export async function processReminder({ documents, pushLine, spaceId, targetDate }) {
+export async function processReminder({
+  documents,
+  pushLine,
+  spaceId,
+  targetDate,
+}: {
+  documents: ReadonlyArray<CraftListedDocument>;
+  pushLine: (text: string) => Promise<void>;
+  spaceId?: string;
+  targetDate: string;
+}): Promise<{ reminded: number; documentId?: string }> {
   if (documents.length === 0) {
     await pushLine(EMPTY_REMINDER_MESSAGE);
     return { reminded: 0 };
@@ -93,7 +133,15 @@ export async function processReminder({ documents, pushLine, spaceId, targetDate
   return { reminded: 1, documentId: document.id };
 }
 
-export async function notifyReminderLineError({ line, credentials, error }) {
+export async function notifyReminderLineError({
+  line,
+  credentials,
+  error,
+}: {
+  line?: LineClient | null;
+  credentials?: Partial<Credentials> | null;
+  error: { message?: unknown };
+}): Promise<void> {
   const message = reminderFailedMessage(error.message);
   const client =
     line ??
@@ -111,11 +159,11 @@ export async function notifyReminderLineError({ line, credentials, error }) {
     await client.push(message);
     console.log("LINE通知");
   } catch (pushError) {
-    console.error(`LINE通知失敗: ${pushError.message}`);
+    console.error(`LINE通知失敗: ${(pushError as Error).message}`);
   }
 }
 
-export async function handler() {
+export async function handler(): Promise<{ reminded: number; documentId?: string }> {
   console.log("start");
   try {
     return await runReminder();
@@ -124,9 +172,9 @@ export async function handler() {
   }
 }
 
-async function runReminder() {
-  let line = null;
-  let credentials = null;
+async function runReminder(): Promise<{ reminded: number; documentId?: string }> {
+  let line: LineClient | null = null;
+  let credentials: Credentials | null = null;
   try {
     const settings = reminderSettingsFromEnv();
     credentials = await loadReminderCredentials(
@@ -149,7 +197,7 @@ async function runReminder() {
     try {
       spaceId = connectionSpaceId(await craft.getConnection());
     } catch (error) {
-      console.error(`Craft connection lookup failed: ${sanitizeErrorMessage(error.message)}`);
+      console.error(`Craft connection lookup failed: ${sanitizeErrorMessage((error as Error).message)}`);
     }
 
     const now = new Date();
@@ -164,14 +212,14 @@ async function runReminder() {
     }
     const result = await processReminder({
       documents,
-      pushLine: (text) => line.push(text),
+      pushLine: (text) => line!.push(text),
       spaceId,
       targetDate,
     });
     console.log(`週次リマインド ${result.reminded}件 (${targetDate})`);
     return result;
   } catch (error) {
-    await notifyReminderLineError({ line, credentials, error });
+    await notifyReminderLineError({ line, credentials, error: error as Error });
     throw error;
   }
 }

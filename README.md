@@ -17,22 +17,21 @@ Google Drive の手書き画像を文字起こしし、Craft に保存して処�
 ```
 infra/app.js            CDK（Lambda、Scheduler、Secrets Manager）
 lambda/const.ts           共有定数
-lambda/const.js           const.ts の re-export（ESM 解決用）
-lambda/index.js         朝のパイプライン
-lambda/weekly.js        週次要約
-lambda/reminder.js      週次リマインド
-lambda/kindle.js        Kindle 画像要約
-lambda/csv-import.js    Drive の CSV をスプレッドシートへ取り込む
-lambda/csv.js           CSV パースとシート名
-lambda/sheets.js        Google Sheets
-lambda/kindle-summarize.js  Kindle 画像要約（Vision）
-lambda/kindle-prompt.js Kindle 要約プロンプト
-lambda/drive.js         Google Drive
-lambda/craft.js         Craft
-lambda/line.js          LINE
-lambda/prompt.js        文字起こしプロンプト
-lambda/summary-prompt.js 週次要約プロンプト
-lambda/summarize.js     週次要約（claude / bedrock）
+lambda/index.ts         朝のパイプライン
+lambda/weekly.ts        週次要約
+lambda/reminder.ts      週次リマインド
+lambda/kindle.ts        Kindle 画像要約
+lambda/csv-import.ts    Drive の CSV をスプレッドシートへ取り込む
+lambda/csv.ts           CSV パースとシート名
+lambda/sheets.ts        Google Sheets
+lambda/kindle-summarize.ts  Kindle 画像要約（Vision）
+lambda/kindle-prompt.ts Kindle 要約プロンプト
+lambda/drive.ts         Google Drive
+lambda/craft.ts         Craft
+lambda/line.ts          LINE
+lambda/prompt.ts        文字起こしプロンプト
+lambda/summary-prompt.ts 週次要約プロンプト
+lambda/summarize.ts     週次要約（claude / bedrock）
 lambda/transcribe/      claude / bedrock
 test/                   node:test
 .github/workflows/ci.yml  pull request で test、main で cdk deploy

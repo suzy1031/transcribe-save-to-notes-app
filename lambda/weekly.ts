@@ -1,20 +1,32 @@
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import { formatWeeklyUsage, getWeeklyUsage } from "./claude-usage.js";
-import { createCraftClient } from "./craft.js";
-import { createLineClient, EMPTY_WEEK_MESSAGE, fitLineText } from "./line.js";
-import { loadCredentials, settingsFromEnv } from "./index.js";
-import { combineNotes } from "./summary-prompt.js";
-import { sanitizeErrorMessage } from "./sanitize-error.js";
-import { createSummarizer } from "./summarize.js";
+import { formatWeeklyUsage, getWeeklyUsage, type WeeklyUsageItem } from "./claude-usage.ts";
+import { createCraftClient, type CraftListedDocument } from "./craft.ts";
+import { createLineClient, EMPTY_WEEK_MESSAGE, fitLineText } from "./line.ts";
+import {
+  loadCredentials,
+  settingsFromEnv,
+  type BaseSettings,
+  type Credentials,
+  type SecretsClientLike,
+} from "./index.ts";
+import { combineNotes } from "./summary-prompt.ts";
+import { sanitizeErrorMessage } from "./sanitize-error.ts";
+import { createSummarizer } from "./summarize.ts";
 import {
   DEFAULT_CRAFT_PROCESSED_FOLDER,
   DEFAULT_CRAFT_SUMMARY_FOLDER,
   DEFAULT_CRAFT_TRANSCRIBE_FOLDER,
   TOKYO_TIME_ZONE,
   WEEKLY_LOOKBACK_DAYS,
-} from "./const.js";
+} from "./const.ts";
 
-export function tokyoDate(now = new Date(), timeZone = TOKYO_TIME_ZONE) {
+export interface WeeklySettings extends BaseSettings {
+  sourceFolderName: string;
+  processedFolderName: string;
+  summaryFolderName: string;
+}
+
+export function tokyoDate(now: Date = new Date(), timeZone: string = TOKYO_TIME_ZONE): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone,
     year: "numeric",
@@ -23,18 +35,22 @@ export function tokyoDate(now = new Date(), timeZone = TOKYO_TIME_ZONE) {
   }).format(now);
 }
 
-export function daysBeforeTokyoDate(now = new Date(), days = WEEKLY_LOOKBACK_DAYS, timeZone = TOKYO_TIME_ZONE) {
+export function daysBeforeTokyoDate(
+  now: Date = new Date(),
+  days: number = WEEKLY_LOOKBACK_DAYS,
+  timeZone: string = TOKYO_TIME_ZONE,
+): string {
   const [year, month, day] = tokyoDate(now, timeZone).split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));
   date.setUTCDate(date.getUTCDate() - days);
   return date.toISOString().slice(0, 10);
 }
 
-export function createdSinceDate(now = new Date(), timeZone = TOKYO_TIME_ZONE) {
+export function createdSinceDate(now: Date = new Date(), timeZone: string = TOKYO_TIME_ZONE): string {
   return daysBeforeTokyoDate(now, WEEKLY_LOOKBACK_DAYS, timeZone);
 }
 
-export function weeklySettingsFromEnv(env = process.env) {
+export function weeklySettingsFromEnv(env: NodeJS.ProcessEnv = process.env): WeeklySettings {
   return {
     ...settingsFromEnv(env),
     sourceFolderName: env.CRAFT_SOURCE_FOLDER_NAME || DEFAULT_CRAFT_TRANSCRIBE_FOLDER,
@@ -43,7 +59,10 @@ export function weeklySettingsFromEnv(env = process.env) {
   };
 }
 
-export async function loadWeeklyCredentials(settings, secretsClient) {
+export async function loadWeeklyCredentials(
+  settings: WeeklySettings,
+  secretsClient: SecretsClientLike,
+): Promise<Credentials> {
   if (settings.secretId) return loadCredentials(settings, secretsClient);
   if (!settings.craftApiBaseUrl || !settings.craftApiKey) {
     throw new Error("SECRET_ID or local Craft credentials are required");
@@ -57,7 +76,15 @@ export async function loadWeeklyCredentials(settings, secretsClient) {
   };
 }
 
-export async function reportWeeklyUsage({ getUsage, pushLine, log = console.log }) {
+export async function reportWeeklyUsage({
+  getUsage,
+  pushLine,
+  log = console.log,
+}: {
+  getUsage: () => Promise<WeeklyUsageItem | null>;
+  pushLine?: (text: string) => Promise<void>;
+  log?: (text: string) => void;
+}): Promise<{ item: WeeklyUsageItem | null; text: string }> {
   const item = await getUsage();
   const text = formatWeeklyUsage(item);
   log(text);
@@ -74,7 +101,16 @@ export async function processWeekly({
   createDocument,
   moveDocuments,
   now = new Date(),
-}) {
+}: {
+  documents: ReadonlyArray<CraftListedDocument>;
+  readMarkdown: (id: string) => Promise<string>;
+  summarize: (notesText: string) => Promise<string>;
+  pushLine: (text: string) => Promise<void>;
+  ensureSummaryFolder: () => Promise<string>;
+  createDocument: (input: { title: string; markdown: string; folderId: string }) => Promise<string>;
+  moveDocuments: (documentIds: string[]) => Promise<void>;
+  now?: Date;
+}): Promise<{ summarized: number; moved: number }> {
   if (documents.length === 0) {
     await pushLine(EMPTY_WEEK_MESSAGE);
     return { summarized: 0, moved: 0 };
@@ -96,7 +132,7 @@ export async function processWeekly({
   return { summarized: documents.length, moved: documents.length };
 }
 
-export async function handler() {
+export async function handler(): Promise<{ summarized: number; moved: number }> {
   console.log("start");
   try {
     return await runWeekly();
@@ -105,7 +141,7 @@ export async function handler() {
   }
 }
 
-async function runWeekly() {
+async function runWeekly(): Promise<{ summarized: number; moved: number }> {
   const settings = weeklySettingsFromEnv();
   const credentials = await loadWeeklyCredentials(
     settings,
@@ -159,7 +195,7 @@ async function runWeekly() {
       pushLine: (text) => line.push(text),
     });
   } catch (error) {
-    console.error(`Claude利用量の参照に失敗: ${sanitizeErrorMessage(error.message)}`);
+    console.error(`Claude利用量の参照に失敗: ${sanitizeErrorMessage((error as Error).message)}`);
   }
   return summary;
 }

@@ -1,6 +1,6 @@
-import { recordWeeklyUsage } from "../claude-usage.js";
-import { SYSTEM_PROMPT } from "../prompt.js";
-import { assertImageSize, parseTranscription } from "./parse.js";
+import { recordWeeklyUsage, type RecordWeeklyUsageOptions } from "../claude-usage.ts";
+import { SYSTEM_PROMPT } from "../prompt.ts";
+import { assertImageSize, parseTranscription, type ParsedTranscription } from "./parse.ts";
 import {
   ANTHROPIC_API_VERSION,
   CLAUDE_API_URL,
@@ -9,13 +9,25 @@ import {
   MAX_IMAGE_BYTES,
   MAX_TRANSCRIPTION_TOKENS,
   TRANSCRIBE_USER_PROMPT,
-} from "../const.js";
-import { withFetchTimeout } from "../fetch-with-timeout.js";
-import { sanitizeErrorMessage } from "../sanitize-error.js";
+} from "../const.ts";
+import { withFetchTimeout } from "../fetch-with-timeout.ts";
+import { sanitizeErrorMessage } from "../sanitize-error.ts";
 
 export { MAX_IMAGE_BYTES as maxImageBytes };
 
-function mediaType(mimeType) {
+export interface ClaudeTranscriberOptions {
+  apiKey?: string;
+  modelId?: string;
+  fetchImpl?: typeof fetch;
+  recordUsage?: (options: RecordWeeklyUsageOptions) => Promise<unknown>;
+}
+
+export interface TranscribeInput {
+  bytes: Uint8Array | Buffer;
+  mimeType?: string;
+}
+
+function mediaType(mimeType?: string): "image/png" | "image/jpeg" {
   if (mimeType === "image/png") return "image/png";
   if (mimeType === "image/jpeg") return "image/jpeg";
   throw new Error(`Unsupported image type: ${mimeType}`);
@@ -26,9 +38,9 @@ export function createTranscriber({
   modelId = DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
   fetchImpl = fetch,
   recordUsage = recordWeeklyUsage,
-} = {}) {
+}: ClaudeTranscriberOptions = {}): (input: TranscribeInput) => Promise<ParsedTranscription> {
   if (!apiKey) throw new Error("Anthropic API key is required");
-  return async function transcribe({ bytes, mimeType }) {
+  return async function transcribe({ bytes, mimeType }: TranscribeInput): Promise<ParsedTranscription> {
     assertImageSize(bytes, MAX_IMAGE_BYTES);
     const response = await fetchImpl(
       CLAUDE_API_URL,
@@ -63,7 +75,7 @@ export function createTranscriber({
         }),
       }),
     );
-    const payload = await response.json();
+    const payload = (await response.json()) as any;
     if (!response.ok) {
       const detail = sanitizeErrorMessage(payload.error?.message ?? response.statusText);
       throw new Error(`Claude transcription failed: ${response.status} ${detail}`);
@@ -74,8 +86,8 @@ export function createTranscriber({
       usage: payload.usage ?? {},
     });
     const text = (payload.content ?? [])
-      .filter((block) => block.type === "text")
-      .map((block) => block.text ?? "")
+      .filter((block: any) => block.type === "text")
+      .map((block: any) => block.text ?? "")
       .join("");
     return parseTranscription(text);
   };

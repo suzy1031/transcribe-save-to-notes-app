@@ -1,12 +1,35 @@
-import { JSON_CONTENT_TYPE } from "./const.js";
-import { withFetchTimeout } from "./fetch-with-timeout.js";
-import { formatHttpErrorDetail } from "./sanitize-error.js";
+import { JSON_CONTENT_TYPE } from "./const.ts";
+import { withFetchTimeout } from "./fetch-with-timeout.ts";
+import { formatHttpErrorDetail } from "./sanitize-error.ts";
 
-const CHILD_KEYS = ["folders", "children", "subfolders"];
+const CHILD_KEYS = ["folders", "children", "subfolders"] as const;
 
-export function findFolderIds(payload, name) {
-  const ids = [];
-  const visit = (node) => {
+export interface CraftListedDocument {
+  id: string;
+  title: string;
+}
+
+export interface DocumentsQueryParams {
+  folderId: string;
+  createdDateGte: string;
+  createdDateLte?: string;
+  fetchMetadata?: boolean;
+}
+
+export interface CraftClient {
+  getConnection(): Promise<unknown>;
+  findFolder(name: string): Promise<string | null>;
+  ensureFolder(name: string): Promise<string>;
+  createDocument(input: { title: string; markdown: string; folderId: string }): Promise<string>;
+  appendMarkdown(input: { pageId: string; markdown: string }): Promise<void>;
+  listDocuments(params: DocumentsQueryParams): Promise<CraftListedDocument[]>;
+  readMarkdown(id: string): Promise<string>;
+  moveDocuments(input: { documentIds: string[]; folderId: string }): Promise<void>;
+}
+
+export function findFolderIds(payload: any, name: string): string[] {
+  const ids: string[] = [];
+  const visit = (node: any): void => {
     if (Array.isArray(node)) {
       for (const item of node) visit(item);
       return;
@@ -21,14 +44,17 @@ export function findFolderIds(payload, name) {
   return ids;
 }
 
-export function documentPayload(title, folderId) {
+export function documentPayload(
+  title: string,
+  folderId: string,
+): { documents: Array<{ title: string }>; destination: { folderId: string } } {
   return {
     documents: [{ title }],
     destination: { folderId },
   };
 }
 
-function createdDocumentId(payload) {
+function createdDocumentId(payload: any): string {
   const list = payload.items ?? payload.documents ?? [];
   const id = list[0]?.rootBlockId ?? list[0]?.id ?? list[0]?.documentId;
   if (typeof id !== "string" || id === "") {
@@ -37,24 +63,32 @@ function createdDocumentId(payload) {
   return id;
 }
 
-export function documentsQuery({ folderId, createdDateGte, createdDateLte, fetchMetadata }) {
+export function documentsQuery({
+  folderId,
+  createdDateGte,
+  createdDateLte,
+  fetchMetadata,
+}: DocumentsQueryParams): string {
   const params = new URLSearchParams({ folderId, createdDateGte });
   if (createdDateLte) params.set("createdDateLte", createdDateLte);
   if (fetchMetadata) params.set("fetchMetadata", "true");
   return `/documents?${params.toString()}`;
 }
 
-export function listedDocument(item) {
+export function listedDocument(item: any): CraftListedDocument | null {
   const id = item?.id ?? item?.documentId ?? item?.rootBlockId;
   if (typeof id !== "string" || id === "") return null;
   return { id, title: typeof item.title === "string" ? item.title : "" };
 }
 
-export function moveDocumentsPayload(documentIds, folderId) {
+export function moveDocumentsPayload(
+  documentIds: string[],
+  folderId: string,
+): { documentIds: string[]; destination: { folderId: string } } {
   return { documentIds, destination: { folderId } };
 }
 
-export function craftAppDocumentLink(spaceId, blockId) {
+export function craftAppDocumentLink(spaceId: unknown, blockId: unknown): string {
   const params = new URLSearchParams({
     spaceId: String(spaceId),
     blockId: String(blockId),
@@ -62,7 +96,7 @@ export function craftAppDocumentLink(spaceId, blockId) {
   return `craftdocs://open?${params.toString()}`;
 }
 
-export function connectionSpaceId(payload) {
+export function connectionSpaceId(payload: any): string {
   const id = payload?.space?.id ?? payload?.space?.spaceId;
   if (typeof id !== "string" || id === "") {
     throw new Error("Craft connection returned no space id");
@@ -70,7 +104,22 @@ export function connectionSpaceId(payload) {
   return id;
 }
 
-async function craftRequest(baseUrl, apiKey, path, { method, body, fetchImpl, accept = JSON_CONTENT_TYPE }) {
+async function craftRequest(
+  baseUrl: string,
+  apiKey: string,
+  path: string,
+  {
+    method,
+    body,
+    fetchImpl,
+    accept = JSON_CONTENT_TYPE,
+  }: {
+    method: string;
+    body?: unknown;
+    fetchImpl: typeof fetch;
+    accept?: string;
+  },
+): Promise<any> {
   const url = `${baseUrl.replace(/\/$/, "")}${path}`;
   const response = await fetchImpl(
     url,
@@ -94,15 +143,26 @@ async function craftRequest(baseUrl, apiKey, path, { method, body, fetchImpl, ac
   return text === "" ? {} : JSON.parse(text);
 }
 
-export function createCraftClient({ baseUrl, apiKey, fetchImpl = fetch }) {
+export function createCraftClient({
+  baseUrl = "",
+  apiKey,
+  fetchImpl = fetch,
+}: {
+  baseUrl?: string;
+  apiKey?: string;
+  fetchImpl?: typeof fetch;
+}): CraftClient {
   if (!apiKey) throw new Error("Craft API key is required");
-  const request = (path, options) => craftRequest(baseUrl, apiKey, path, { ...options, fetchImpl });
+  const request = (
+    path: string,
+    options: { method: string; body?: unknown; accept?: string },
+  ) => craftRequest(baseUrl, apiKey, path, { ...options, fetchImpl });
   return {
     async getConnection() {
       return request("/connection", { method: "GET" });
     },
 
-    async findFolder(name) {
+    async findFolder(name: string) {
       const listed = await request("/folders", { method: "GET" });
       const ids = findFolderIds(listed, name);
       if (ids.length > 1) {
@@ -111,7 +171,7 @@ export function createCraftClient({ baseUrl, apiKey, fetchImpl = fetch }) {
       return ids[0] ?? null;
     },
 
-    async ensureFolder(name) {
+    async ensureFolder(name: string) {
       const listed = await request("/folders", { method: "GET" });
       const ids = findFolderIds(listed, name);
       if (ids.length > 1) {
@@ -156,11 +216,11 @@ export function createCraftClient({ baseUrl, apiKey, fetchImpl = fetch }) {
         documentsQuery({ folderId, createdDateGte, createdDateLte, fetchMetadata }),
         { method: "GET" },
       );
-      const items = listed.items ?? listed.documents ?? [];
-      return items.map(listedDocument).filter((item) => item !== null);
+      const items: unknown[] = listed.items ?? listed.documents ?? [];
+      return items.map(listedDocument).filter((item): item is CraftListedDocument => item !== null);
     },
 
-    async readMarkdown(id) {
+    async readMarkdown(id: string) {
       return request(`/blocks?id=${encodeURIComponent(id)}`, {
         method: "GET",
         accept: "text/markdown",

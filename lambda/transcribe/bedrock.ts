@@ -1,16 +1,27 @@
 import { BedrockRuntimeClient, ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
-import { SYSTEM_PROMPT } from "../prompt.js";
-import { assertImageSize, parseTranscription } from "./parse.js";
+import { SYSTEM_PROMPT } from "../prompt.ts";
+import { assertImageSize, parseTranscription, type ParsedTranscription } from "./parse.ts";
+import type { TranscribeInput } from "./claude.ts";
 import {
   DEFAULT_BEDROCK_MODEL_ID,
   MAX_IMAGE_BYTES,
   MAX_TRANSCRIPTION_TOKENS,
   TRANSCRIBE_USER_PROMPT,
-} from "../const.js";
+} from "../const.ts";
 
 export { MAX_IMAGE_BYTES as maxImageBytes };
 
-function imageFormat(mimeType) {
+export interface BedrockClientLike {
+  send(command: ConverseCommand): Promise<any>;
+}
+
+export interface BedrockTranscriberOptions {
+  region?: string;
+  modelId?: string;
+  client?: BedrockClientLike;
+}
+
+function imageFormat(mimeType?: string): "png" | "jpeg" {
   if (mimeType === "image/png") return "png";
   if (mimeType === "image/jpeg") return "jpeg";
   throw new Error(`Unsupported image type: ${mimeType}`);
@@ -20,8 +31,8 @@ export function createTranscriber({
   region,
   modelId = DEFAULT_BEDROCK_MODEL_ID,
   client = new BedrockRuntimeClient({ region }),
-} = {}) {
-  return async function transcribe({ bytes, mimeType }) {
+}: BedrockTranscriberOptions = {}): (input: TranscribeInput) => Promise<ParsedTranscription> {
+  return async function transcribe({ bytes, mimeType }: TranscribeInput): Promise<ParsedTranscription> {
     assertImageSize(bytes, MAX_IMAGE_BYTES);
     const response = await client.send(
       new ConverseCommand({
@@ -45,7 +56,7 @@ export function createTranscriber({
       }),
     );
     const text = (response.output?.message?.content ?? [])
-      .map((block) => block.text ?? "")
+      .map((block: any) => block.text ?? "")
       .join("");
     return parseTranscription(text);
   };

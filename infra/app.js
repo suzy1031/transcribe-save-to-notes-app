@@ -25,7 +25,7 @@ import {
   DEFAULT_KINDLE_PROCESSED_FOLDER,
   DEFAULT_KINDLE_SUMMARY_DOC_TITLE,
   DEFAULT_TRANSCRIPTION_PROVIDER,
-} from "../lambda/const.js";
+} from "../lambda/const.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -71,7 +71,7 @@ class NotesPipelineStack extends Stack {
     });
 
     const fn = new NodejsFunction(this, "Handler", {
-      entry: path.join(__dirname, "../lambda/index.js"),
+      entry: path.join(__dirname, "../lambda/index.ts"),
       projectRoot: path.join(__dirname, ".."),
       depsLockFilePath: path.join(__dirname, "../package-lock.json"),
       handler: "handler",
@@ -95,7 +95,7 @@ class NotesPipelineStack extends Stack {
 
     const weekly = new NodejsFunction(this, "WeeklySummarizer", {
       functionName: "craft-weekly-summarizer",
-      entry: path.join(__dirname, "../lambda/weekly.js"),
+      entry: path.join(__dirname, "../lambda/weekly.ts"),
       projectRoot: path.join(__dirname, ".."),
       depsLockFilePath: path.join(__dirname, "../package-lock.json"),
       handler: "handler",
@@ -134,7 +134,7 @@ class NotesPipelineStack extends Stack {
 
     const reminder = new NodejsFunction(this, "WeeklyReminder", {
       functionName: "craft-weekly-reminder",
-      entry: path.join(__dirname, "../lambda/reminder.js"),
+      entry: path.join(__dirname, "../lambda/reminder.ts"),
       projectRoot: path.join(__dirname, ".."),
       depsLockFilePath: path.join(__dirname, "../package-lock.json"),
       handler: "handler",
@@ -154,7 +154,7 @@ class NotesPipelineStack extends Stack {
 
     const csvImport = new NodejsFunction(this, "CsvImport", {
       functionName: "csv-spreadsheet-import",
-      entry: path.join(__dirname, "../lambda/csv-import.js"),
+      entry: path.join(__dirname, "../lambda/csv-import.ts"),
       projectRoot: path.join(__dirname, ".."),
       depsLockFilePath: path.join(__dirname, "../package-lock.json"),
       handler: "handler",
@@ -176,7 +176,7 @@ class NotesPipelineStack extends Stack {
 
     const kindle = new NodejsFunction(this, "KindleSummarizer", {
       functionName: "craft-kindle-summarizer",
-      entry: path.join(__dirname, "../lambda/kindle.js"),
+      entry: path.join(__dirname, "../lambda/kindle.ts"),
       projectRoot: path.join(__dirname, ".."),
       depsLockFilePath: path.join(__dirname, "../package-lock.json"),
       handler: "handler",

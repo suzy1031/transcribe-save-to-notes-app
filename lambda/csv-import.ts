@@ -3,20 +3,35 @@ import {
   DEFAULT_CSV_INBOX_FOLDER,
   DEFAULT_CSV_PROCESSED_FOLDER,
   DEFAULT_CSV_SPREADSHEET_ID,
-} from "./const.js";
-import { parseCsv, sheetTitle, spreadsheetAppLink, tokyoDate, appendTotalRow } from "./csv.js";
-import { createDriveClient } from "./drive.js";
-import { loadCredentials, settingsFromEnv } from "./index.js";
+} from "./const.ts";
+import { parseCsv, sheetTitle, spreadsheetAppLink, tokyoDate, appendTotalRow } from "./csv.ts";
+import { createDriveClient, type DriveFile } from "./drive.ts";
+import { loadCredentials, settingsFromEnv, type BaseSettings } from "./index.ts";
 import {
   createLineClient,
   csvImportFailedMessage,
   csvImportSummaryMessage,
   EMPTY_CSV_MESSAGE,
-} from "./line.js";
-import { sanitizeErrorMessage } from "./sanitize-error.js";
-import { createSheetsClient } from "./sheets.js";
+  type CsvImportFailure,
+  type LineClient,
+} from "./line.ts";
+import { sanitizeErrorMessage } from "./sanitize-error.ts";
+import { createSheetsClient } from "./sheets.ts";
 
-export function csvImportSettingsFromEnv(env = process.env) {
+export interface CsvImportSettings extends BaseSettings {
+  inboxFolderName: string;
+  processedFolderName: string;
+  spreadsheetId: string;
+}
+
+export interface CsvImportResult {
+  imported: number;
+  failed: number;
+  failures: CsvImportFailure[];
+  folderLookup?: string;
+}
+
+export function csvImportSettingsFromEnv(env: NodeJS.ProcessEnv = process.env): CsvImportSettings {
   return {
     ...settingsFromEnv(env),
     inboxFolderName: env.CSV_INBOX_FOLDER_NAME || DEFAULT_CSV_INBOX_FOLDER,
@@ -34,7 +49,16 @@ export async function importCsvFiles({
   pushLine,
   spreadsheetUrl: sheetUrl,
   now = new Date(),
-}) {
+}: {
+  files: ReadonlyArray<DriveFile>;
+  download: (file: DriveFile) => Promise<Uint8Array | Buffer>;
+  existingSheetTitles: ReadonlyArray<string>;
+  writeSheet: (input: { title: string; rows: string[][] }) => Promise<void>;
+  moveToProcessed: (file: DriveFile) => Promise<void>;
+  pushLine: (text: string) => Promise<void>;
+  spreadsheetUrl?: string;
+  now?: Date;
+}): Promise<CsvImportResult> {
   if (files.length === 0) {
     await pushLine(EMPTY_CSV_MESSAGE);
     return { imported: 0, failed: 0, failures: [] };
@@ -42,7 +66,7 @@ export async function importCsvFiles({
 
   const titles = new Set(existingSheetTitles.map((title) => title.toLowerCase()));
   const date = tokyoDate(now);
-  const result = { imported: 0, failed: 0, failures: [] };
+  const result: CsvImportResult = { imported: 0, failed: 0, failures: [] };
 
   for (const file of files) {
     const title = sheetTitle({ date, fileName: file.name });
@@ -63,7 +87,7 @@ export async function importCsvFiles({
       titles.add(title.toLowerCase());
     } catch (error) {
       result.failed += 1;
-      result.failures.push({ fileName: file.name, reason: error.message });
+      result.failures.push({ fileName: file.name, reason: (error as Error).message });
       continue;
     }
 
@@ -74,7 +98,7 @@ export async function importCsvFiles({
       result.failed += 1;
       result.failures.push({
         fileName: file.name,
-        reason: `シートは作成済みです。移動に失敗しました: ${error.message}`,
+        reason: `シートは作成済みです。移動に失敗しました: ${(error as Error).message}`,
       });
     }
   }
@@ -90,7 +114,7 @@ export async function importCsvFiles({
   return result;
 }
 
-export async function handler(event, context) {
+export async function handler(event: unknown, context: unknown): Promise<CsvImportResult> {
   console.log("start");
   try {
     return await runCsvImport();
@@ -99,7 +123,7 @@ export async function handler(event, context) {
   }
 }
 
-async function runCsvImport() {
+async function runCsvImport(): Promise<CsvImportResult> {
   const settings = csvImportSettingsFromEnv();
   const credentials = await loadCredentials(
     settings,
@@ -125,7 +149,9 @@ async function runCsvImport() {
   const inbox = await drive.findUniqueFolder(settings.inboxFolderName);
   const processed = await drive.findUniqueFolder(settings.processedFolderName);
   if (!inbox.ok || !processed.ok) {
-    const reason = `Drive folder lookup failed: csv_inbox=${inbox.count} csv_processed=${processed.count}`;
+    const inboxCount = inbox.ok ? 1 : inbox.count;
+    const processedCount = processed.ok ? 1 : processed.count;
+    const reason = `Drive folder lookup failed: csv_inbox=${inboxCount} csv_processed=${processedCount}`;
     console.error(reason);
     await pushLine(line, csvImportFailedMessage(reason));
     return { imported: 0, failed: 0, failures: [], folderLookup: "failed" };
@@ -155,7 +181,7 @@ async function runCsvImport() {
   });
 }
 
-async function pushLine(line, text) {
+async function pushLine(line: LineClient | null, text: string): Promise<void> {
   if (!line) {
     console.error("LINE通知失敗: credentials are missing");
     return;
@@ -164,6 +190,6 @@ async function pushLine(line, text) {
     await line.push(text);
     console.log("LINE通知");
   } catch (error) {
-    console.error(`LINE通知失敗: ${sanitizeErrorMessage(error.message)}`);
+    console.error(`LINE通知失敗: ${sanitizeErrorMessage((error as Error).message)}`);
   }
 }

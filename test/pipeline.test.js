@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { processInbox } from "../lambda/index.js";
-import { MAX_IMAGE_BYTES } from "../lambda/transcribe/index.js";
+import { processInbox } from "../lambda/index.ts";
+import { MAX_IMAGE_BYTES } from "../lambda/transcribe/index.ts";
 
 const image = {
   id: "file-1",
