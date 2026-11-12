@@ -1,13 +1,23 @@
 import { JWT } from "google-auth-library";
-import { JSON_CONTENT_TYPE } from "./const.js";
-import { gridSize, valuesRange } from "./csv.js";
-import { withFetchTimeout } from "./fetch-with-timeout.js";
-import { formatHttpErrorDetail } from "./sanitize-error.js";
+import { JSON_CONTENT_TYPE } from "./const.ts";
+import { gridSize, valuesRange } from "./csv.ts";
+import { withFetchTimeout } from "./fetch-with-timeout.ts";
+import { formatHttpErrorDetail } from "./sanitize-error.ts";
+import type { AuthClientLike, GoogleServiceAccount } from "./drive.ts";
 
 const SHEETS_API = "https://sheets.googleapis.com/v4/spreadsheets";
 const SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
 
-async function readJson(response) {
+export interface SheetsClient {
+  listSheetTitles(spreadsheetId: string): Promise<string[]>;
+  addSheetWithValues(input: {
+    spreadsheetId: string;
+    title: string;
+    rows: ReadonlyArray<ReadonlyArray<string>>;
+  }): Promise<void>;
+}
+
+async function readJson(response: Response): Promise<any> {
   const text = await response.text();
   const payload = text === "" ? {} : JSON.parse(text);
   if (!response.ok) {
@@ -16,8 +26,16 @@ async function readJson(response) {
   return payload;
 }
 
-export function createSheetsClient({ serviceAccount, authClient, fetchImpl = fetch }) {
-  const auth =
+export function createSheetsClient({
+  serviceAccount,
+  authClient,
+  fetchImpl = fetch,
+}: {
+  serviceAccount?: GoogleServiceAccount;
+  authClient?: AuthClientLike;
+  fetchImpl?: typeof fetch;
+}): SheetsClient {
+  const auth: AuthClientLike =
     authClient ??
     new JWT({
       email: serviceAccount?.client_email,
@@ -25,7 +43,7 @@ export function createSheetsClient({ serviceAccount, authClient, fetchImpl = fet
       scopes: [SHEETS_SCOPE],
     });
 
-  async function request(url, options = {}) {
+  async function request(url: string, options: RequestInit = {}): Promise<Response> {
     const access = await auth.getAccessToken();
     const token = typeof access === "string" ? access : access?.token;
     if (!token) throw new Error("Google access token was empty");
@@ -43,12 +61,12 @@ export function createSheetsClient({ serviceAccount, authClient, fetchImpl = fet
   }
 
   return {
-    async listSheetTitles(spreadsheetId) {
+    async listSheetTitles(spreadsheetId: string) {
       const url = `${SHEETS_API}/${spreadsheetId}?fields=sheets.properties.title`;
       const payload = await readJson(await request(url));
       return (payload.sheets ?? [])
-        .map((sheet) => sheet.properties?.title)
-        .filter((title) => typeof title === "string");
+        .map((sheet: any) => sheet.properties?.title)
+        .filter((title: unknown): title is string => typeof title === "string");
     },
 
     async addSheetWithValues({ spreadsheetId, title, rows }) {

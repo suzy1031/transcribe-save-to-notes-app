@@ -1,10 +1,15 @@
 import path from "node:path";
-import { TOKYO_TIME_ZONE } from "./const.js";
+import { TOKYO_TIME_ZONE } from "./const.ts";
 
 const SHEET_TITLE_MAX = 100;
 const INVALID_SHEET_CHARS = /[:\\/?*[\]]/g;
 
-export function tokyoDate(now = new Date(), timeZone = TOKYO_TIME_ZONE) {
+export interface FileLike {
+  name?: string;
+  mimeType?: string;
+}
+
+export function tokyoDate(now: Date = new Date(), timeZone: string = TOKYO_TIME_ZONE): string {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone,
     year: "numeric",
@@ -13,19 +18,19 @@ export function tokyoDate(now = new Date(), timeZone = TOKYO_TIME_ZONE) {
   }).format(now);
 }
 
-export function isCsvFile(file) {
+export function isCsvFile(file: FileLike): boolean {
   const mime = file.mimeType ?? "";
   if (mime.startsWith("application/vnd.google-apps.")) return false;
   const extension = path.extname(file.name ?? "").toLowerCase();
   return mime === "text/csv" || extension === ".csv";
 }
 
-export function parseCsv(text) {
+export function parseCsv(text: unknown): string[][] {
   const source = String(text).replace(/^\uFEFF/, "");
   if (source === "") return [];
 
-  const rows = [];
-  let row = [];
+  const rows: string[][] = [];
+  let row: string[] = [];
   let field = "";
   let inQuotes = false;
 
@@ -73,7 +78,7 @@ export function parseCsv(text) {
   return rows;
 }
 
-export function sheetTitle({ date, fileName }) {
+export function sheetTitle({ date, fileName }: { date: string; fileName?: string }): string {
   const stem = path.basename(fileName ?? "", path.extname(fileName ?? ""));
   const cleaned = stem
     .replace(INVALID_SHEET_CHARS, "")
@@ -83,26 +88,29 @@ export function sheetTitle({ date, fileName }) {
   return `${date}_${cleaned || "csv"}`.slice(0, SHEET_TITLE_MAX);
 }
 
-export function spreadsheetUrl(spreadsheetId) {
+export function spreadsheetUrl(spreadsheetId: string): string {
   return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`;
 }
 
-export function spreadsheetAppLink(spreadsheetId) {
+export function spreadsheetAppLink(spreadsheetId: string): string {
   return `googlesheets://${spreadsheetUrl(spreadsheetId)}`;
 }
 
-export function valuesRange(title) {
+export function valuesRange(title: unknown): string {
   return `'${String(title).replaceAll("'", "''")}'!A1`;
 }
 
-export function gridSize(rows) {
+export function gridSize(rows: ReadonlyArray<ReadonlyArray<unknown>>): {
+  rowCount: number;
+  columnCount: number;
+} {
   const columnCount = rows.reduce((max, row) => Math.max(max, row.length), 1);
   return { rowCount: Math.max(rows.length, 1), columnCount };
 }
 
 const AMOUNT_PATTERN = /^-?\d+(\.\d+)?$/;
 
-function parseAmount(value) {
+function parseAmount(value: unknown): number | null {
   const trimmed = String(value ?? "").trim();
   if (trimmed === "") return null;
   const normalized = trimmed.replace(/[¥￥円,\s]/g, "");
@@ -112,15 +120,15 @@ function parseAmount(value) {
   return Number(normalized);
 }
 
-function formatTotal(sum) {
+function formatTotal(sum: number): string {
   if (Number.isInteger(sum)) return String(sum);
   return String(Math.round(sum * 100) / 100);
 }
 
-function amountColumnIndex(rows) {
+function amountColumnIndex(rows: ReadonlyArray<ReadonlyArray<unknown>>): number {
   const header = rows[0].map((cell) => String(cell).trim());
-  const exact = [];
-  const contains = [];
+  const exact: number[] = [];
+  const contains: number[] = [];
   header.forEach((name, index) => {
     if (name === "金額" || name === "合計金額") exact.push(index);
     else if (name.includes("金額")) contains.push(index);
@@ -147,7 +155,7 @@ function amountColumnIndex(rows) {
   throw new Error("合計する数値の列がありません");
 }
 
-export function appendTotalRow(rows) {
+export function appendTotalRow(rows: ReadonlyArray<ReadonlyArray<string>>): string[][] {
   if (rows.length < 2) throw new Error("合計する数値がありません");
   const column = amountColumnIndex(rows);
   let sum = 0;
@@ -167,5 +175,5 @@ export function appendTotalRow(rows) {
   const total = Array.from({ length: width }, () => "");
   if (column !== 0) total[0] = "合計";
   total[column] = formatTotal(sum);
-  return [...rows, total];
+  return [...rows.map((row) => [...row]), total];
 }

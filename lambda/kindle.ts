@@ -1,10 +1,27 @@
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import { connectionSpaceId, craftAppDocumentLink, createCraftClient } from "./craft.js";
-import { createDriveClient } from "./drive.js";
-import { loadCredentials, settingsFromEnv } from "./index.js";
-import { createKindleSummarizer } from "./kindle-summarize.js";
-import { createLineClient, kindleFailedMessage, kindleRunSummaryMessage } from "./line.js";
-import { sanitizeErrorMessage } from "./sanitize-error.js";
+import {
+  connectionSpaceId,
+  craftAppDocumentLink,
+  createCraftClient,
+  type CraftListedDocument,
+} from "./craft.ts";
+import { createDriveClient, type DriveFile } from "./drive.ts";
+import {
+  loadCredentials,
+  settingsFromEnv,
+  type BaseSettings,
+  type LambdaContextLike,
+  type LoggerLike,
+} from "./index.ts";
+import { createKindleSummarizer } from "./kindle-summarize.ts";
+import {
+  createLineClient,
+  kindleFailedMessage,
+  kindleRunSummaryMessage,
+  type LineClient,
+} from "./line.ts";
+import { sanitizeErrorMessage } from "./sanitize-error.ts";
+import type { TranscribeInput } from "./transcribe/claude.ts";
 import {
   ALL_CRAFT_DOCUMENTS_SINCE,
   DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
@@ -13,9 +30,33 @@ import {
   DEFAULT_KINDLE_PROCESSED_FOLDER,
   DEFAULT_KINDLE_SUMMARY_DOC_TITLE,
   MIN_REMAINING_MS,
-} from "./const.js";
+} from "./const.ts";
 
-export function kindleSettingsFromEnv(env = process.env) {
+export interface KindleSettings extends BaseSettings {
+  driveParentFolderName: string;
+  bookFolderPrefix: string;
+  processedFolderName: string;
+  summaryDocTitle: string;
+  kindleClaudeModelId: string;
+}
+
+export type SummaryDocumentState =
+  | { action: "create" }
+  | { action: "append"; documentId: string }
+  | { action: "error"; reason: string };
+
+export interface ProcessKindleResult {
+  foldersScanned: number;
+  imagesSummarized: number;
+  imagesFailed: number;
+  foldersSkippedNoCraft?: number;
+  deferred?: number;
+  errors?: string[];
+  links?: Array<{ folderName: string; documentId: string }>;
+  folderLookup?: string;
+}
+
+export function kindleSettingsFromEnv(env: NodeJS.ProcessEnv = process.env): KindleSettings {
   return {
     ...settingsFromEnv(env),
     driveParentFolderName: env.KINDLE_DRIVE_PARENT_FOLDER_NAME || DEFAULT_KINDLE_DRIVE_PARENT,
@@ -27,7 +68,9 @@ export function kindleSettingsFromEnv(env = process.env) {
   };
 }
 
-export function summaryDocumentState(documents) {
+export function summaryDocumentState(
+  documents: ReadonlyArray<{ id: string }>,
+): SummaryDocumentState {
   if (documents.length === 0) return { action: "create" };
   if (documents.length === 1) {
     return { action: "append", documentId: documents[0].id };
@@ -51,15 +94,32 @@ export async function processKindleBooks({
   moveImageToProcessed,
   getRemainingTimeMs = () => Number.POSITIVE_INFINITY,
   log = console,
-}) {
+}: {
+  bookFolders: ReadonlyArray<DriveFile>;
+  listImages: (folderId: string) => Promise<DriveFile[]>;
+  download: (file: DriveFile) => Promise<Uint8Array | Buffer>;
+  findCraftFolderId: (name: string) => Promise<string | null>;
+  listCraftDocuments: (folderId: string) => Promise<CraftListedDocument[]>;
+  createSummaryDocument: (input: { folderId: string; markdown: string }) => Promise<string>;
+  appendSummary: (input: { documentId: string; markdown: string }) => Promise<void>;
+  summarizeImage: (input: TranscribeInput) => Promise<string>;
+  ensureProcessedFolder: (bookFolderId: string) => Promise<string>;
+  moveImageToProcessed: (input: {
+    file: DriveFile;
+    bookFolderId: string;
+    processedFolderId: string;
+  }) => Promise<void>;
+  getRemainingTimeMs?: () => number;
+  log?: LoggerLike;
+}): Promise<Required<Omit<ProcessKindleResult, "folderLookup">>> {
   const result = {
     foldersScanned: bookFolders.length,
     imagesSummarized: 0,
     imagesFailed: 0,
     foldersSkippedNoCraft: 0,
     deferred: 0,
-    errors: [],
-    links: [],
+    errors: [] as string[],
+    links: [] as Array<{ folderName: string; documentId: string }>,
   };
 
   for (let folderIndex = 0; folderIndex < bookFolders.length; folderIndex += 1) {
@@ -88,7 +148,7 @@ export async function processKindleBooks({
       continue;
     }
 
-    let documentId = docState.action === "append" ? docState.documentId : null;
+    let documentId: string | null = docState.action === "append" ? docState.documentId : null;
     let folderSaved = false;
     const processedFolderId = await ensureProcessedFolder(bookFolder.id);
 
@@ -122,7 +182,7 @@ export async function processKindleBooks({
         log.info(`Kindle要約 end ${bookFolder.name}/${file.name}`);
       } catch (error) {
         result.imagesFailed += 1;
-        const message = sanitizeErrorMessage(error.message);
+        const message = sanitizeErrorMessage((error as Error).message);
         result.errors.push(`${bookFolder.name}/${file.name}: ${message}`);
         log.error(`Kindle要約失敗 ${bookFolder.name}/${file.name}: ${message}`);
       }
@@ -136,7 +196,7 @@ export async function processKindleBooks({
   return result;
 }
 
-export async function handler(event, context) {
+export async function handler(event: unknown, context: LambdaContextLike): Promise<ProcessKindleResult> {
   console.log("start");
   try {
     return await runKindle(context);
@@ -145,7 +205,7 @@ export async function handler(event, context) {
   }
 }
 
-async function runKindle(context) {
+async function runKindle(context: LambdaContextLike): Promise<ProcessKindleResult> {
   const settings = kindleSettingsFromEnv();
   const credentials = await loadCredentials(
     settings,
@@ -168,7 +228,7 @@ async function runKindle(context) {
   try {
     craftSpaceId = connectionSpaceId(await craft.getConnection());
   } catch (error) {
-    console.error(`Craft connection lookup failed: ${sanitizeErrorMessage(error.message)}`);
+    console.error(`Craft connection lookup failed: ${sanitizeErrorMessage((error as Error).message)}`);
   }
 
   const parent = await drive.findUniqueFolder(settings.driveParentFolderName);
@@ -241,7 +301,7 @@ async function runKindle(context) {
   return summary;
 }
 
-async function pushLine(line, text) {
+async function pushLine(line: LineClient | null, text: string): Promise<void> {
   if (!line) {
     console.error("LINE通知失敗: credentials are missing");
     return;
@@ -250,6 +310,6 @@ async function pushLine(line, text) {
     await line.push(text);
     console.log("LINE通知");
   } catch (error) {
-    console.error(`LINE通知失敗: ${sanitizeErrorMessage(error.message)}`);
+    console.error(`LINE通知失敗: ${sanitizeErrorMessage((error as Error).message)}`);
   }
 }

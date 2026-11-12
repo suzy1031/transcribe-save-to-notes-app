@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { importCsvFiles } from "../lambda/csv-import.js";
+import { importCsvFiles } from "../lambda/csv-import.ts";
 import {
   appendTotalRow,
   gridSize,
@@ -9,9 +9,9 @@ import {
   sheetTitle,
   spreadsheetAppLink,
   valuesRange,
-} from "../lambda/csv.js";
-import { csvImportSummaryMessage, EMPTY_CSV_MESSAGE } from "../lambda/line.js";
-import { createSheetsClient } from "../lambda/sheets.js";
+} from "../lambda/csv.ts";
+import { csvImportSummaryMessage, EMPTY_CSV_MESSAGE } from "../lambda/line.ts";
+import { createSheetsClient } from "../lambda/sheets.ts";
 
 test("parseCsv は引用符、カンマ、セル内改行、BOM、CRLFを読む", () => {
   const text = '\uFEFFname,note\r\n"a,b","line1\nline2"\r\nplain,"say ""hi"""\r\n';

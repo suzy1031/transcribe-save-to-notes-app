@@ -9,8 +9,8 @@ import {
   transcriptionSavedMessage,
   reminderDeliveredMessage,
   reminderFailedMessage,
-} from "../lambda/line.js";
-import { craftAppDocumentLink } from "../lambda/craft.js";
+} from "../lambda/line.ts";
+import { craftAppDocumentLink } from "../lambda/craft.ts";
 
 test("fitLineText は短いメッセージをそのまま返し5000文字で切り詰める", () => {
   assert.equal(fitLineText("こんにちは"), "こんにちは");

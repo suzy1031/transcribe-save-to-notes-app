@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createTranscription, parseTranscription } from "../lambda/transcribe/index.js";
+import { createTranscription, parseTranscription } from "../lambda/transcribe/index.ts";
 
 test("parseTranscription はJSONオブジェクトを読み取る", () => {
   const note = parseTranscription('{"title":"朝のメモ","markdown":"本文"}');

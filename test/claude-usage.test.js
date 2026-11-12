@@ -1,16 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { estimateUsdMicros, microToUsdDecimal, normalizeUsage } from "../lambda/claude-pricing.js";
+import { estimateUsdMicros, microToUsdDecimal, normalizeUsage } from "../lambda/claude-pricing.ts";
 import {
   formatWeeklyUsage,
   getWeeklyUsage,
   isoWeekKey,
   recordWeeklyUsage,
-} from "../lambda/claude-usage.js";
-import { createClaudeKindleSummarizer } from "../lambda/kindle-summarize.js";
-import { createClaudeSummarizer } from "../lambda/summarize.js";
-import { createTranscriber } from "../lambda/transcribe/claude.js";
-import { reportWeeklyUsage } from "../lambda/weekly.js";
+} from "../lambda/claude-usage.ts";
+import { createClaudeKindleSummarizer } from "../lambda/kindle-summarize.ts";
+import { createClaudeSummarizer } from "../lambda/summarize.ts";
+import { createTranscriber } from "../lambda/transcribe/claude.ts";
+import { reportWeeklyUsage } from "../lambda/weekly.ts";
 
 test("isoWeekKey は東京の暦日で ISO 週を決める", () => {
   assert.equal(isoWeekKey(new Date("2026-11-07T00:00:00Z")), "WEEK#2026-W45");
