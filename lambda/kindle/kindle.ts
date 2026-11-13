@@ -4,10 +4,7 @@ import { connectionSpaceId, craftAppDocumentLink } from "../craft/helper.ts";
 import type { CraftListedDocument } from "../craft/types.ts";
 import { createDriveClient } from "../drive/drive.ts";
 import type { DriveFile } from "../drive/types.ts";
-import { loadCredentials, settingsFromEnv } from "../inbox/index.ts";
 import { kindleFailedMessage, kindleRunSummaryMessage } from "../line/helper.ts";
-import { createLineClient } from "../line/line.ts";
-import type { LineClient } from "../line/types.ts";
 import {
   ALL_CRAFT_DOCUMENTS_SINCE,
   DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
@@ -17,7 +14,9 @@ import {
   DEFAULT_KINDLE_SUMMARY_DOC_TITLE,
   MIN_REMAINING_MS,
 } from "../shared/const.ts";
+import { createLinePush, runLogged } from "../shared/job.ts";
 import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
+import { loadCredentials, settingsFromEnv } from "../shared/settings.ts";
 import type { LambdaContextLike, LoggerLike } from "../shared/types.ts";
 import type { TranscribeInput } from "../transcribe/types.ts";
 import { createKindleSummarizer } from "./kindle-summarize.ts";
@@ -157,12 +156,7 @@ export async function processKindleBooks({
 }
 
 export async function handler(event: unknown, context: LambdaContextLike): Promise<ProcessKindleResult> {
-  console.log("start");
-  try {
-    return await runKindle(context);
-  } finally {
-    console.log("end");
-  }
+  return runLogged(() => runKindle(context));
 }
 
 async function runKindle(context: LambdaContextLike): Promise<ProcessKindleResult> {
@@ -173,13 +167,7 @@ async function runKindle(context: LambdaContextLike): Promise<ProcessKindleResul
     baseUrl: credentials.craftApiBaseUrl,
     apiKey: credentials.craftApiKey,
   });
-  const line =
-    credentials.lineChannelAccessToken && credentials.lineUserId
-      ? createLineClient({
-          channelAccessToken: credentials.lineChannelAccessToken,
-          userId: credentials.lineUserId,
-        })
-      : null;
+  const pushLine = createLinePush(credentials);
 
   let craftSpaceId = "";
   try {
@@ -192,7 +180,7 @@ async function runKindle(context: LambdaContextLike): Promise<ProcessKindleResul
   if (!parent.ok) {
     const reason = `Drive folder lookup failed: kindle=${parent.count}`;
     console.error(reason);
-    await pushLine(line, kindleFailedMessage(reason));
+    await pushLine(kindleFailedMessage(reason));
     return { foldersScanned: 0, imagesSummarized: 0, imagesFailed: 0, folderLookup: "failed" };
   }
 
@@ -239,7 +227,6 @@ async function runKindle(context: LambdaContextLike): Promise<ProcessKindleResul
       appLink: craftSpaceId && documentId ? craftAppDocumentLink(craftSpaceId, documentId) : "",
     }));
     await pushLine(
-      line,
       kindleRunSummaryMessage({
         summarized: summary.imagesSummarized,
         failed: summary.imagesFailed,
@@ -252,17 +239,4 @@ async function runKindle(context: LambdaContextLike): Promise<ProcessKindleResul
     `Kindle要約 ${summary.imagesSummarized}枚 失敗 ${summary.imagesFailed}枚 Craft未設定 ${summary.foldersSkippedNoCraft}件`,
   );
   return summary;
-}
-
-async function pushLine(line: LineClient | null, text: string): Promise<void> {
-  if (!line) {
-    console.error("LINE通知失敗: credentials are missing");
-    return;
-  }
-  try {
-    await line.push(text);
-    console.log("LINE通知");
-  } catch (error) {
-    console.error(`LINE通知失敗: ${sanitizeErrorMessage((error as Error).message)}`);
-  }
 }
