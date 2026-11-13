@@ -63,8 +63,13 @@ export function documentsQuery({
 
 export function listedDocument(item: any): CraftListedDocument | null {
   const id = item?.id ?? item?.documentId ?? item?.rootBlockId;
-  if (typeof id !== "string" || id === "") return null;
-  return { id, title: typeof item.title === "string" ? item.title : "" };
+  const isStringId = typeof id === "string";
+  const isEmptyId = id === "";
+  if (!isStringId || isEmptyId) return null;
+
+  const hasStringTitle = typeof item.title === "string";
+  const title = hasStringTitle ? item.title : "";
+  return { id, title };
 }
 
 export function moveDocumentsPayload(
