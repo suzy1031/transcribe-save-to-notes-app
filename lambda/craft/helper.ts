@@ -5,14 +5,23 @@ const CHILD_KEYS = ["folders", "children", "subfolders"] as const;
 export function findFolderIds(payload: any, name: string): string[] {
   const ids: string[] = [];
   const visit = (node: any): void => {
-    if (Array.isArray(node)) {
+    const isFolderList = Array.isArray(node);
+    if (isFolderList) {
       for (const item of node) visit(item);
       return;
     }
-    if (!node || typeof node !== "object") return;
-    if (node.name === name && typeof node.id === "string") ids.push(node.id);
+
+    const isFolder = node != null && typeof node === "object";
+    if (!isFolder) return;
+
+    const hasRequestedName = node.name === name;
+    const hasStringId = typeof node.id === "string";
+    if (hasRequestedName && hasStringId) ids.push(node.id);
+
     for (const key of CHILD_KEYS) {
-      if (Array.isArray(node[key])) visit(node[key]);
+      const nestedFolders = node[key];
+      const hasNestedFolders = Array.isArray(nestedFolders);
+      if (hasNestedFolders) visit(nestedFolders);
     }
   };
   visit(payload?.items ?? payload?.folders ?? []);
