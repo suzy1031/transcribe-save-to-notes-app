@@ -2,6 +2,12 @@ import type { CraftListedDocument, DocumentsQueryParams } from "./types.ts";
 
 const CHILD_KEYS = ["folders", "children", "subfolders"] as const;
 
+function isMissingId(id: unknown): boolean {
+  const isStringId = typeof id === "string";
+  const isEmptyId = id === "";
+  return !isStringId || isEmptyId;
+}
+
 export function findFolderIds(payload: any, name: string): string[] {
   const ids: string[] = [];
   const visit = (node: any): void => {
@@ -41,9 +47,7 @@ export function documentPayload(
 export function createdDocumentId(payload: any): string {
   const list = payload.items ?? payload.documents ?? [];
   const id = list[0]?.rootBlockId ?? list[0]?.id ?? list[0]?.documentId;
-  const isStringId = typeof id === "string";
-  const isEmptyId = id === "";
-  if (!isStringId || isEmptyId) {
+  if (isMissingId(id)) {
     throw new Error("Craft document create returned no id");
   }
   return id;
@@ -63,9 +67,7 @@ export function documentsQuery({
 
 export function listedDocument(item: any): CraftListedDocument | null {
   const id = item?.id ?? item?.documentId ?? item?.rootBlockId;
-  const isStringId = typeof id === "string";
-  const isEmptyId = id === "";
-  if (!isStringId || isEmptyId) return null;
+  if (isMissingId(id)) return null;
 
   const hasStringTitle = typeof item.title === "string";
   const title = hasStringTitle ? item.title : "";
@@ -89,7 +91,7 @@ export function craftAppDocumentLink(spaceId: unknown, blockId: unknown): string
 
 export function connectionSpaceId(payload: any): string {
   const id = payload?.space?.id ?? payload?.space?.spaceId;
-  if (typeof id !== "string" || id === "") {
+  if (isMissingId(id)) {
     throw new Error("Craft connection returned no space id");
   }
   return id;
