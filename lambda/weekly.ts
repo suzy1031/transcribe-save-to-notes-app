@@ -1,14 +1,8 @@
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import { formatWeeklyUsage, getWeeklyUsage, type WeeklyUsageItem } from "./claude-usage.ts";
-import { createCraftClient, type CraftListedDocument } from "./craft.ts";
+import { formatWeeklyUsage, getWeeklyUsage } from "./claude-usage.ts";
+import { createCraftClient } from "./craft.ts";
 import { createLineClient, EMPTY_WEEK_MESSAGE, fitLineText } from "./line.ts";
-import {
-  loadCredentials,
-  settingsFromEnv,
-  type BaseSettings,
-  type Credentials,
-  type SecretsClientLike,
-} from "./index.ts";
+import { loadCredentials, settingsFromEnv } from "./index.ts";
 import { combineNotes } from "./summary-prompt.ts";
 import { sanitizeErrorMessage } from "./sanitize-error.ts";
 import { createSummarizer } from "./summarize.ts";
@@ -19,12 +13,10 @@ import {
   TOKYO_TIME_ZONE,
   WEEKLY_LOOKBACK_DAYS,
 } from "./const.ts";
-
-export interface WeeklySettings extends BaseSettings {
-  sourceFolderName: string;
-  processedFolderName: string;
-  summaryFolderName: string;
-}
+import type { WeeklyUsageItem } from "./types/claude-usage.ts";
+import type { CraftListedDocument } from "./types/craft.ts";
+import type { SecretsClientLike } from "./types/runtime.ts";
+import type { Credentials, WeeklySettings } from "./types/settings.ts";
 
 export function tokyoDate(now: Date = new Date(), timeZone: string = TOKYO_TIME_ZONE): string {
   return new Intl.DateTimeFormat("en-CA", {

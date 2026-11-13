@@ -1,24 +1,11 @@
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import {
-  connectionSpaceId,
-  craftAppDocumentLink,
-  createCraftClient,
-  type CraftClient,
-  type CraftListedDocument,
-} from "./craft.ts";
-import {
-  loadCredentials,
-  settingsFromEnv,
-  type BaseSettings,
-  type Credentials,
-  type SecretsClientLike,
-} from "./index.ts";
+import { connectionSpaceId, craftAppDocumentLink, createCraftClient } from "./craft.ts";
+import { loadCredentials, settingsFromEnv } from "./index.ts";
 import {
   createLineClient,
   EMPTY_REMINDER_MESSAGE,
   reminderFailedMessage,
   reminderDeliveredMessage,
-  type LineClient,
 } from "./line.ts";
 import {
   ALL_CRAFT_DOCUMENTS_SINCE,
@@ -26,13 +13,13 @@ import {
   REMINDER_LOOKBACK_DAYS,
 } from "./const.ts";
 import { sanitizeErrorMessage } from "./sanitize-error.ts";
+import type { CraftClient, CraftListedDocument } from "./types/craft.ts";
+import type { LineClient } from "./types/line.ts";
+import type { SecretsClientLike } from "./types/runtime.ts";
+import type { Credentials, ReminderSettings } from "./types/settings.ts";
 import { daysBeforeTokyoDate } from "./weekly.ts";
 
 export const REMINDER_TITLE_PREFIX = "週次まとめ ";
-
-export interface ReminderSettings extends BaseSettings {
-  summaryFolderName: string;
-}
 
 export function reminderTargetDate(now: Date = new Date()): string {
   return daysBeforeTokyoDate(now, REMINDER_LOOKBACK_DAYS);

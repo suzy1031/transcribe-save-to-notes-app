@@ -1,7 +1,7 @@
 import { BedrockRuntimeClient, ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
 import { SYSTEM_PROMPT } from "../prompt.ts";
-import { assertImageSize, parseTranscription, type ParsedTranscription } from "./parse.ts";
-import type { TranscribeInput } from "./claude.ts";
+import { assertImageSize, parseTranscription } from "./parse.ts";
+import type { BedrockTranscriberOptions, ParsedTranscription, TranscribeInput } from "../types/transcribe.ts";
 import {
   DEFAULT_BEDROCK_MODEL_ID,
   MAX_IMAGE_BYTES,
@@ -10,16 +10,6 @@ import {
 } from "../const.ts";
 
 export { MAX_IMAGE_BYTES as maxImageBytes };
-
-export interface BedrockClientLike {
-  send(command: ConverseCommand): Promise<any>;
-}
-
-export interface BedrockTranscriberOptions {
-  region?: string;
-  modelId?: string;
-  client?: BedrockClientLike;
-}
 
 function imageFormat(mimeType?: string): "png" | "jpeg" {
   if (mimeType === "image/png") return "png";

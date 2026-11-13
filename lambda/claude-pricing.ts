@@ -1,38 +1,8 @@
+import type { ModelPricing, NormalizedUsage, RateTable, RawClaudeUsage } from "./types/claude-pricing.ts";
+
 // List prices in USD per million tokens.
 // https://platform.claude.com/docs/en/about-claude/pricing
 const HAIKU_LONG_CONTEXT_TOKENS = 100_000;
-
-export interface RateTable {
-  inputPerMTok: number;
-  outputPerMTok: number;
-  cacheReadPerMTok: number;
-  cacheWrite5mPerMTok: number;
-  cacheWrite1hPerMTok: number;
-}
-
-export interface ModelPricing extends RateTable {
-  longContext?: RateTable & { thresholdTokens: number };
-}
-
-export interface RawClaudeUsage {
-  input_tokens?: number;
-  output_tokens?: number;
-  cache_read_input_tokens?: number;
-  cache_creation_input_tokens?: number;
-  cache_creation?: {
-    ephemeral_5m_input_tokens?: number;
-    ephemeral_1h_input_tokens?: number;
-  };
-}
-
-export interface NormalizedUsage {
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadInputTokens: number;
-  cacheCreationInputTokens: number;
-  cacheCreation5mTokens: number;
-  cacheCreation1hTokens: number;
-}
 
 export const MODEL_PRICING: Record<string, ModelPricing> = {
   "claude-sonnet-5-5": {

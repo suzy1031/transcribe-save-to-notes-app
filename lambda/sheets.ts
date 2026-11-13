@@ -3,19 +3,11 @@ import { JSON_CONTENT_TYPE } from "./const.ts";
 import { gridSize, valuesRange } from "./csv.ts";
 import { withFetchTimeout } from "./fetch-with-timeout.ts";
 import { formatHttpErrorDetail } from "./sanitize-error.ts";
-import type { AuthClientLike, GoogleServiceAccount } from "./drive.ts";
+import type { AuthClientLike, GoogleServiceAccount } from "./types/drive.ts";
+import type { SheetsClient } from "./types/sheets.ts";
 
 const SHEETS_API = "https://sheets.googleapis.com/v4/spreadsheets";
 const SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets";
-
-export interface SheetsClient {
-  listSheetTitles(spreadsheetId: string): Promise<string[]>;
-  addSheetWithValues(input: {
-    spreadsheetId: string;
-    title: string;
-    rows: ReadonlyArray<ReadonlyArray<string>>;
-  }): Promise<void>;
-}
 
 async function readJson(response: Response): Promise<any> {
   const text = await response.text();

@@ -5,31 +5,15 @@ import {
   DEFAULT_CSV_SPREADSHEET_ID,
 } from "./const.ts";
 import { parseCsv, sheetTitle, spreadsheetAppLink, tokyoDate, appendTotalRow } from "./csv.ts";
-import { createDriveClient, type DriveFile } from "./drive.ts";
-import { loadCredentials, settingsFromEnv, type BaseSettings } from "./index.ts";
-import {
-  createLineClient,
-  csvImportFailedMessage,
-  csvImportSummaryMessage,
-  EMPTY_CSV_MESSAGE,
-  type CsvImportFailure,
-  type LineClient,
-} from "./line.ts";
+import { createDriveClient } from "./drive.ts";
+import { loadCredentials, settingsFromEnv } from "./index.ts";
+import { createLineClient, csvImportFailedMessage, csvImportSummaryMessage, EMPTY_CSV_MESSAGE } from "./line.ts";
 import { sanitizeErrorMessage } from "./sanitize-error.ts";
 import { createSheetsClient } from "./sheets.ts";
-
-export interface CsvImportSettings extends BaseSettings {
-  inboxFolderName: string;
-  processedFolderName: string;
-  spreadsheetId: string;
-}
-
-export interface CsvImportResult {
-  imported: number;
-  failed: number;
-  failures: CsvImportFailure[];
-  folderLookup?: string;
-}
+import type { CsvImportResult } from "./types/csv.ts";
+import type { DriveFile } from "./types/drive.ts";
+import type { LineClient } from "./types/line.ts";
+import type { CsvImportSettings } from "./types/settings.ts";
 
 export function csvImportSettingsFromEnv(env: NodeJS.ProcessEnv = process.env): CsvImportSettings {
   return {

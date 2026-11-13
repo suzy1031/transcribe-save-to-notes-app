@@ -1,26 +1,13 @@
 import { JSON_CONTENT_TYPE } from "./const.ts";
 import { withFetchTimeout } from "./fetch-with-timeout.ts";
 import { formatHttpErrorDetail, sanitizeErrorMessage } from "./sanitize-error.ts";
+import type { CsvImportFailure, KindleSummaryLink, LineClient } from "./types/line.ts";
 
 export const LINE_PUSH_URL = "https://api.line.me/v2/bot/message/push";
 export const LINE_TEXT_LIMIT = 5000;
 export const EMPTY_WEEK_MESSAGE = "今週対象のノートはありませんでした";
 export const EMPTY_REMINDER_MESSAGE = "リマインドはありませんでした。";
 export const EMPTY_CSV_MESSAGE = "今週対象のCSVはありませんでした";
-
-export interface KindleSummaryLink {
-  folderName: string;
-  appLink?: string;
-}
-
-export interface CsvImportFailure {
-  fileName: string;
-  reason: string;
-}
-
-export interface LineClient {
-  push(text: string): Promise<void>;
-}
 
 export function transcriptionSavedMessage(title: unknown, appLink?: string): string {
   const lines = [String(title).trim()];

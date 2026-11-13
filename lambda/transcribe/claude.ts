@@ -1,6 +1,7 @@
-import { recordWeeklyUsage, type RecordWeeklyUsageOptions } from "../claude-usage.ts";
+import { recordWeeklyUsage } from "../claude-usage.ts";
 import { SYSTEM_PROMPT } from "../prompt.ts";
-import { assertImageSize, parseTranscription, type ParsedTranscription } from "./parse.ts";
+import { assertImageSize, parseTranscription } from "./parse.ts";
+import type { ClaudeTranscriberOptions, ParsedTranscription, TranscribeInput } from "../types/transcribe.ts";
 import {
   ANTHROPIC_API_VERSION,
   CLAUDE_API_URL,
@@ -14,18 +15,6 @@ import { withFetchTimeout } from "../fetch-with-timeout.ts";
 import { sanitizeErrorMessage } from "../sanitize-error.ts";
 
 export { MAX_IMAGE_BYTES as maxImageBytes };
-
-export interface ClaudeTranscriberOptions {
-  apiKey?: string;
-  modelId?: string;
-  fetchImpl?: typeof fetch;
-  recordUsage?: (options: RecordWeeklyUsageOptions) => Promise<unknown>;
-}
-
-export interface TranscribeInput {
-  bytes: Uint8Array | Buffer;
-  mimeType?: string;
-}
 
 function mediaType(mimeType?: string): "image/png" | "image/jpeg" {
   if (mimeType === "image/png") return "image/png";

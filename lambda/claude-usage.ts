@@ -1,50 +1,11 @@
 import { DynamoDBClient, UpdateItemCommand, type AttributeValue } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
 import { TOKYO_TIME_ZONE } from "./const.ts";
-import {
-  estimateUsdMicros,
-  microToUsdDecimal,
-  normalizeUsage,
-  type NormalizedUsage,
-  type RawClaudeUsage,
-} from "./claude-pricing.ts";
+import { estimateUsdMicros, microToUsdDecimal, normalizeUsage } from "./claude-pricing.ts";
+import type { DynamoLike, GetWeeklyUsageOptions, RecordWeeklyUsageOptions, WeeklyUsageItem } from "./types/claude-usage.ts";
+import type { NormalizedUsage } from "./types/claude-pricing.ts";
 
 const FUNCTION_NAME = /^[A-Za-z][A-Za-z0-9_-]*$/;
-
-export interface DynamoLike {
-  send(command: unknown): Promise<any>;
-}
-
-export interface WeeklyUsageFunctionRow {
-  callCount?: number;
-  inputTokens?: number;
-  outputTokens?: number;
-  cacheReadInputTokens?: number;
-  cacheCreationInputTokens?: number;
-  estimatedUsd?: number | string;
-}
-
-export interface WeeklyUsageItem extends WeeklyUsageFunctionRow {
-  pk: string;
-  byFunction?: Record<string, WeeklyUsageFunctionRow>;
-}
-
-export interface RecordWeeklyUsageOptions {
-  functionName?: string;
-  modelId: string;
-  usage?: RawClaudeUsage;
-  tableName?: string;
-  dynamo?: DynamoLike;
-  now?: Date;
-}
-
-export interface GetWeeklyUsageOptions {
-  tableName?: string;
-  dynamo?: DynamoLike;
-  document?: DynamoLike;
-  now?: Date;
-  pk?: string;
-}
 
 function tokyoDate(now: Date, timeZone: string): string {
   return new Intl.DateTimeFormat("en-CA", {

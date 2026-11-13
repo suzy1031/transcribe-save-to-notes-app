@@ -1,13 +1,9 @@
 import path from "node:path";
 import { TOKYO_TIME_ZONE } from "./const.ts";
+import type { FileLike } from "./types/csv.ts";
 
 const SHEET_TITLE_MAX = 100;
 const INVALID_SHEET_CHARS = /[:\\/?*[\]]/g;
-
-export interface FileLike {
-  name?: string;
-  mimeType?: string;
-}
 
 export function tokyoDate(now: Date = new Date(), timeZone: string = TOKYO_TIME_ZONE): string {
   return new Intl.DateTimeFormat("en-CA", {
