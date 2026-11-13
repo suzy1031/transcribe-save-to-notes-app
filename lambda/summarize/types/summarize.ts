@@ -1,5 +1,5 @@
-import type { RecordWeeklyUsageOptions } from "./claude-usage.ts";
-import type { BedrockClientLike } from "./transcribe.ts";
+import type { RecordWeeklyUsageOptions } from "../../claude/types/claude-usage.ts";
+import type { BedrockClientLike } from "../../transcribe/types/transcribe.ts";
 
 export interface NoteInput {
   title: string;

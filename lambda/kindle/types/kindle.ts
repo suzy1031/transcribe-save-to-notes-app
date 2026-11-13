@@ -1,5 +1,14 @@
-import type { RecordWeeklyUsageOptions } from "./claude-usage.ts";
-import type { BedrockClientLike } from "./transcribe.ts";
+import type { RecordWeeklyUsageOptions } from "../../claude/types/claude-usage.ts";
+import type { BaseSettings } from "../../shared/types/settings.ts";
+import type { BedrockClientLike } from "../../transcribe/types/transcribe.ts";
+
+export interface KindleSettings extends BaseSettings {
+  driveParentFolderName: string;
+  bookFolderPrefix: string;
+  processedFolderName: string;
+  summaryDocTitle: string;
+  kindleClaudeModelId: string;
+}
 
 export type SummaryDocumentState =
   | { action: "create" }

@@ -1,9 +1,9 @@
 import path from "node:path";
 import { JWT } from "google-auth-library";
-import { isCsvFile } from "./csv.ts";
-import { DEFAULT_KINDLE_BOOK_PREFIX, JSON_CONTENT_TYPE } from "./const.ts";
-import { withFetchTimeout } from "./fetch-with-timeout.ts";
-import { formatHttpErrorDetail, parseApiErrorDetail, sanitizeErrorMessage } from "./sanitize-error.ts";
+import { isCsvFile } from "../csv/csv.ts";
+import { DEFAULT_KINDLE_BOOK_PREFIX, JSON_CONTENT_TYPE } from "../shared/const.ts";
+import { withFetchTimeout } from "../shared/fetch-with-timeout.ts";
+import { formatHttpErrorDetail, parseApiErrorDetail, sanitizeErrorMessage } from "../shared/sanitize-error.ts";
 import type { AuthClientLike, DriveClient, DriveFile, FolderResolution, GoogleServiceAccount } from "./types/drive.ts";
 
 const FOLDER_MIME = "application/vnd.google-apps.folder";

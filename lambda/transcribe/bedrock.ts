@@ -1,13 +1,13 @@
 import { BedrockRuntimeClient, ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
-import { SYSTEM_PROMPT } from "../prompt.ts";
+import { SYSTEM_PROMPT } from "./prompt.ts";
 import { assertImageSize, parseTranscription } from "./parse.ts";
-import type { BedrockTranscriberOptions, ParsedTranscription, TranscribeInput } from "../types/transcribe.ts";
+import type { BedrockTranscriberOptions, ParsedTranscription, TranscribeInput } from "./types/transcribe.ts";
 import {
   DEFAULT_BEDROCK_MODEL_ID,
   MAX_IMAGE_BYTES,
   MAX_TRANSCRIPTION_TOKENS,
   TRANSCRIBE_USER_PROMPT,
-} from "../const.ts";
+} from "../shared/const.ts";
 
 export { MAX_IMAGE_BYTES as maxImageBytes };
 

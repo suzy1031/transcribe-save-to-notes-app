@@ -1,8 +1,8 @@
 import { readFile } from "node:fs/promises";
 import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import { connectionSpaceId, createCraftClient, craftAppDocumentLink } from "./craft.ts";
-import { createDriveClient, fileStem, orphanTextFiles } from "./drive.ts";
-import { createLineClient, transcriptionFailedMessage, transcriptionSavedMessage } from "./line.ts";
+import { connectionSpaceId, createCraftClient, craftAppDocumentLink } from "../craft/craft.ts";
+import { createDriveClient, fileStem, orphanTextFiles } from "../drive/drive.ts";
+import { createLineClient, transcriptionFailedMessage, transcriptionSavedMessage } from "../line/line.ts";
 import {
   DEFAULT_AWS_REGION,
   DEFAULT_BEDROCK_MODEL_ID,
@@ -12,15 +12,15 @@ import {
   INBOX_FOLDER_NAME,
   MIN_REMAINING_MS,
   PROCESSED_DRIVE_FOLDER_NAME,
-} from "./const.ts";
-import { sanitizeErrorMessage } from "./sanitize-error.ts";
-import { createTranscription, MAX_IMAGE_BYTES } from "./transcribe/index.ts";
-import type { DriveClient, DriveFile, GoogleServiceAccount } from "./types/drive.ts";
+} from "../shared/const.ts";
+import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
+import { createTranscription, MAX_IMAGE_BYTES } from "../transcribe/index.ts";
+import type { DriveClient, DriveFile, GoogleServiceAccount } from "../drive/types/drive.ts";
 import type { ProcessInboxSummary } from "./types/inbox.ts";
-import type { LineClient } from "./types/line.ts";
-import type { LambdaContextLike, LoggerLike, SecretsClientLike } from "./types/runtime.ts";
-import type { BaseSettings, Credentials } from "./types/settings.ts";
-import type { ParsedTranscription, TranscribeInput } from "./types/transcribe.ts";
+import type { LineClient } from "../line/types/line.ts";
+import type { LambdaContextLike, LoggerLike, SecretsClientLike } from "../shared/types/runtime.ts";
+import type { BaseSettings, Credentials } from "../shared/types/settings.ts";
+import type { ParsedTranscription, TranscribeInput } from "../transcribe/types/transcribe.ts";
 
 export function settingsFromEnv(env: NodeJS.ProcessEnv = process.env): BaseSettings {
   return {

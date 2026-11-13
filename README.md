@@ -15,27 +15,23 @@ Google Drive の手書き画像を文字起こしし、Craft に保存して処�
 ## 構成
 
 ```
-infra/app.js            CDK（Lambda、Scheduler、Secrets Manager）
-lambda/const.ts           共有定数
-lambda/index.ts         朝のパイプライン
-lambda/weekly.ts        週次要約
-lambda/reminder.ts      週次リマインド
-lambda/kindle.ts        Kindle 画像要約
-lambda/csv-import.ts    Drive の CSV をスプレッドシートへ取り込む
-lambda/csv.ts           CSV パースとシート名
-lambda/sheets.ts        Google Sheets
-lambda/kindle-summarize.ts  Kindle 画像要約（Vision）
-lambda/kindle-prompt.ts Kindle 要約プロンプト
-lambda/drive.ts         Google Drive
-lambda/craft.ts         Craft
-lambda/line.ts          LINE
-lambda/prompt.ts        文字起こしプロンプト
-lambda/summary-prompt.ts 週次要約プロンプト
-lambda/summarize.ts     週次要約（claude / bedrock）
-lambda/transcribe/      claude / bedrock
-test/                   node:test
-.github/workflows/ci.yml  pull request で test、main で cdk deploy
-.env.example            ローカル実行用の環境変数
+infra/app.js                 CDK（Lambda、Scheduler、Secrets Manager）
+lambda/inbox/                朝のパイプライン
+lambda/weekly/               週次要約
+lambda/reminder/             週次リマインド
+lambda/kindle/               Kindle 画像要約
+lambda/csv/                  CSV のパースとスプレッドシート取り込み
+lambda/sheets/               Google Sheets
+lambda/drive/                Google Drive
+lambda/craft/                Craft
+lambda/line/                 LINE
+lambda/claude/               Claude の料金と週次利用量
+lambda/summarize/            週次要約（claude / bedrock）
+lambda/transcribe/           文字起こし（claude / bedrock）
+lambda/shared/               共有定数、タイムアウト、エラー整形
+test/                        node:test
+.github/workflows/ci.yml     pull request で test、main で cdk deploy
+.env.example                 ローカル実行用の環境変数
 ```
 
 ## コマンド

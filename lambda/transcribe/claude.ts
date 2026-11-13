@@ -1,7 +1,7 @@
-import { recordWeeklyUsage } from "../claude-usage.ts";
-import { SYSTEM_PROMPT } from "../prompt.ts";
+import { recordWeeklyUsage } from "../claude/claude-usage.ts";
+import { SYSTEM_PROMPT } from "./prompt.ts";
 import { assertImageSize, parseTranscription } from "./parse.ts";
-import type { ClaudeTranscriberOptions, ParsedTranscription, TranscribeInput } from "../types/transcribe.ts";
+import type { ClaudeTranscriberOptions, ParsedTranscription, TranscribeInput } from "./types/transcribe.ts";
 import {
   ANTHROPIC_API_VERSION,
   CLAUDE_API_URL,
@@ -10,9 +10,9 @@ import {
   MAX_IMAGE_BYTES,
   MAX_TRANSCRIPTION_TOKENS,
   TRANSCRIBE_USER_PROMPT,
-} from "../const.ts";
-import { withFetchTimeout } from "../fetch-with-timeout.ts";
-import { sanitizeErrorMessage } from "../sanitize-error.ts";
+} from "../shared/const.ts";
+import { withFetchTimeout } from "../shared/fetch-with-timeout.ts";
+import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
 
 export { MAX_IMAGE_BYTES as maxImageBytes };
 

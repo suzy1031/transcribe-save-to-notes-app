@@ -1,6 +1,6 @@
-import { JSON_CONTENT_TYPE } from "./const.ts";
-import { withFetchTimeout } from "./fetch-with-timeout.ts";
-import { formatHttpErrorDetail, sanitizeErrorMessage } from "./sanitize-error.ts";
+import { JSON_CONTENT_TYPE } from "../shared/const.ts";
+import { withFetchTimeout } from "../shared/fetch-with-timeout.ts";
+import { formatHttpErrorDetail, sanitizeErrorMessage } from "../shared/sanitize-error.ts";
 import type { CsvImportFailure, KindleSummaryLink, LineClient } from "./types/line.ts";
 
 export const LINE_PUSH_URL = "https://api.line.me/v2/bot/message/push";

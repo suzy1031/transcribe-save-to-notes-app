@@ -1,5 +1,5 @@
 import path from "node:path";
-import { TOKYO_TIME_ZONE } from "./const.ts";
+import { TOKYO_TIME_ZONE } from "../shared/const.ts";
 import type { FileLike } from "./types/csv.ts";
 
 const SHEET_TITLE_MAX = 100;

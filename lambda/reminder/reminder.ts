@@ -1,23 +1,24 @@
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import { connectionSpaceId, craftAppDocumentLink, createCraftClient } from "./craft.ts";
-import { loadCredentials, settingsFromEnv } from "./index.ts";
+import { connectionSpaceId, craftAppDocumentLink, createCraftClient } from "../craft/craft.ts";
+import { loadCredentials, settingsFromEnv } from "../inbox/index.ts";
 import {
   createLineClient,
   EMPTY_REMINDER_MESSAGE,
   reminderFailedMessage,
   reminderDeliveredMessage,
-} from "./line.ts";
+} from "../line/line.ts";
 import {
   ALL_CRAFT_DOCUMENTS_SINCE,
   DEFAULT_CRAFT_SUMMARY_FOLDER,
   REMINDER_LOOKBACK_DAYS,
-} from "./const.ts";
-import { sanitizeErrorMessage } from "./sanitize-error.ts";
-import type { CraftClient, CraftListedDocument } from "./types/craft.ts";
-import type { LineClient } from "./types/line.ts";
-import type { SecretsClientLike } from "./types/runtime.ts";
-import type { Credentials, ReminderSettings } from "./types/settings.ts";
-import { daysBeforeTokyoDate } from "./weekly.ts";
+} from "../shared/const.ts";
+import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
+import type { CraftClient, CraftListedDocument } from "../craft/types/craft.ts";
+import type { LineClient } from "../line/types/line.ts";
+import type { SecretsClientLike } from "../shared/types/runtime.ts";
+import type { Credentials } from "../shared/types/settings.ts";
+import type { ReminderSettings } from "./types/reminder.ts";
+import { daysBeforeTokyoDate } from "../weekly/weekly.ts";
 
 export const REMINDER_TITLE_PREFIX = "週次まとめ ";
 

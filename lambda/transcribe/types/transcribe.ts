@@ -1,5 +1,5 @@
 import type { ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
-import type { RecordWeeklyUsageOptions } from "./claude-usage.ts";
+import type { RecordWeeklyUsageOptions } from "../../claude/types/claude-usage.ts";
 
 export interface ParsedTranscription {
   title: string;

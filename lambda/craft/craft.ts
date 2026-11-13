@@ -1,6 +1,6 @@
-import { JSON_CONTENT_TYPE } from "./const.ts";
-import { withFetchTimeout } from "./fetch-with-timeout.ts";
-import { formatHttpErrorDetail } from "./sanitize-error.ts";
+import { JSON_CONTENT_TYPE } from "../shared/const.ts";
+import { withFetchTimeout } from "../shared/fetch-with-timeout.ts";
+import { formatHttpErrorDetail } from "../shared/sanitize-error.ts";
 import type { CraftClient, CraftListedDocument, DocumentsQueryParams } from "./types/craft.ts";
 
 const CHILD_KEYS = ["folders", "children", "subfolders"] as const;

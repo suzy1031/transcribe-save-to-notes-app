@@ -1,12 +1,12 @@
 import * as bedrock from "./bedrock.ts";
 import * as claude from "./claude.ts";
-import { DEFAULT_TRANSCRIPTION_PROVIDER } from "../const.ts";
+import { DEFAULT_TRANSCRIPTION_PROVIDER } from "../shared/const.ts";
 import type {
   BedrockTranscriberOptions,
   ClaudeTranscriberOptions,
   ParsedTranscription,
   TranscribeInput,
-} from "../types/transcribe.ts";
+} from "./types/transcribe.ts";
 
 const providers: Record<string, typeof bedrock | typeof claude> = { bedrock, claude };
 

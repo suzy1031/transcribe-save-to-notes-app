@@ -8,7 +8,7 @@ import {
   documentsQuery,
   findFolderIds,
   moveDocumentsPayload,
-} from "../lambda/craft.ts";
+} from "../lambda/craft/craft.ts";
 
 test("craftAppDocumentLink はCraftアプリでドキュメントを開くURLを返す", () => {
   assert.equal(

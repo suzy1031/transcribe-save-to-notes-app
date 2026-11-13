@@ -1,4 +1,4 @@
-import type { ParsedTranscription } from "../types/transcribe.ts";
+import type { ParsedTranscription } from "./types/transcribe.ts";
 
 export function parseTranscription(text: unknown): ParsedTranscription {
   const stripped = String(text)
