@@ -1,7 +1,12 @@
-import { DEFAULT_TRANSCRIPTION_PROVIDER } from "../const.ts";
+import { DEFAULT_TRANSCRIPTION_PROVIDER } from "../shared/const.ts";
 import * as bedrock from "./bedrock.ts";
 import * as claude from "./claude.ts";
-import type { ParsedTranscription } from "./parse.ts";
+import type {
+  BedrockTranscriberOptions,
+  ClaudeTranscriberOptions,
+  ParsedTranscription,
+  TranscribeInput,
+} from "./types/transcribe.ts";
 
 const providers: Record<string, typeof bedrock | typeof claude> = { bedrock, claude };
 
@@ -11,12 +16,12 @@ export function createTranscription({
   bedrock: bedrockOptions,
 }: {
   provider?: string;
-  claude?: claude.ClaudeTranscriberOptions;
-  bedrock?: bedrock.BedrockTranscriberOptions;
+  claude?: ClaudeTranscriberOptions;
+  bedrock?: BedrockTranscriberOptions;
 }): {
   provider: string;
   maxImageBytes: number;
-  transcribe: (input: claude.TranscribeInput) => Promise<ParsedTranscription>;
+  transcribe: (input: TranscribeInput) => Promise<ParsedTranscription>;
 } {
   const selected = providers[provider];
   if (!selected) {
@@ -26,9 +31,9 @@ export function createTranscription({
   return {
     provider,
     maxImageBytes: selected.maxImageBytes,
-    transcribe: (
-      selected.createTranscriber as (opts: any) => (input: claude.TranscribeInput) => Promise<ParsedTranscription>
-    )(options),
+    transcribe: (selected.createTranscriber as (opts: any) => (input: TranscribeInput) => Promise<ParsedTranscription>)(
+      options,
+    ),
   };
 }
 

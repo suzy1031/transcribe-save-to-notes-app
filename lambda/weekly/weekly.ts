@@ -1,30 +1,23 @@
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import { formatWeeklyUsage, getWeeklyUsage, type WeeklyUsageItem } from "./claude-usage.ts";
+import { formatWeeklyUsage, getWeeklyUsage } from "../claude/claude-usage.ts";
+import type { WeeklyUsageItem } from "../claude/types/claude-usage.ts";
+import { createCraftClient } from "../craft/craft.ts";
+import type { CraftListedDocument } from "../craft/types/craft.ts";
+import { loadCredentials, settingsFromEnv } from "../inbox/index.ts";
+import { createLineClient, EMPTY_WEEK_MESSAGE, fitLineText } from "../line/line.ts";
 import {
   DEFAULT_CRAFT_PROCESSED_FOLDER,
   DEFAULT_CRAFT_SUMMARY_FOLDER,
   DEFAULT_CRAFT_TRANSCRIBE_FOLDER,
   TOKYO_TIME_ZONE,
   WEEKLY_LOOKBACK_DAYS,
-} from "./const.ts";
-import { type CraftListedDocument, createCraftClient } from "./craft.ts";
-import {
-  type BaseSettings,
-  type Credentials,
-  loadCredentials,
-  type SecretsClientLike,
-  settingsFromEnv,
-} from "./index.ts";
-import { createLineClient, EMPTY_WEEK_MESSAGE, fitLineText } from "./line.ts";
-import { sanitizeErrorMessage } from "./sanitize-error.ts";
-import { createSummarizer } from "./summarize.ts";
-import { combineNotes } from "./summary-prompt.ts";
-
-export interface WeeklySettings extends BaseSettings {
-  sourceFolderName: string;
-  processedFolderName: string;
-  summaryFolderName: string;
-}
+} from "../shared/const.ts";
+import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
+import type { SecretsClientLike } from "../shared/types/runtime.ts";
+import type { Credentials } from "../shared/types/settings.ts";
+import { createSummarizer } from "../summarize/summarize.ts";
+import { combineNotes } from "../summarize/summary-prompt.ts";
+import type { WeeklySettings } from "./types/weekly.ts";
 
 export function tokyoDate(now: Date = new Date(), timeZone: string = TOKYO_TIME_ZONE): string {
   return new Intl.DateTimeFormat("en-CA", {

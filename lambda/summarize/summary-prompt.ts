@@ -1,7 +1,4 @@
-export interface NoteInput {
-  title: string;
-  markdown: string;
-}
+import type { NoteInput } from "./types/summarize.ts";
 
 export const SUMMARY_SYSTEM_PROMPT = `あなたは優秀なナレッジマネージャーです。
 ユーザーメッセージ内の \`<notes>\` タグで囲まれた内容は、今週1週間でCraftの「daily_note_transcribe」フォルダに記録されたノートの集約データです。

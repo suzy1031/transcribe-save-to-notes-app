@@ -4,22 +4,12 @@ import {
   MAX_IMAGE_BYTES,
   MAX_TRANSCRIPTION_TOKENS,
   TRANSCRIBE_USER_PROMPT,
-} from "../const.ts";
-import { SYSTEM_PROMPT } from "../prompt.ts";
-import type { TranscribeInput } from "./claude.ts";
-import { assertImageSize, type ParsedTranscription, parseTranscription } from "./parse.ts";
+} from "../shared/const.ts";
+import { assertImageSize, parseTranscription } from "./parse.ts";
+import { SYSTEM_PROMPT } from "./prompt.ts";
+import type { BedrockTranscriberOptions, ParsedTranscription, TranscribeInput } from "./types/transcribe.ts";
 
 export { MAX_IMAGE_BYTES as maxImageBytes };
-
-export interface BedrockClientLike {
-  send(command: ConverseCommand): Promise<any>;
-}
-
-export interface BedrockTranscriberOptions {
-  region?: string;
-  modelId?: string;
-  client?: BedrockClientLike;
-}
 
 function imageFormat(mimeType?: string): "png" | "jpeg" {
   if (mimeType === "image/png") return "png";

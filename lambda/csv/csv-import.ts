@@ -1,31 +1,14 @@
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import { DEFAULT_CSV_INBOX_FOLDER, DEFAULT_CSV_PROCESSED_FOLDER, DEFAULT_CSV_SPREADSHEET_ID } from "./const.ts";
+import { createDriveClient } from "../drive/drive.ts";
+import type { DriveFile } from "../drive/types/drive.ts";
+import { loadCredentials, settingsFromEnv } from "../inbox/index.ts";
+import { createLineClient, csvImportFailedMessage, csvImportSummaryMessage, EMPTY_CSV_MESSAGE } from "../line/line.ts";
+import type { LineClient } from "../line/types/line.ts";
+import { DEFAULT_CSV_INBOX_FOLDER, DEFAULT_CSV_PROCESSED_FOLDER, DEFAULT_CSV_SPREADSHEET_ID } from "../shared/const.ts";
+import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
+import { createSheetsClient } from "../sheets/sheets.ts";
 import { appendDebitTotalRow, appendTotalRow, parseCsv, sheetTitle, spreadsheetAppLink, tokyoDate } from "./csv.ts";
-import { createDriveClient, type DriveFile } from "./drive.ts";
-import { type BaseSettings, loadCredentials, settingsFromEnv } from "./index.ts";
-import {
-  type CsvImportFailure,
-  createLineClient,
-  csvImportFailedMessage,
-  csvImportSummaryMessage,
-  EMPTY_CSV_MESSAGE,
-  type LineClient,
-} from "./line.ts";
-import { sanitizeErrorMessage } from "./sanitize-error.ts";
-import { createSheetsClient } from "./sheets.ts";
-
-export interface CsvImportSettings extends BaseSettings {
-  inboxFolderName: string;
-  processedFolderName: string;
-  spreadsheetId: string;
-}
-
-export interface CsvImportResult {
-  imported: number;
-  failed: number;
-  failures: CsvImportFailure[];
-  folderLookup?: string;
-}
+import type { CsvImportResult, CsvImportSettings } from "./types/csv.ts";
 
 export function csvImportSettingsFromEnv(env: NodeJS.ProcessEnv = process.env): CsvImportSettings {
   return {

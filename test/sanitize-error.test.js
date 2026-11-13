@@ -5,7 +5,7 @@ import {
   parseApiErrorDetail,
   redactSecrets,
   sanitizeErrorMessage,
-} from "../lambda/sanitize-error.ts";
+} from "../lambda/shared/sanitize-error.ts";
 
 test("parseApiErrorDetail はJSONのerror.messageを読み取る", () => {
   const body = JSON.stringify({ error: { message: "folder not found" } });

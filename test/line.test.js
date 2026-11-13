@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { craftAppDocumentLink } from "../lambda/craft.ts";
+import { craftAppDocumentLink } from "../lambda/craft/craft.ts";
 import {
   createLineClient,
   fitLineText,
@@ -10,7 +10,7 @@ import {
   reminderFailedMessage,
   transcriptionFailedMessage,
   transcriptionSavedMessage,
-} from "../lambda/line.ts";
+} from "../lambda/line/line.ts";
 
 test("fitLineText は短いメッセージをそのまま返し5000文字で切り詰める", () => {
   assert.equal(fitLineText("こんにちは"), "こんにちは");

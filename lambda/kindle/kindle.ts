@@ -1,4 +1,11 @@
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
+import { connectionSpaceId, craftAppDocumentLink, createCraftClient } from "../craft/craft.ts";
+import type { CraftListedDocument } from "../craft/types/craft.ts";
+import { createDriveClient } from "../drive/drive.ts";
+import type { DriveFile } from "../drive/types/drive.ts";
+import { loadCredentials, settingsFromEnv } from "../inbox/index.ts";
+import { createLineClient, kindleFailedMessage, kindleRunSummaryMessage } from "../line/line.ts";
+import type { LineClient } from "../line/types/line.ts";
 import {
   ALL_CRAFT_DOCUMENTS_SINCE,
   DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
@@ -7,44 +14,12 @@ import {
   DEFAULT_KINDLE_PROCESSED_FOLDER,
   DEFAULT_KINDLE_SUMMARY_DOC_TITLE,
   MIN_REMAINING_MS,
-} from "./const.ts";
-import { type CraftListedDocument, connectionSpaceId, craftAppDocumentLink, createCraftClient } from "./craft.ts";
-import { createDriveClient, type DriveFile } from "./drive.ts";
-import {
-  type BaseSettings,
-  type LambdaContextLike,
-  type LoggerLike,
-  loadCredentials,
-  settingsFromEnv,
-} from "./index.ts";
+} from "../shared/const.ts";
+import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
+import type { LambdaContextLike, LoggerLike } from "../shared/types/runtime.ts";
+import type { TranscribeInput } from "../transcribe/types/transcribe.ts";
 import { createKindleSummarizer } from "./kindle-summarize.ts";
-import { createLineClient, kindleFailedMessage, kindleRunSummaryMessage, type LineClient } from "./line.ts";
-import { sanitizeErrorMessage } from "./sanitize-error.ts";
-import type { TranscribeInput } from "./transcribe/claude.ts";
-
-export interface KindleSettings extends BaseSettings {
-  driveParentFolderName: string;
-  bookFolderPrefix: string;
-  processedFolderName: string;
-  summaryDocTitle: string;
-  kindleClaudeModelId: string;
-}
-
-export type SummaryDocumentState =
-  | { action: "create" }
-  | { action: "append"; documentId: string }
-  | { action: "error"; reason: string };
-
-export interface ProcessKindleResult {
-  foldersScanned: number;
-  imagesSummarized: number;
-  imagesFailed: number;
-  foldersSkippedNoCraft?: number;
-  deferred?: number;
-  errors?: string[];
-  links?: Array<{ folderName: string; documentId: string }>;
-  folderLookup?: string;
-}
+import type { KindleSettings, ProcessKindleResult, SummaryDocumentState } from "./types/kindle.ts";
 
 export function kindleSettingsFromEnv(env: NodeJS.ProcessEnv = process.env): KindleSettings {
   return {

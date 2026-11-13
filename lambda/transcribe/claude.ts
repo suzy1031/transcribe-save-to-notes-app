@@ -1,4 +1,4 @@
-import { type RecordWeeklyUsageOptions, recordWeeklyUsage } from "../claude-usage.ts";
+import { recordWeeklyUsage } from "../claude/claude-usage.ts";
 import {
   ANTHROPIC_API_VERSION,
   CLAUDE_API_URL,
@@ -7,25 +7,14 @@ import {
   MAX_IMAGE_BYTES,
   MAX_TRANSCRIPTION_TOKENS,
   TRANSCRIBE_USER_PROMPT,
-} from "../const.ts";
-import { withFetchTimeout } from "../fetch-with-timeout.ts";
-import { SYSTEM_PROMPT } from "../prompt.ts";
-import { sanitizeErrorMessage } from "../sanitize-error.ts";
-import { assertImageSize, type ParsedTranscription, parseTranscription } from "./parse.ts";
+} from "../shared/const.ts";
+import { withFetchTimeout } from "../shared/fetch-with-timeout.ts";
+import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
+import { assertImageSize, parseTranscription } from "./parse.ts";
+import { SYSTEM_PROMPT } from "./prompt.ts";
+import type { ClaudeTranscriberOptions, ParsedTranscription, TranscribeInput } from "./types/transcribe.ts";
 
 export { MAX_IMAGE_BYTES as maxImageBytes };
-
-export interface ClaudeTranscriberOptions {
-  apiKey?: string;
-  modelId?: string;
-  fetchImpl?: typeof fetch;
-  recordUsage?: (options: RecordWeeklyUsageOptions) => Promise<unknown>;
-}
-
-export interface TranscribeInput {
-  bytes: Uint8Array | Buffer;
-  mimeType?: string;
-}
 
 function mediaType(mimeType?: string): "image/png" | "image/jpeg" {
   if (mimeType === "image/png") return "image/png";

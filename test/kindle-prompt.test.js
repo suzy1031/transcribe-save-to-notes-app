@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { KINDLE_SYSTEM_PROMPT, KINDLE_USER_PROMPT } from "../lambda/kindle-prompt.ts";
+import { KINDLE_SYSTEM_PROMPT, KINDLE_USER_PROMPT } from "../lambda/kindle/kindle-prompt.ts";
 
 test("Kindleプロンプトはハイライトがある場合ハイライトのみの出力を要求する", () => {
   assert.match(KINDLE_USER_PROMPT, /ハイライトがある場合/);

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { EMPTY_WEEK_MESSAGE } from "../lambda/line.ts";
-import { createdSinceDate, processWeekly, tokyoDate } from "../lambda/weekly.ts";
+import { EMPTY_WEEK_MESSAGE } from "../lambda/line/line.ts";
+import { createdSinceDate, processWeekly, tokyoDate } from "../lambda/weekly/weekly.ts";
 
 const now = new Date("2026-11-01T00:00:00Z");
 

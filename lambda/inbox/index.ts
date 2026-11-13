@@ -1,5 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
+import { connectionSpaceId, craftAppDocumentLink, createCraftClient } from "../craft/craft.ts";
+import { createDriveClient, fileStem, orphanTextFiles } from "../drive/drive.ts";
+import type { DriveClient, DriveFile, GoogleServiceAccount } from "../drive/types/drive.ts";
+import { createLineClient, transcriptionFailedMessage, transcriptionSavedMessage } from "../line/line.ts";
+import type { LineClient } from "../line/types/line.ts";
 import {
   DEFAULT_AWS_REGION,
   DEFAULT_BEDROCK_MODEL_ID,
@@ -9,66 +14,13 @@ import {
   INBOX_FOLDER_NAME,
   MIN_REMAINING_MS,
   PROCESSED_DRIVE_FOLDER_NAME,
-} from "./const.ts";
-import { connectionSpaceId, craftAppDocumentLink, createCraftClient } from "./craft.ts";
-import {
-  createDriveClient,
-  type DriveClient,
-  type DriveFile,
-  fileStem,
-  type GoogleServiceAccount,
-  orphanTextFiles,
-} from "./drive.ts";
-import { createLineClient, type LineClient, transcriptionFailedMessage, transcriptionSavedMessage } from "./line.ts";
-import { sanitizeErrorMessage } from "./sanitize-error.ts";
-import type { TranscribeInput } from "./transcribe/claude.ts";
-import { createTranscription, MAX_IMAGE_BYTES } from "./transcribe/index.ts";
-import type { ParsedTranscription } from "./transcribe/parse.ts";
-
-export interface BaseSettings {
-  secretId: string;
-  bedrockModelId: string;
-  bedrockRegion: string;
-  craftFolderName: string;
-  craftApiBaseUrl: string;
-  craftApiKey: string;
-  anthropicApiKey: string;
-  claudeModelId: string;
-  transcriptionProvider: string;
-  googleServiceAccountJson: string;
-  lineChannelAccessToken: string;
-  lineUserId: string;
-}
-
-export interface Credentials {
-  serviceAccount?: GoogleServiceAccount;
-  craftApiBaseUrl: string;
-  craftApiKey: string;
-  anthropicApiKey?: string;
-  lineChannelAccessToken: string;
-  lineUserId: string;
-}
-
-export interface SecretsClientLike {
-  send(command: GetSecretValueCommand): Promise<{ SecretString?: string }>;
-}
-
-export interface LambdaContextLike {
-  getRemainingTimeInMillis(): number;
-}
-
-export interface LoggerLike {
-  info(...args: unknown[]): void;
-  error(...args: unknown[]): void;
-}
-
-export interface ProcessInboxSummary {
-  processed: number;
-  failed: number;
-  skipped: number;
-  deferred: number;
-  folderLookup?: string;
-}
+} from "../shared/const.ts";
+import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
+import type { LambdaContextLike, LoggerLike, SecretsClientLike } from "../shared/types/runtime.ts";
+import type { BaseSettings, Credentials } from "../shared/types/settings.ts";
+import { createTranscription, MAX_IMAGE_BYTES } from "../transcribe/index.ts";
+import type { ParsedTranscription, TranscribeInput } from "../transcribe/types/transcribe.ts";
+import type { ProcessInboxSummary } from "./types/inbox.ts";
 
 export function settingsFromEnv(env: NodeJS.ProcessEnv = process.env): BaseSettings {
   return {

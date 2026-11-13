@@ -1,5 +1,5 @@
 import { BedrockRuntimeClient, ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
-import { type RecordWeeklyUsageOptions, recordWeeklyUsage } from "./claude-usage.ts";
+import { recordWeeklyUsage } from "../claude/claude-usage.ts";
 import {
   ANTHROPIC_API_VERSION,
   CLAUDE_API_URL,
@@ -8,26 +8,14 @@ import {
   DEFAULT_TRANSCRIPTION_PROVIDER,
   JSON_CONTENT_TYPE,
   MAX_SUMMARY_TOKENS,
-} from "./const.ts";
-import { withFetchTimeout } from "./fetch-with-timeout.ts";
+} from "../shared/const.ts";
+import { withFetchTimeout } from "../shared/fetch-with-timeout.ts";
+import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
+import { maxImageBytes } from "../transcribe/claude.ts";
+import { assertImageSize } from "../transcribe/parse.ts";
+import type { TranscribeInput } from "../transcribe/types/transcribe.ts";
 import { KINDLE_SYSTEM_PROMPT, KINDLE_USER_PROMPT } from "./kindle-prompt.ts";
-import { sanitizeErrorMessage } from "./sanitize-error.ts";
-import type { BedrockClientLike } from "./transcribe/bedrock.ts";
-import { maxImageBytes, type TranscribeInput } from "./transcribe/claude.ts";
-import { assertImageSize } from "./transcribe/parse.ts";
-
-export interface ClaudeKindleSummarizerOptions {
-  apiKey?: string;
-  modelId?: string;
-  fetchImpl?: typeof fetch;
-  recordUsage?: (options: RecordWeeklyUsageOptions) => Promise<unknown>;
-}
-
-export interface BedrockKindleSummarizerOptions {
-  region?: string;
-  modelId?: string;
-  client?: BedrockClientLike;
-}
+import type { BedrockKindleSummarizerOptions, ClaudeKindleSummarizerOptions } from "./types/kindle.ts";
 
 function mediaType(mimeType?: string): "image/png" | "image/jpeg" {
   if (mimeType === "image/png") return "image/png";

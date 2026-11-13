@@ -1,51 +1,14 @@
 import path from "node:path";
 import { JWT } from "google-auth-library";
-import { DEFAULT_KINDLE_BOOK_PREFIX, JSON_CONTENT_TYPE } from "./const.ts";
-import { isCsvFile } from "./csv.ts";
-import { withFetchTimeout } from "./fetch-with-timeout.ts";
-import { formatHttpErrorDetail, parseApiErrorDetail, sanitizeErrorMessage } from "./sanitize-error.ts";
+import { isCsvFile } from "../csv/csv.ts";
+import { DEFAULT_KINDLE_BOOK_PREFIX, JSON_CONTENT_TYPE } from "../shared/const.ts";
+import { withFetchTimeout } from "../shared/fetch-with-timeout.ts";
+import { formatHttpErrorDetail, parseApiErrorDetail, sanitizeErrorMessage } from "../shared/sanitize-error.ts";
+import type { AuthClientLike, DriveClient, DriveFile, FolderResolution, GoogleServiceAccount } from "./types/drive.ts";
 
 const FOLDER_MIME = "application/vnd.google-apps.folder";
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg"]);
 const DRIVE_API = "https://www.googleapis.com/drive/v3";
-
-export interface DriveFile {
-  id: string;
-  name: string;
-  mimeType?: string;
-  size?: string | number;
-  appProperties?: Record<string, string>;
-}
-
-export type FolderResolution = { ok: true; id: string } | { ok: false; count: number };
-
-export interface GoogleServiceAccount {
-  client_email?: string;
-  private_key?: string;
-}
-
-export interface AuthClientLike {
-  getAccessToken(): Promise<string | { token?: string | null } | null | undefined>;
-}
-
-export interface DriveClient {
-  findUniqueFolder(name: string): Promise<FolderResolution>;
-  listImages(folderId: string): Promise<DriveFile[]>;
-  listCsvFiles(folderId: string): Promise<DriveFile[]>;
-  listTextFiles(folderId: string): Promise<DriveFile[]>;
-  download(fileId: string): Promise<Buffer>;
-  deleteFile(fileId: string): Promise<void>;
-  moveFile(input: { fileId: string; addParentId: string; removeParentId: string }): Promise<void>;
-  moveToProcessed(input: {
-    fileId: string;
-    inboxFolderId: string;
-    processedFolderId: string;
-    craftDocumentId: string;
-  }): Promise<void>;
-  listChildFolders(parentId: string): Promise<DriveFile[]>;
-  listKindleBookFolders(parentId: string, prefix?: string): Promise<DriveFile[]>;
-  ensureChildFolder(parentId: string, name: string): Promise<string>;
-}
 
 export function escapeDriveQuery(value: unknown): string {
   return String(value).replaceAll("\\", "\\\\").replaceAll("'", "\\'");

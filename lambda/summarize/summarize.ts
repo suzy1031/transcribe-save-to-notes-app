@@ -1,5 +1,5 @@
 import { BedrockRuntimeClient, ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
-import { type RecordWeeklyUsageOptions, recordWeeklyUsage } from "./claude-usage.ts";
+import { recordWeeklyUsage } from "../claude/claude-usage.ts";
 import {
   ANTHROPIC_API_VERSION,
   CLAUDE_API_URL,
@@ -8,24 +8,11 @@ import {
   DEFAULT_TRANSCRIPTION_PROVIDER,
   JSON_CONTENT_TYPE,
   MAX_SUMMARY_TOKENS,
-} from "./const.ts";
-import { withFetchTimeout } from "./fetch-with-timeout.ts";
-import { sanitizeErrorMessage } from "./sanitize-error.ts";
+} from "../shared/const.ts";
+import { withFetchTimeout } from "../shared/fetch-with-timeout.ts";
+import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
 import { SUMMARY_SYSTEM_PROMPT, wrapSummaryNotes } from "./summary-prompt.ts";
-import type { BedrockClientLike } from "./transcribe/bedrock.ts";
-
-export interface ClaudeSummarizerOptions {
-  apiKey?: string;
-  modelId?: string;
-  fetchImpl?: typeof fetch;
-  recordUsage?: (options: RecordWeeklyUsageOptions) => Promise<unknown>;
-}
-
-export interface BedrockSummarizerOptions {
-  region?: string;
-  modelId?: string;
-  client?: BedrockClientLike;
-}
+import type { BedrockSummarizerOptions, ClaudeSummarizerOptions } from "./types/summarize.ts";
 
 function textFromClaude(payload: any): string {
   return (payload.content ?? [])
