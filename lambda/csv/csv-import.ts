@@ -1,15 +1,15 @@
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
 import { createDriveClient } from "../drive/drive.ts";
-import type { DriveFile } from "../drive/types/drive.ts";
+import type { DriveFile } from "../drive/types.ts";
 import { loadCredentials, settingsFromEnv } from "../inbox/index.ts";
 import { csvImportFailedMessage, csvImportSummaryMessage, EMPTY_CSV_MESSAGE } from "../line/helper.ts";
 import { createLineClient } from "../line/line.ts";
-import type { LineClient } from "../line/types/line.ts";
+import type { LineClient } from "../line/types.ts";
 import { DEFAULT_CSV_INBOX_FOLDER, DEFAULT_CSV_PROCESSED_FOLDER, DEFAULT_CSV_SPREADSHEET_ID } from "../shared/const.ts";
 import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
 import { createSheetsClient } from "../sheets/sheets.ts";
 import { appendDebitTotalRow, appendTotalRow, parseCsv, sheetTitle, spreadsheetAppLink, tokyoDate } from "./csv.ts";
-import type { CsvImportResult, CsvImportSettings } from "./types/csv.ts";
+import type { CsvImportResult, CsvImportSettings } from "./types.ts";
 
 export function csvImportSettingsFromEnv(env: NodeJS.ProcessEnv = process.env): CsvImportSettings {
   return {

@@ -11,7 +11,7 @@ import {
   isTextFile,
   resolveUniqueFolder,
 } from "./helper.ts";
-import type { AuthClientLike, DriveClient, DriveFile, GoogleServiceAccount } from "./types/drive.ts";
+import type { AuthClientLike, DriveClient, DriveFile, GoogleServiceAccount } from "./types.ts";
 
 const DRIVE_API = "https://www.googleapis.com/drive/v3";
 

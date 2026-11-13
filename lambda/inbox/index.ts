@@ -4,10 +4,10 @@ import { createCraftClient } from "../craft/craft.ts";
 import { connectionSpaceId, craftAppDocumentLink } from "../craft/helper.ts";
 import { createDriveClient } from "../drive/drive.ts";
 import { fileStem, orphanTextFiles } from "../drive/helper.ts";
-import type { DriveClient, DriveFile, GoogleServiceAccount } from "../drive/types/drive.ts";
+import type { DriveClient, DriveFile, GoogleServiceAccount } from "../drive/types.ts";
 import { transcriptionFailedMessage, transcriptionSavedMessage } from "../line/helper.ts";
 import { createLineClient } from "../line/line.ts";
-import type { LineClient } from "../line/types/line.ts";
+import type { LineClient } from "../line/types.ts";
 import {
   DEFAULT_AWS_REGION,
   DEFAULT_BEDROCK_MODEL_ID,
@@ -19,11 +19,10 @@ import {
   PROCESSED_DRIVE_FOLDER_NAME,
 } from "../shared/const.ts";
 import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
-import type { LambdaContextLike, LoggerLike, SecretsClientLike } from "../shared/types/runtime.ts";
-import type { BaseSettings, Credentials } from "../shared/types/settings.ts";
+import type { BaseSettings, Credentials, LambdaContextLike, LoggerLike, SecretsClientLike } from "../shared/types.ts";
 import { createTranscription, MAX_IMAGE_BYTES } from "../transcribe/index.ts";
-import type { ParsedTranscription, TranscribeInput } from "../transcribe/types/transcribe.ts";
-import type { ProcessInboxSummary } from "./types/inbox.ts";
+import type { ParsedTranscription, TranscribeInput } from "../transcribe/types.ts";
+import type { ProcessInboxSummary } from "./types.ts";
 
 export function settingsFromEnv(env: NodeJS.ProcessEnv = process.env): BaseSettings {
   return {

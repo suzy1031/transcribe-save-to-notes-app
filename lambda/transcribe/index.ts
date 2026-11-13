@@ -6,7 +6,7 @@ import type {
   ClaudeTranscriberOptions,
   ParsedTranscription,
   TranscribeInput,
-} from "./types/transcribe.ts";
+} from "./types.ts";
 
 const providers: Record<string, typeof bedrock | typeof claude> = { bedrock, claude };
 

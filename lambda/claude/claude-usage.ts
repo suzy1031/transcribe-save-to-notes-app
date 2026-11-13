@@ -2,13 +2,13 @@ import { type AttributeValue, DynamoDBClient, UpdateItemCommand } from "@aws-sdk
 import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
 import { TOKYO_TIME_ZONE } from "../shared/const.ts";
 import { estimateUsdMicros, microToUsdDecimal, normalizeUsage } from "./claude-pricing.ts";
-import type { NormalizedUsage } from "./types/claude-pricing.ts";
 import type {
   DynamoLike,
   GetWeeklyUsageOptions,
+  NormalizedUsage,
   RecordWeeklyUsageOptions,
   WeeklyUsageItem,
-} from "./types/claude-usage.ts";
+} from "./types.ts";
 
 const FUNCTION_NAME = /^[A-Za-z][A-Za-z0-9_-]*$/;
 

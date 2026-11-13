@@ -1,6 +1,6 @@
 import path from "node:path";
 import { DEFAULT_KINDLE_BOOK_PREFIX } from "../shared/const.ts";
-import type { DriveFile, FolderResolution } from "./types/drive.ts";
+import type { DriveFile, FolderResolution } from "./types.ts";
 
 const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg"]);
 

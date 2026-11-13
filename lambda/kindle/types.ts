@@ -1,6 +1,6 @@
-import type { RecordWeeklyUsageOptions } from "../../claude/types/claude-usage.ts";
-import type { BaseSettings } from "../../shared/types/settings.ts";
-import type { BedrockClientLike } from "../../transcribe/types/transcribe.ts";
+import type { RecordWeeklyUsageOptions } from "../claude/types.ts";
+import type { BaseSettings } from "../shared/types.ts";
+import type { BedrockClientLike } from "../transcribe/types.ts";
 
 export interface KindleSettings extends BaseSettings {
   driveParentFolderName: string;

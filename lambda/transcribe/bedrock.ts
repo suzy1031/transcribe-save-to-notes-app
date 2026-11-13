@@ -7,7 +7,7 @@ import {
 } from "../shared/const.ts";
 import { assertImageSize, parseTranscription } from "./parse.ts";
 import { SYSTEM_PROMPT } from "./prompt.ts";
-import type { BedrockTranscriberOptions, ParsedTranscription, TranscribeInput } from "./types/transcribe.ts";
+import type { BedrockTranscriberOptions, ParsedTranscription, TranscribeInput } from "./types.ts";
 
 export { MAX_IMAGE_BYTES as maxImageBytes };
 

@@ -1,5 +1,5 @@
 import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
-import type { CsvImportFailure, KindleSummaryLink } from "./types/line.ts";
+import type { CsvImportFailure, KindleSummaryLink } from "./types.ts";
 
 export const LINE_TEXT_LIMIT = 5000;
 export const EMPTY_WEEK_MESSAGE = "今週対象のノートはありませんでした";

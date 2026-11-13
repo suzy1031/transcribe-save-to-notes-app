@@ -1,5 +1,5 @@
-import type { CsvImportFailure } from "../../line/types/line.ts";
-import type { BaseSettings } from "../../shared/types/settings.ts";
+import type { CsvImportFailure } from "../line/types.ts";
+import type { BaseSettings } from "../shared/types.ts";
 
 export interface FileLike {
   name?: string;
