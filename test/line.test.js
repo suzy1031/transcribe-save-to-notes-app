@@ -1,16 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { craftAppDocumentLink } from "../lambda/craft/craft.ts";
+import { craftAppDocumentLink } from "../lambda/craft/helper/craft.ts";
 import {
-  createLineClient,
   fitLineText,
-  LINE_PUSH_URL,
   LINE_TEXT_LIMIT,
   reminderDeliveredMessage,
   reminderFailedMessage,
   transcriptionFailedMessage,
   transcriptionSavedMessage,
-} from "../lambda/line/line.ts";
+} from "../lambda/line/helper/line.ts";
+import { createLineClient, LINE_PUSH_URL } from "../lambda/line/line.ts";
 
 test("fitLineText は短いメッセージをそのまま返し5000文字で切り詰める", () => {
   assert.equal(fitLineText("こんにちは"), "こんにちは");

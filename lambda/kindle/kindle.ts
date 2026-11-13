@@ -1,10 +1,12 @@
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import { connectionSpaceId, craftAppDocumentLink, createCraftClient } from "../craft/craft.ts";
+import { createCraftClient } from "../craft/craft.ts";
+import { connectionSpaceId, craftAppDocumentLink } from "../craft/helper/craft.ts";
 import type { CraftListedDocument } from "../craft/types/craft.ts";
 import { createDriveClient } from "../drive/drive.ts";
 import type { DriveFile } from "../drive/types/drive.ts";
 import { loadCredentials, settingsFromEnv } from "../inbox/index.ts";
-import { createLineClient, kindleFailedMessage, kindleRunSummaryMessage } from "../line/line.ts";
+import { kindleFailedMessage, kindleRunSummaryMessage } from "../line/helper/line.ts";
+import { createLineClient } from "../line/line.ts";
 import type { LineClient } from "../line/types/line.ts";
 import {
   ALL_CRAFT_DOCUMENTS_SINCE,

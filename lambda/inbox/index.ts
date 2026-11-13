@@ -1,9 +1,12 @@
 import { readFile } from "node:fs/promises";
 import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import { connectionSpaceId, craftAppDocumentLink, createCraftClient } from "../craft/craft.ts";
-import { createDriveClient, fileStem, orphanTextFiles } from "../drive/drive.ts";
+import { createCraftClient } from "../craft/craft.ts";
+import { connectionSpaceId, craftAppDocumentLink } from "../craft/helper/craft.ts";
+import { createDriveClient } from "../drive/drive.ts";
+import { fileStem, orphanTextFiles } from "../drive/helper/drive.ts";
 import type { DriveClient, DriveFile, GoogleServiceAccount } from "../drive/types/drive.ts";
-import { createLineClient, transcriptionFailedMessage, transcriptionSavedMessage } from "../line/line.ts";
+import { transcriptionFailedMessage, transcriptionSavedMessage } from "../line/helper/line.ts";
+import { createLineClient } from "../line/line.ts";
 import type { LineClient } from "../line/types/line.ts";
 import {
   DEFAULT_AWS_REGION,

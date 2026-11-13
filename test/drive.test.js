@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createDriveClient } from "../lambda/drive/drive.ts";
 import {
-  createDriveClient,
   escapeDriveQuery,
   filterKindleBookFolders,
   isSupportedImage,
   orphanTextFiles,
   resolveUniqueFolder,
-} from "../lambda/drive/drive.ts";
+} from "../lambda/drive/helper/drive.ts";
 
 const folder = (id, name) => ({
   id,
