@@ -1,12 +1,10 @@
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
 import { createDriveClient } from "../drive/drive.ts";
 import type { DriveFile } from "../drive/types.ts";
-import { loadCredentials, settingsFromEnv } from "../inbox/index.ts";
 import { csvImportFailedMessage, csvImportSummaryMessage, EMPTY_CSV_MESSAGE } from "../line/helper.ts";
-import { createLineClient } from "../line/line.ts";
-import type { LineClient } from "../line/types.ts";
 import { DEFAULT_CSV_INBOX_FOLDER, DEFAULT_CSV_PROCESSED_FOLDER, DEFAULT_CSV_SPREADSHEET_ID } from "../shared/const.ts";
-import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
+import { createLinePush, runLogged } from "../shared/job.ts";
+import { loadCredentials, settingsFromEnv } from "../shared/settings.ts";
 import { createSheetsClient } from "../sheets/sheets.ts";
 import { appendDebitTotalRow, appendTotalRow, parseCsv, sheetTitle, spreadsheetAppLink, tokyoDate } from "./csv.ts";
 import type { CsvImportResult, CsvImportSettings } from "./types.ts";
@@ -95,31 +93,20 @@ export async function importCsvFiles({
 }
 
 export async function handler(event: unknown, context: unknown): Promise<CsvImportResult> {
-  console.log("start");
-  try {
-    return await runCsvImport();
-  } finally {
-    console.log("end");
-  }
+  return runLogged(() => runCsvImport());
 }
 
 async function runCsvImport(): Promise<CsvImportResult> {
   const settings = csvImportSettingsFromEnv();
   const credentials = await loadCredentials(settings, new SecretsManagerClient({ region: settings.bedrockRegion }));
-  const line =
-    credentials.lineChannelAccessToken && credentials.lineUserId
-      ? createLineClient({
-          channelAccessToken: credentials.lineChannelAccessToken,
-          userId: credentials.lineUserId,
-        })
-      : null;
+  const pushLine = createLinePush(credentials);
   const drive = createDriveClient({ serviceAccount: credentials.serviceAccount });
   const sheets = createSheetsClient({ serviceAccount: credentials.serviceAccount });
 
   if (!settings.spreadsheetId) {
     const reason = "CSV_SPREADSHEET_ID is required";
     console.error(reason);
-    await pushLine(line, csvImportFailedMessage(reason));
+    await pushLine(csvImportFailedMessage(reason));
     throw new Error(reason);
   }
 
@@ -130,7 +117,7 @@ async function runCsvImport(): Promise<CsvImportResult> {
     const processedCount = processed.ok ? 1 : processed.count;
     const reason = `Drive folder lookup failed: csv_inbox=${inboxCount} csv_processed=${processedCount}`;
     console.error(reason);
-    await pushLine(line, csvImportFailedMessage(reason));
+    await pushLine(csvImportFailedMessage(reason));
     return { imported: 0, failed: 0, failures: [], folderLookup: "failed" };
   }
 
@@ -152,20 +139,7 @@ async function runCsvImport(): Promise<CsvImportResult> {
         addParentId: processed.id,
         removeParentId: inbox.id,
       }),
-    pushLine: (text) => pushLine(line, text),
+    pushLine,
     spreadsheetUrl: spreadsheetAppLink(settings.spreadsheetId),
   });
-}
-
-async function pushLine(line: LineClient | null, text: string): Promise<void> {
-  if (!line) {
-    console.error("LINE通知失敗: credentials are missing");
-    return;
-  }
-  try {
-    await line.push(text);
-    console.log("LINE通知");
-  } catch (error) {
-    console.error(`LINE通知失敗: ${sanitizeErrorMessage((error as Error).message)}`);
-  }
 }

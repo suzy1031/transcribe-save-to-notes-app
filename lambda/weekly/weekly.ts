@@ -3,7 +3,6 @@ import { formatWeeklyUsage, getWeeklyUsage } from "../claude/claude-usage.ts";
 import type { WeeklyUsageItem } from "../claude/types.ts";
 import { createCraftClient } from "../craft/craft.ts";
 import type { CraftListedDocument } from "../craft/types.ts";
-import { loadCredentials, settingsFromEnv } from "../inbox/index.ts";
 import { EMPTY_WEEK_MESSAGE, fitLineText } from "../line/helper.ts";
 import { createLineClient } from "../line/line.ts";
 import {
@@ -13,7 +12,9 @@ import {
   TOKYO_TIME_ZONE,
   WEEKLY_LOOKBACK_DAYS,
 } from "../shared/const.ts";
+import { runLogged } from "../shared/job.ts";
 import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
+import { loadCredentials, settingsFromEnv } from "../shared/settings.ts";
 import type { Credentials, SecretsClientLike } from "../shared/types.ts";
 import { createSummarizer } from "../summarize/summarize.ts";
 import { combineNotes } from "../summarize/summary-prompt.ts";
@@ -126,12 +127,7 @@ export async function processWeekly({
 }
 
 export async function handler(): Promise<{ summarized: number; moved: number }> {
-  console.log("start");
-  try {
-    return await runWeekly();
-  } finally {
-    console.log("end");
-  }
+  return runLogged(() => runWeekly());
 }
 
 async function runWeekly(): Promise<{ summarized: number; moved: number }> {
