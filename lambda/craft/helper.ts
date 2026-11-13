@@ -41,7 +41,9 @@ export function documentPayload(
 export function createdDocumentId(payload: any): string {
   const list = payload.items ?? payload.documents ?? [];
   const id = list[0]?.rootBlockId ?? list[0]?.id ?? list[0]?.documentId;
-  if (typeof id !== "string" || id === "") {
+  const isStringId = typeof id === "string";
+  const isEmptyId = id === "";
+  if (!isStringId || isEmptyId) {
     throw new Error("Craft document create returned no id");
   }
   return id;
