@@ -4,7 +4,7 @@ import type { WeeklyUsageItem } from "../claude/types/claude-usage.ts";
 import { createCraftClient } from "../craft/craft.ts";
 import type { CraftListedDocument } from "../craft/types/craft.ts";
 import { loadCredentials, settingsFromEnv } from "../inbox/index.ts";
-import { EMPTY_WEEK_MESSAGE, fitLineText } from "../line/helper/line.ts";
+import { EMPTY_WEEK_MESSAGE, fitLineText } from "../line/helper.ts";
 import { createLineClient } from "../line/line.ts";
 import {
   DEFAULT_CRAFT_PROCESSED_FOLDER,

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { craftAppDocumentLink } from "../lambda/craft/helper/craft.ts";
-import { EMPTY_REMINDER_MESSAGE, reminderDeliveredMessage, reminderFailedMessage } from "../lambda/line/helper/line.ts";
+import { craftAppDocumentLink } from "../lambda/craft/helper.ts";
+import { EMPTY_REMINDER_MESSAGE, reminderDeliveredMessage, reminderFailedMessage } from "../lambda/line/helper.ts";
 import {
   filterDocumentsByReminderTitle,
   listReminderDocuments,

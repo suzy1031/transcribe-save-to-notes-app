@@ -2,7 +2,7 @@ import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
 import { createDriveClient } from "../drive/drive.ts";
 import type { DriveFile } from "../drive/types/drive.ts";
 import { loadCredentials, settingsFromEnv } from "../inbox/index.ts";
-import { csvImportFailedMessage, csvImportSummaryMessage, EMPTY_CSV_MESSAGE } from "../line/helper/line.ts";
+import { csvImportFailedMessage, csvImportSummaryMessage, EMPTY_CSV_MESSAGE } from "../line/helper.ts";
 import { createLineClient } from "../line/line.ts";
 import type { LineClient } from "../line/types/line.ts";
 import { DEFAULT_CSV_INBOX_FOLDER, DEFAULT_CSV_PROCESSED_FOLDER, DEFAULT_CSV_SPREADSHEET_ID } from "../shared/const.ts";

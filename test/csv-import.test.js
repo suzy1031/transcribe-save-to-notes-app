@@ -11,7 +11,7 @@ import {
   valuesRange,
 } from "../lambda/csv/csv.ts";
 import { importCsvFiles } from "../lambda/csv/csv-import.ts";
-import { csvImportSummaryMessage, EMPTY_CSV_MESSAGE } from "../lambda/line/helper/line.ts";
+import { csvImportSummaryMessage, EMPTY_CSV_MESSAGE } from "../lambda/line/helper.ts";
 import { createSheetsClient } from "../lambda/sheets/sheets.ts";
 
 test("parseCsv は引用符、カンマ、セル内改行、BOM、CRLFを読む", () => {

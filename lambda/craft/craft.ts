@@ -8,7 +8,7 @@ import {
   findFolderIds,
   listedDocument,
   moveDocumentsPayload,
-} from "./helper/craft.ts";
+} from "./helper.ts";
 import type { CraftClient } from "./types/craft.ts";
 
 async function craftRequest(

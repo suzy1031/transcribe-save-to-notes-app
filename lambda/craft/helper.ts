@@ -1,4 +1,4 @@
-import type { CraftListedDocument, DocumentsQueryParams } from "../types/craft.ts";
+import type { CraftListedDocument, DocumentsQueryParams } from "./types/craft.ts";
 
 const CHILD_KEYS = ["folders", "children", "subfolders"] as const;
 

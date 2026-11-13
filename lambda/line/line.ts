@@ -1,7 +1,7 @@
 import { JSON_CONTENT_TYPE } from "../shared/const.ts";
 import { withFetchTimeout } from "../shared/fetch-with-timeout.ts";
 import { formatHttpErrorDetail } from "../shared/sanitize-error.ts";
-import { linePushPayload } from "./helper/line.ts";
+import { linePushPayload } from "./helper.ts";
 import type { LineClient } from "./types/line.ts";
 
 export const LINE_PUSH_URL = "https://api.line.me/v2/bot/message/push";

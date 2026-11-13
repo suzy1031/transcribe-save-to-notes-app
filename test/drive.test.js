@@ -7,7 +7,7 @@ import {
   isSupportedImage,
   orphanTextFiles,
   resolveUniqueFolder,
-} from "../lambda/drive/helper/drive.ts";
+} from "../lambda/drive/helper.ts";
 
 const folder = (id, name) => ({
   id,

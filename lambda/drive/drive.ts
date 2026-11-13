@@ -10,7 +10,7 @@ import {
   isSupportedImage,
   isTextFile,
   resolveUniqueFolder,
-} from "./helper/drive.ts";
+} from "./helper.ts";
 import type { AuthClientLike, DriveClient, DriveFile, GoogleServiceAccount } from "./types/drive.ts";
 
 const DRIVE_API = "https://www.googleapis.com/drive/v3";

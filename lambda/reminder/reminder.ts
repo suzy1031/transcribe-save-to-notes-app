@@ -1,9 +1,9 @@
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
 import { createCraftClient } from "../craft/craft.ts";
-import { connectionSpaceId, craftAppDocumentLink } from "../craft/helper/craft.ts";
+import { connectionSpaceId, craftAppDocumentLink } from "../craft/helper.ts";
 import type { CraftClient, CraftListedDocument } from "../craft/types/craft.ts";
 import { loadCredentials, settingsFromEnv } from "../inbox/index.ts";
-import { EMPTY_REMINDER_MESSAGE, reminderDeliveredMessage, reminderFailedMessage } from "../line/helper/line.ts";
+import { EMPTY_REMINDER_MESSAGE, reminderDeliveredMessage, reminderFailedMessage } from "../line/helper.ts";
 import { createLineClient } from "../line/line.ts";
 import type { LineClient } from "../line/types/line.ts";
 import { ALL_CRAFT_DOCUMENTS_SINCE, DEFAULT_CRAFT_SUMMARY_FOLDER, REMINDER_LOOKBACK_DAYS } from "../shared/const.ts";

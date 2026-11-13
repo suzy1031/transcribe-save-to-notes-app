@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { craftAppDocumentLink } from "../lambda/craft/helper/craft.ts";
+import { craftAppDocumentLink } from "../lambda/craft/helper.ts";
 import {
   fitLineText,
   LINE_TEXT_LIMIT,
@@ -8,7 +8,7 @@ import {
   reminderFailedMessage,
   transcriptionFailedMessage,
   transcriptionSavedMessage,
-} from "../lambda/line/helper/line.ts";
+} from "../lambda/line/helper.ts";
 import { createLineClient, LINE_PUSH_URL } from "../lambda/line/line.ts";
 
 test("fitLineText は短いメッセージをそのまま返し5000文字で切り詰める", () => {
