@@ -11,9 +11,7 @@ const IMAGE_EXTENSIONS = new Set([".png", ".jpg", ".jpeg"]);
 const DRIVE_API = "https://www.googleapis.com/drive/v3";
 
 export function escapeDriveQuery(value: unknown): string {
-  return String(value)
-    .replaceAll("\\", "\\\\")
-    .replaceAll("'", "\\'");
+  return String(value).replaceAll("\\", "\\\\").replaceAll("'", "\\'");
 }
 
 export function isSupportedImage(file: { name?: string; mimeType?: string }): boolean {
@@ -40,13 +38,8 @@ export function orphanTextFiles<T extends { name?: string }>(
   return textFiles.filter((file) => isTextFile(file) && !stems.has(fileStem(file.name)));
 }
 
-export function resolveUniqueFolder(
-  files: ReadonlyArray<DriveFile>,
-  name: string,
-): FolderResolution {
-  const matches = files.filter(
-    (file) => file.name === name && file.mimeType === FOLDER_MIME,
-  );
+export function resolveUniqueFolder(files: ReadonlyArray<DriveFile>, name: string): FolderResolution {
+  const matches = files.filter((file) => file.name === name && file.mimeType === FOLDER_MIME);
   if (matches.length !== 1) {
     return { ok: false, count: matches.length };
   }
@@ -58,10 +51,7 @@ export function filterKindleBookFolders<T extends { name?: string; mimeType?: st
   prefix: string = DEFAULT_KINDLE_BOOK_PREFIX,
 ): T[] {
   return folders.filter(
-    (folder) =>
-      folder.mimeType === FOLDER_MIME &&
-      typeof folder.name === "string" &&
-      folder.name.startsWith(prefix),
+    (folder) => folder.mimeType === FOLDER_MIME && typeof folder.name === "string" && folder.name.startsWith(prefix),
   );
 }
 
@@ -157,10 +147,7 @@ export function createDriveClient({
     },
 
     async listCsvFiles(folderId: string) {
-      const files = await listAll(
-        `'${folderId}' in parents and trashed = false`,
-        "id,name,mimeType",
-      );
+      const files = await listAll(`'${folderId}' in parents and trashed = false`, "id,name,mimeType");
       return files.filter(isCsvFile);
     },
 
@@ -190,8 +177,7 @@ export function createDriveClient({
       const response = await request(url, { method: "DELETE" });
       if (response.ok) return;
       const text = await response.text();
-      const message =
-        parseApiErrorDetail(text).slice(0, 200) || response.statusText || String(response.status);
+      const message = parseApiErrorDetail(text).slice(0, 200) || response.statusText || String(response.status);
       const error = new Error(`Drive API ${response.status}: ${message}`) as Error & { status?: number };
       error.status = response.status;
       throw error;

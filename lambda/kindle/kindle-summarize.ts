@@ -1,10 +1,5 @@
 import { BedrockRuntimeClient, ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
 import { recordWeeklyUsage } from "../claude/claude-usage.ts";
-import { assertImageSize } from "../transcribe/parse.ts";
-import { maxImageBytes } from "../transcribe/claude.ts";
-import type { BedrockKindleSummarizerOptions, ClaudeKindleSummarizerOptions } from "./types/kindle.ts";
-import type { TranscribeInput } from "../transcribe/types/transcribe.ts";
-import { KINDLE_SYSTEM_PROMPT, KINDLE_USER_PROMPT } from "./kindle-prompt.ts";
 import {
   ANTHROPIC_API_VERSION,
   CLAUDE_API_URL,
@@ -16,6 +11,11 @@ import {
 } from "../shared/const.ts";
 import { withFetchTimeout } from "../shared/fetch-with-timeout.ts";
 import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
+import { maxImageBytes } from "../transcribe/claude.ts";
+import { assertImageSize } from "../transcribe/parse.ts";
+import type { TranscribeInput } from "../transcribe/types/transcribe.ts";
+import { KINDLE_SYSTEM_PROMPT, KINDLE_USER_PROMPT } from "./kindle-prompt.ts";
+import type { BedrockKindleSummarizerOptions, ClaudeKindleSummarizerOptions } from "./types/kindle.ts";
 
 function mediaType(mimeType?: string): "image/png" | "image/jpeg" {
   if (mimeType === "image/png") return "image/png";

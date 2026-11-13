@@ -1,13 +1,13 @@
 import { BedrockRuntimeClient, ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
-import { SYSTEM_PROMPT } from "./prompt.ts";
-import { assertImageSize, parseTranscription } from "./parse.ts";
-import type { BedrockTranscriberOptions, ParsedTranscription, TranscribeInput } from "./types/transcribe.ts";
 import {
   DEFAULT_BEDROCK_MODEL_ID,
   MAX_IMAGE_BYTES,
   MAX_TRANSCRIPTION_TOKENS,
   TRANSCRIBE_USER_PROMPT,
 } from "../shared/const.ts";
+import { assertImageSize, parseTranscription } from "./parse.ts";
+import { SYSTEM_PROMPT } from "./prompt.ts";
+import type { BedrockTranscriberOptions, ParsedTranscription, TranscribeInput } from "./types/transcribe.ts";
 
 export { MAX_IMAGE_BYTES as maxImageBytes };
 
@@ -45,9 +45,7 @@ export function createTranscriber({
         inferenceConfig: { maxTokens: MAX_TRANSCRIPTION_TOKENS, temperature: 0 },
       }),
     );
-    const text = (response.output?.message?.content ?? [])
-      .map((block: any) => block.text ?? "")
-      .join("");
+    const text = (response.output?.message?.content ?? []).map((block: any) => block.text ?? "").join("");
     return parseTranscription(text);
   };
 }

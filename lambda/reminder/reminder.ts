@@ -1,24 +1,20 @@
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
 import { connectionSpaceId, craftAppDocumentLink, createCraftClient } from "../craft/craft.ts";
+import type { CraftClient, CraftListedDocument } from "../craft/types/craft.ts";
 import { loadCredentials, settingsFromEnv } from "../inbox/index.ts";
 import {
   createLineClient,
   EMPTY_REMINDER_MESSAGE,
-  reminderFailedMessage,
   reminderDeliveredMessage,
+  reminderFailedMessage,
 } from "../line/line.ts";
-import {
-  ALL_CRAFT_DOCUMENTS_SINCE,
-  DEFAULT_CRAFT_SUMMARY_FOLDER,
-  REMINDER_LOOKBACK_DAYS,
-} from "../shared/const.ts";
-import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
-import type { CraftClient, CraftListedDocument } from "../craft/types/craft.ts";
 import type { LineClient } from "../line/types/line.ts";
+import { ALL_CRAFT_DOCUMENTS_SINCE, DEFAULT_CRAFT_SUMMARY_FOLDER, REMINDER_LOOKBACK_DAYS } from "../shared/const.ts";
+import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
 import type { SecretsClientLike } from "../shared/types/runtime.ts";
 import type { Credentials } from "../shared/types/settings.ts";
-import type { ReminderSettings } from "./types/reminder.ts";
 import { daysBeforeTokyoDate } from "../weekly/weekly.ts";
+import type { ReminderSettings } from "./types/reminder.ts";
 
 export const REMINDER_TITLE_PREFIX = "週次まとめ ";
 
@@ -32,10 +28,7 @@ export function reminderTitleCandidates(targetDate: string): [string, string] {
     throw new Error(`Invalid reminder targetDate: ${targetDate}`);
   }
   const padded = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-  return [
-    `${REMINDER_TITLE_PREFIX}${padded}`,
-    `${REMINDER_TITLE_PREFIX}${year}-${month}-${day}`,
-  ];
+  return [`${REMINDER_TITLE_PREFIX}${padded}`, `${REMINDER_TITLE_PREFIX}${year}-${month}-${day}`];
 }
 
 export function filterDocumentsByReminderTitle<T extends { title?: string }>(
@@ -110,9 +103,7 @@ export async function processReminder({
     return { reminded: 0 };
   }
   if (documents.length > 1) {
-    throw new Error(
-      `Craft folder had ${documents.length} documents for ${targetDate}; expected exactly one`,
-    );
+    throw new Error(`Craft folder had ${documents.length} documents for ${targetDate}; expected exactly one`);
   }
 
   const document = documents[0];
@@ -165,10 +156,7 @@ async function runReminder(): Promise<{ reminded: number; documentId?: string }>
   let credentials: Credentials | null = null;
   try {
     const settings = reminderSettingsFromEnv();
-    credentials = await loadReminderCredentials(
-      settings,
-      new SecretsManagerClient({ region: settings.bedrockRegion }),
-    );
+    credentials = await loadReminderCredentials(settings, new SecretsManagerClient({ region: settings.bedrockRegion }));
     line = createLineClient({
       channelAccessToken: credentials.lineChannelAccessToken,
       userId: credentials.lineUserId,
@@ -190,11 +178,7 @@ async function runReminder(): Promise<{ reminded: number; documentId?: string }>
 
     const now = new Date();
     const targetDate = reminderTargetDate(now);
-    const { documents, matchedBy } = await listReminderDocuments(
-      craft,
-      summaryFolderId,
-      targetDate,
-    );
+    const { documents, matchedBy } = await listReminderDocuments(craft, summaryFolderId, targetDate);
     if (matchedBy === "title") {
       console.log(`週次リマインド: 作成日0件のためタイトルで ${documents.length} 件 (${targetDate})`);
     }

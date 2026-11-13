@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { combineNotes, summaryPrompt, wrapSummaryNotes } from "../lambda/summarize/summary-prompt.ts";
 import { createBedrockSummarizer, createClaudeSummarizer } from "../lambda/summarize/summarize.ts";
+import { combineNotes, summaryPrompt, wrapSummaryNotes } from "../lambda/summarize/summary-prompt.ts";
 
 test("summaryPrompt に週次見出しと結合ノートが含まれる", () => {
   const notes = combineNotes([

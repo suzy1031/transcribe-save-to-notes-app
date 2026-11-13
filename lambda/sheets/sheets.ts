@@ -1,9 +1,9 @@
 import { JWT } from "google-auth-library";
-import { JSON_CONTENT_TYPE } from "../shared/const.ts";
 import { gridSize, valuesRange } from "../csv/csv.ts";
+import type { AuthClientLike, GoogleServiceAccount } from "../drive/types/drive.ts";
+import { JSON_CONTENT_TYPE } from "../shared/const.ts";
 import { withFetchTimeout } from "../shared/fetch-with-timeout.ts";
 import { formatHttpErrorDetail } from "../shared/sanitize-error.ts";
-import type { AuthClientLike, GoogleServiceAccount } from "../drive/types/drive.ts";
 import type { SheetsClient } from "./types/sheets.ts";
 
 const SHEETS_API = "https://sheets.googleapis.com/v4/spreadsheets";
@@ -84,13 +84,10 @@ export function createSheetsClient({
       try {
         const range = encodeURIComponent(valuesRange(title));
         await readJson(
-          await request(
-            `${SHEETS_API}/${spreadsheetId}/values/${range}?valueInputOption=RAW`,
-            {
-              method: "PUT",
-              body: JSON.stringify({ values: rows }),
-            },
-          ),
+          await request(`${SHEETS_API}/${spreadsheetId}/values/${range}?valueInputOption=RAW`, {
+            method: "PUT",
+            body: JSON.stringify({ values: rows }),
+          }),
         );
       } catch (error) {
         if (typeof sheetId === "number") {

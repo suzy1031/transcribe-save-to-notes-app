@@ -1,8 +1,10 @@
 import { readFile } from "node:fs/promises";
 import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import { connectionSpaceId, createCraftClient, craftAppDocumentLink } from "../craft/craft.ts";
+import { connectionSpaceId, craftAppDocumentLink, createCraftClient } from "../craft/craft.ts";
 import { createDriveClient, fileStem, orphanTextFiles } from "../drive/drive.ts";
+import type { DriveClient, DriveFile, GoogleServiceAccount } from "../drive/types/drive.ts";
 import { createLineClient, transcriptionFailedMessage, transcriptionSavedMessage } from "../line/line.ts";
+import type { LineClient } from "../line/types/line.ts";
 import {
   DEFAULT_AWS_REGION,
   DEFAULT_BEDROCK_MODEL_ID,
@@ -14,13 +16,11 @@ import {
   PROCESSED_DRIVE_FOLDER_NAME,
 } from "../shared/const.ts";
 import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
-import { createTranscription, MAX_IMAGE_BYTES } from "../transcribe/index.ts";
-import type { DriveClient, DriveFile, GoogleServiceAccount } from "../drive/types/drive.ts";
-import type { ProcessInboxSummary } from "./types/inbox.ts";
-import type { LineClient } from "../line/types/line.ts";
 import type { LambdaContextLike, LoggerLike, SecretsClientLike } from "../shared/types/runtime.ts";
 import type { BaseSettings, Credentials } from "../shared/types/settings.ts";
+import { createTranscription, MAX_IMAGE_BYTES } from "../transcribe/index.ts";
 import type { ParsedTranscription, TranscribeInput } from "../transcribe/types/transcribe.ts";
+import type { ProcessInboxSummary } from "./types/inbox.ts";
 
 export function settingsFromEnv(env: NodeJS.ProcessEnv = process.env): BaseSettings {
   return {
@@ -39,14 +39,9 @@ export function settingsFromEnv(env: NodeJS.ProcessEnv = process.env): BaseSetti
   };
 }
 
-export async function loadCredentials(
-  settings: BaseSettings,
-  secretsClient: SecretsClientLike,
-): Promise<Credentials> {
+export async function loadCredentials(settings: BaseSettings, secretsClient: SecretsClientLike): Promise<Credentials> {
   if (settings.secretId) {
-    const output = await secretsClient.send(
-      new GetSecretValueCommand({ SecretId: settings.secretId }),
-    );
+    const output = await secretsClient.send(new GetSecretValueCommand({ SecretId: settings.secretId }));
     const parsed = JSON.parse(output.SecretString ?? "") as {
       googleServiceAccount?: GoogleServiceAccount;
       craftApiBaseUrl: string;
@@ -193,10 +188,7 @@ export async function handler(event: unknown, context: LambdaContextLike): Promi
 
 async function runPipeline(context: LambdaContextLike): Promise<ProcessInboxSummary> {
   const settings = settingsFromEnv();
-  const credentials = await loadCredentials(
-    settings,
-    new SecretsManagerClient({ region: settings.bedrockRegion }),
-  );
+  const credentials = await loadCredentials(settings, new SecretsManagerClient({ region: settings.bedrockRegion }));
   const drive = createDriveClient({ serviceAccount: credentials.serviceAccount });
   const inbox = await drive.findUniqueFolder(INBOX_FOLDER_NAME);
   const processed = await drive.findUniqueFolder(PROCESSED_DRIVE_FOLDER_NAME);
@@ -285,8 +277,7 @@ function createLineNotifier(credentials: Credentials) {
       : null;
   return {
     async saved({ title, documentId, spaceId }: { title: string; documentId: string; spaceId: string }) {
-      const appLink =
-        spaceId && documentId ? craftAppDocumentLink(spaceId, documentId) : "";
+      const appLink = spaceId && documentId ? craftAppDocumentLink(spaceId, documentId) : "";
       await pushLine(line, transcriptionSavedMessage(title, appLink));
     },
     async failed({ fileName, reason }: { fileName: string; reason: string }) {

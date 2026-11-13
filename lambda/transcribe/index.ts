@@ -1,6 +1,6 @@
+import { DEFAULT_TRANSCRIPTION_PROVIDER } from "../shared/const.ts";
 import * as bedrock from "./bedrock.ts";
 import * as claude from "./claude.ts";
-import { DEFAULT_TRANSCRIPTION_PROVIDER } from "../shared/const.ts";
 import type {
   BedrockTranscriberOptions,
   ClaudeTranscriberOptions,
@@ -31,9 +31,11 @@ export function createTranscription({
   return {
     provider,
     maxImageBytes: selected.maxImageBytes,
-    transcribe: (selected.createTranscriber as (opts: any) => (input: TranscribeInput) => Promise<ParsedTranscription>)(options),
+    transcribe: (selected.createTranscriber as (opts: any) => (input: TranscribeInput) => Promise<ParsedTranscription>)(
+      options,
+    ),
   };
 }
 
-export { parseTranscription } from "./parse.ts";
 export { maxImageBytes as MAX_IMAGE_BYTES } from "./claude.ts";
+export { parseTranscription } from "./parse.ts";

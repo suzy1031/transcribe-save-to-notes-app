@@ -6,9 +6,7 @@ export interface DriveFile {
   appProperties?: Record<string, string>;
 }
 
-export type FolderResolution =
-  | { ok: true; id: string }
-  | { ok: false; count: number };
+export type FolderResolution = { ok: true; id: string } | { ok: false; count: number };
 
 export interface GoogleServiceAccount {
   client_email?: string;

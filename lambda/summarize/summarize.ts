@@ -1,6 +1,5 @@
 import { BedrockRuntimeClient, ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
 import { recordWeeklyUsage } from "../claude/claude-usage.ts";
-import { SUMMARY_SYSTEM_PROMPT, wrapSummaryNotes } from "./summary-prompt.ts";
 import {
   ANTHROPIC_API_VERSION,
   CLAUDE_API_URL,
@@ -12,6 +11,7 @@ import {
 } from "../shared/const.ts";
 import { withFetchTimeout } from "../shared/fetch-with-timeout.ts";
 import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
+import { SUMMARY_SYSTEM_PROMPT, wrapSummaryNotes } from "./summary-prompt.ts";
 import type { BedrockSummarizerOptions, ClaudeSummarizerOptions } from "./types/summarize.ts";
 
 function textFromClaude(payload: any): string {
