@@ -1,10 +1,10 @@
 import { JWT } from "google-auth-library";
 import { gridSize, valuesRange } from "../csv/csv.ts";
-import type { AuthClientLike, GoogleServiceAccount } from "../drive/types/drive.ts";
+import type { AuthClientLike, GoogleServiceAccount } from "../drive/types.ts";
 import { JSON_CONTENT_TYPE } from "../shared/const.ts";
 import { withFetchTimeout } from "../shared/fetch-with-timeout.ts";
 import { formatHttpErrorDetail } from "../shared/sanitize-error.ts";
-import type { SheetsClient } from "./types/sheets.ts";
+import type { SheetsClient } from "./types.ts";
 
 const SHEETS_API = "https://sheets.googleapis.com/v4/spreadsheets";
 const SHEETS_SCOPE = "https://www.googleapis.com/auth/spreadsheets";

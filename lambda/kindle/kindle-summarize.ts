@@ -13,9 +13,9 @@ import { withFetchTimeout } from "../shared/fetch-with-timeout.ts";
 import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
 import { maxImageBytes } from "../transcribe/claude.ts";
 import { assertImageSize } from "../transcribe/parse.ts";
-import type { TranscribeInput } from "../transcribe/types/transcribe.ts";
+import type { TranscribeInput } from "../transcribe/types.ts";
 import { KINDLE_SYSTEM_PROMPT, KINDLE_USER_PROMPT } from "./kindle-prompt.ts";
-import type { BedrockKindleSummarizerOptions, ClaudeKindleSummarizerOptions } from "./types/kindle.ts";
+import type { BedrockKindleSummarizerOptions, ClaudeKindleSummarizerOptions } from "./types.ts";
 
 function mediaType(mimeType?: string): "image/png" | "image/jpeg" {
   if (mimeType === "image/png") return "image/png";

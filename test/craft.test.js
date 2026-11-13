@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createCraftClient } from "../lambda/craft/craft.ts";
 import {
   connectionSpaceId,
   craftAppDocumentLink,
-  createCraftClient,
   documentPayload,
   documentsQuery,
   findFolderIds,
   moveDocumentsPayload,
-} from "../lambda/craft/craft.ts";
+} from "../lambda/craft/helper.ts";
 
 test("craftAppDocumentLink はCraftアプリでドキュメントを開くURLを返す", () => {
   assert.equal(craftAppDocumentLink("space-1", "doc-1"), "craftdocs://open?spaceId=space-1&blockId=doc-1");

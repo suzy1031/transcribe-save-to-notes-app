@@ -1,6 +1,6 @@
 import path from "node:path";
 import { TOKYO_TIME_ZONE } from "../shared/const.ts";
-import type { FileLike } from "./types/csv.ts";
+import type { FileLike } from "./types.ts";
 
 const SHEET_TITLE_MAX = 100;
 const INVALID_SHEET_CHARS = /[:\\/?*[\]]/g;

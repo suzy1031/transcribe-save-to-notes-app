@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { craftAppDocumentLink } from "../lambda/craft/craft.ts";
+import { craftAppDocumentLink } from "../lambda/craft/helper.ts";
 import { processKindleBooks, summaryDocumentState } from "../lambda/kindle/kindle.ts";
-import { kindleRunSummaryMessage } from "../lambda/line/line.ts";
+import { kindleRunSummaryMessage } from "../lambda/line/helper.ts";
 
 test("summaryDocumentState は0件または1件のドキュメントを受け付ける", () => {
   assert.deepEqual(summaryDocumentState([]), { action: "create" });

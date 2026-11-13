@@ -1,4 +1,4 @@
-import type { ModelPricing, NormalizedUsage, RateTable, RawClaudeUsage } from "./types/claude-pricing.ts";
+import type { ModelPricing, NormalizedUsage, RateTable, RawClaudeUsage } from "./types.ts";
 
 // List prices in USD per million tokens.
 // https://platform.claude.com/docs/en/about-claude/pricing

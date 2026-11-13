@@ -1,4 +1,18 @@
-import type { GoogleServiceAccount } from "../../drive/types/drive.ts";
+import type { GetSecretValueCommand } from "@aws-sdk/client-secrets-manager";
+import type { GoogleServiceAccount } from "../drive/types.ts";
+
+export interface SecretsClientLike {
+  send(command: GetSecretValueCommand): Promise<{ SecretString?: string }>;
+}
+
+export interface LambdaContextLike {
+  getRemainingTimeInMillis(): number;
+}
+
+export interface LoggerLike {
+  info(...args: unknown[]): void;
+  error(...args: unknown[]): void;
+}
 
 export interface BaseSettings {
   secretId: string;

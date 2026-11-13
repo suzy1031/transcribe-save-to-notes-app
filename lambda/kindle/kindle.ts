@@ -1,11 +1,13 @@
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import { connectionSpaceId, craftAppDocumentLink, createCraftClient } from "../craft/craft.ts";
-import type { CraftListedDocument } from "../craft/types/craft.ts";
+import { createCraftClient } from "../craft/craft.ts";
+import { connectionSpaceId, craftAppDocumentLink } from "../craft/helper.ts";
+import type { CraftListedDocument } from "../craft/types.ts";
 import { createDriveClient } from "../drive/drive.ts";
-import type { DriveFile } from "../drive/types/drive.ts";
+import type { DriveFile } from "../drive/types.ts";
 import { loadCredentials, settingsFromEnv } from "../inbox/index.ts";
-import { createLineClient, kindleFailedMessage, kindleRunSummaryMessage } from "../line/line.ts";
-import type { LineClient } from "../line/types/line.ts";
+import { kindleFailedMessage, kindleRunSummaryMessage } from "../line/helper.ts";
+import { createLineClient } from "../line/line.ts";
+import type { LineClient } from "../line/types.ts";
 import {
   ALL_CRAFT_DOCUMENTS_SINCE,
   DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
@@ -16,10 +18,10 @@ import {
   MIN_REMAINING_MS,
 } from "../shared/const.ts";
 import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
-import type { LambdaContextLike, LoggerLike } from "../shared/types/runtime.ts";
-import type { TranscribeInput } from "../transcribe/types/transcribe.ts";
+import type { LambdaContextLike, LoggerLike } from "../shared/types.ts";
+import type { TranscribeInput } from "../transcribe/types.ts";
 import { createKindleSummarizer } from "./kindle-summarize.ts";
-import type { KindleSettings, ProcessKindleResult, SummaryDocumentState } from "./types/kindle.ts";
+import type { KindleSettings, ProcessKindleResult, SummaryDocumentState } from "./types.ts";
 
 export function kindleSettingsFromEnv(env: NodeJS.ProcessEnv = process.env): KindleSettings {
   return {

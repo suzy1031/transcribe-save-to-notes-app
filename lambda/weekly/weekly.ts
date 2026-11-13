@@ -1,10 +1,11 @@
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
 import { formatWeeklyUsage, getWeeklyUsage } from "../claude/claude-usage.ts";
-import type { WeeklyUsageItem } from "../claude/types/claude-usage.ts";
+import type { WeeklyUsageItem } from "../claude/types.ts";
 import { createCraftClient } from "../craft/craft.ts";
-import type { CraftListedDocument } from "../craft/types/craft.ts";
+import type { CraftListedDocument } from "../craft/types.ts";
 import { loadCredentials, settingsFromEnv } from "../inbox/index.ts";
-import { createLineClient, EMPTY_WEEK_MESSAGE, fitLineText } from "../line/line.ts";
+import { EMPTY_WEEK_MESSAGE, fitLineText } from "../line/helper.ts";
+import { createLineClient } from "../line/line.ts";
 import {
   DEFAULT_CRAFT_PROCESSED_FOLDER,
   DEFAULT_CRAFT_SUMMARY_FOLDER,
@@ -13,11 +14,10 @@ import {
   WEEKLY_LOOKBACK_DAYS,
 } from "../shared/const.ts";
 import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
-import type { SecretsClientLike } from "../shared/types/runtime.ts";
-import type { Credentials } from "../shared/types/settings.ts";
+import type { Credentials, SecretsClientLike } from "../shared/types.ts";
 import { createSummarizer } from "../summarize/summarize.ts";
 import { combineNotes } from "../summarize/summary-prompt.ts";
-import type { WeeklySettings } from "./types/weekly.ts";
+import type { WeeklySettings } from "./types.ts";
 
 export function tokyoDate(now: Date = new Date(), timeZone: string = TOKYO_TIME_ZONE): string {
   return new Intl.DateTimeFormat("en-CA", {

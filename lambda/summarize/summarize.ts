@@ -12,7 +12,7 @@ import {
 import { withFetchTimeout } from "../shared/fetch-with-timeout.ts";
 import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
 import { SUMMARY_SYSTEM_PROMPT, wrapSummaryNotes } from "./summary-prompt.ts";
-import type { BedrockSummarizerOptions, ClaudeSummarizerOptions } from "./types/summarize.ts";
+import type { BedrockSummarizerOptions, ClaudeSummarizerOptions } from "./types.ts";
 
 function textFromClaude(payload: any): string {
   return (payload.content ?? [])
