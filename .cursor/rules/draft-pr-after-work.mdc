@@ -1,8 +1,8 @@
 ---
-description: 作業完了後に draft PR を作成する（create-pr スキル）
+description: 作業完了後に分割コミットし push して draft PR を作成する
 alwaysApply: true
 ---
 
-依頼した実装・修正・テスト追加などが **完了** し、変更が **コミット済み** で、ブランチが **`main` 以外**、同ブランチに **open な PR が無い** ときは、返答を終える前に **`.cursor/skills/create-pr/SKILL.md` の手順どおり** `gh pr create --draft` で PR を作成する（body は日本語）。
+依頼した実装・修正・テスト追加などが **完了** し、ブランチが **`main` 以外** のときは、返答を終える前に **`.cursor/skills/commit-and-draft-pr/SKILL.md` の手順どおり**、変更を意味のある単位に分けてコミットし、push し、同ブランチに open な PR が無ければ `gh pr create --draft` で PR を作成する（PR body は日本語）。
 
-ユーザーが PR 不要・main 直 push と明示した場合、または質問のみのタスクでは実行しない。
+ユーザーがコミット不要・PR 不要・main 直 push と明示した場合、または質問のみのタスクでは実行しない。

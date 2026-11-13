@@ -4,8 +4,8 @@ import { App, Duration, RemovalPolicy, Stack, TimeZone } from "aws-cdk-lib";
 import { AttributeType, BillingMode, Table } from "aws-cdk-lib/aws-dynamodb";
 import { OpenIdConnectProvider, PolicyStatement, Role, WebIdentityPrincipal } from "aws-cdk-lib/aws-iam";
 import { Runtime, RuntimeFamily } from "aws-cdk-lib/aws-lambda";
-import { RetentionDays } from "aws-cdk-lib/aws-logs";
 import { NodejsFunction, OutputFormat } from "aws-cdk-lib/aws-lambda-nodejs";
+import { RetentionDays } from "aws-cdk-lib/aws-logs";
 import { Schedule, ScheduleExpression } from "aws-cdk-lib/aws-scheduler";
 import { LambdaInvoke } from "aws-cdk-lib/aws-scheduler-targets";
 import { Secret } from "aws-cdk-lib/aws-secretsmanager";
@@ -14,12 +14,12 @@ import {
   DEFAULT_BEDROCK_MODEL_ID,
   DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
   DEFAULT_CLAUDE_WEEKLY_MODEL_ID,
-  DEFAULT_CSV_INBOX_FOLDER,
-  DEFAULT_CSV_PROCESSED_FOLDER,
-  DEFAULT_CSV_SPREADSHEET_ID,
   DEFAULT_CRAFT_PROCESSED_FOLDER,
   DEFAULT_CRAFT_SUMMARY_FOLDER,
   DEFAULT_CRAFT_TRANSCRIBE_FOLDER,
+  DEFAULT_CSV_INBOX_FOLDER,
+  DEFAULT_CSV_PROCESSED_FOLDER,
+  DEFAULT_CSV_SPREADSHEET_ID,
   DEFAULT_KINDLE_BOOK_PREFIX,
   DEFAULT_KINDLE_DRIVE_PARENT,
   DEFAULT_KINDLE_PROCESSED_FOLDER,
@@ -223,14 +223,8 @@ class NotesPipelineStack extends Stack {
     githubDeploy.addToPolicy(
       new PolicyStatement({
         actions: ["sts:AssumeRole"],
-        resources: [
-          "deploy",
-          "file-publishing",
-          "image-publishing",
-          "lookup",
-        ].map(
-          (purpose) =>
-            `arn:aws:iam::${this.account}:role/cdk-hnb659fds-${purpose}-role-${this.account}-${this.region}`,
+        resources: ["deploy", "file-publishing", "image-publishing", "lookup"].map(
+          (purpose) => `arn:aws:iam::${this.account}:role/cdk-hnb659fds-${purpose}-role-${this.account}-${this.region}`,
         ),
       }),
     );

@@ -1,0 +1,12 @@
+pre-commit:
+  piped: true
+  commands:
+    format:
+      priority: 1
+      glob: "**/*.{js,ts,json}"
+      run: npx biome check --write --no-errors-on-unmatched {staged_files}
+      stage_fixed: true
+    lint:
+      priority: 2
+      glob: "**/*.{js,ts,json}"
+      run: npx biome check --no-errors-on-unmatched {staged_files}

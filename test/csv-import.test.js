@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { importCsvFiles } from "../lambda/csv/csv-import.ts";
 import {
+  appendDebitTotalRow,
   appendTotalRow,
   gridSize,
   isCsvFile,
@@ -10,6 +10,7 @@ import {
   spreadsheetAppLink,
   valuesRange,
 } from "../lambda/csv/csv.ts";
+import { importCsvFiles } from "../lambda/csv/csv-import.ts";
 import { csvImportSummaryMessage, EMPTY_CSV_MESSAGE } from "../lambda/line/line.ts";
 import { createSheetsClient } from "../lambda/sheets/sheets.ts";
 
@@ -28,10 +29,7 @@ test("parseCsv は閉じていない引用符を拒否する", () => {
 
 test("sheetTitle は日付とファイル名から作り、使えない文字を除く", () => {
   assert.equal(sheetTitle({ date: "2026-11-15", fileName: "sales.csv" }), "2026-11-15_sales");
-  assert.equal(
-    sheetTitle({ date: "2026-11-15", fileName: "a:b?c*.csv" }),
-    "2026-11-15_abc",
-  );
+  assert.equal(sheetTitle({ date: "2026-11-15", fileName: "a:b?c*.csv" }), "2026-11-15_abc");
   assert.equal(sheetTitle({ date: "2026-11-15", fileName: ".csv" }), "2026-11-15_csv");
   const long = `${"あ".repeat(120)}.csv`;
   assert.equal(sheetTitle({ date: "2026-11-15", fileName: long }).length, 100);
@@ -86,11 +84,55 @@ test("appendTotalRow はヘッダーだけのCSVを失敗にする", () => {
   assert.throws(() => appendTotalRow([["金額"]]), /合計する数値がありません/);
 });
 
-test("spreadsheetAppLink はSheetsアプリで開くURLを返す", () => {
-  assert.equal(
-    spreadsheetAppLink("sheet-1"),
-    "googlesheets://https://docs.google.com/spreadsheets/d/sheet-1/edit",
+test("appendDebitTotalRow はD列がデビット支払いの行のみA列を合計し最終行へ追加する", () => {
+  assert.deepEqual(
+    appendDebitTotalRow([
+      ["金額", "日付", "内容", "カテゴリー"],
+      ["¥1,200", "2026-11-01", "ランチ", "デビット支払い"],
+      ["500", "2026-11-02", "カフェ", "現金"],
+      ["￥800円", "2026-11-03", "書籍", "デビット支払い"],
+      ["", "2026-11-04", "空欄", "デビット支払い"],
+    ]),
+    [
+      ["金額", "日付", "内容", "カテゴリー"],
+      ["¥1,200", "2026-11-01", "ランチ", "デビット支払い"],
+      ["500", "2026-11-02", "カフェ", "現金"],
+      ["￥800円", "2026-11-03", "書籍", "デビット支払い"],
+      ["", "2026-11-04", "空欄", "デビット支払い"],
+      ["2000", "", "", "デビット支払い合計"],
+    ],
   );
+});
+
+test("appendDebitTotalRow はデビット支払いの行が0件ならA列を0として最終行を追加する", () => {
+  assert.deepEqual(
+    appendDebitTotalRow([
+      ["品目", "金額"],
+      ["pen", "1200"],
+      ["合計", "1200"],
+    ]),
+    [
+      ["品目", "金額"],
+      ["pen", "1200"],
+      ["合計", "1200"],
+      ["0", "", "", "デビット支払い合計"],
+    ],
+  );
+});
+
+test("appendDebitTotalRow はデビット支払い行のA列が数値でないと失敗する", () => {
+  assert.throws(
+    () =>
+      appendDebitTotalRow([
+        ["金額", "日付", "内容", "カテゴリー"],
+        ["未定", "2026-11-01", "ランチ", "デビット支払い"],
+      ]),
+    /金額にできない値です/,
+  );
+});
+
+test("spreadsheetAppLink はSheetsアプリで開くURLを返す", () => {
+  assert.equal(spreadsheetAppLink("sheet-1"), "googlesheets://https://docs.google.com/spreadsheets/d/sheet-1/edit");
 });
 
 test("isCsvFile はcsv拡張子かtext/csvを受け、Googleスプレッドシートは除く", () => {
@@ -137,6 +179,7 @@ test("CSVを新しいシートへ書き、成功後に移動してLINEする", a
         ["name", "qty"],
         ["pen", "2"],
         ["合計", "2"],
+        ["0", "", "", "デビット支払い合計"],
       ]);
     },
     moveToProcessed: async (file) => {

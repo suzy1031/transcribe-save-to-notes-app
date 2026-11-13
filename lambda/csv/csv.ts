@@ -78,6 +78,7 @@ export function sheetTitle({ date, fileName }: { date: string; fileName?: string
   const stem = path.basename(fileName ?? "", path.extname(fileName ?? ""));
   const cleaned = stem
     .replace(INVALID_SHEET_CHARS, "")
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: sheet titles cannot contain control characters
     .replace(/[\u0000-\u001f]/g, "")
     .replace(/^\.+/, "")
     .trim();
@@ -105,6 +106,10 @@ export function gridSize(rows: ReadonlyArray<ReadonlyArray<unknown>>): {
 }
 
 const AMOUNT_PATTERN = /^-?\d+(\.\d+)?$/;
+const DEBIT_CATEGORY = "デビット支払い";
+const DEBIT_TOTAL_LABEL = "デビット支払い合計";
+const DEBIT_AMOUNT_COLUMN_INDEX = 0;
+const DEBIT_CATEGORY_COLUMN_INDEX = 3;
 
 function parseAmount(value: unknown): number | null {
   const trimmed = String(value ?? "").trim();
@@ -172,4 +177,25 @@ export function appendTotalRow(rows: ReadonlyArray<ReadonlyArray<string>>): stri
   if (column !== 0) total[0] = "合計";
   total[column] = formatTotal(sum);
   return [...rows.map((row) => [...row]), total];
+}
+
+export function appendDebitTotalRow(rows: ReadonlyArray<ReadonlyArray<string>>): string[][] {
+  let sum = 0;
+  for (const row of rows.slice(1)) {
+    if (String(row[DEBIT_CATEGORY_COLUMN_INDEX] ?? "").trim() !== DEBIT_CATEGORY) {
+      continue;
+    }
+    const parsed = parseAmount(row[DEBIT_AMOUNT_COLUMN_INDEX] ?? "");
+    if (parsed === null) continue;
+    sum += parsed;
+  }
+
+  const width = Math.max(
+    rows.reduce((max, row) => Math.max(max, row.length), 0),
+    DEBIT_CATEGORY_COLUMN_INDEX + 1,
+  );
+  const debitTotal = Array.from({ length: width }, () => "");
+  debitTotal[DEBIT_AMOUNT_COLUMN_INDEX] = formatTotal(sum);
+  debitTotal[DEBIT_CATEGORY_COLUMN_INDEX] = DEBIT_TOTAL_LABEL;
+  return [...rows.map((row) => [...row]), debitTotal];
 }

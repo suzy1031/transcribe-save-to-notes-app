@@ -131,10 +131,8 @@ export function createCraftClient({
   fetchImpl?: typeof fetch;
 }): CraftClient {
   if (!apiKey) throw new Error("Craft API key is required");
-  const request = (
-    path: string,
-    options: { method: string; body?: unknown; accept?: string },
-  ) => craftRequest(baseUrl, apiKey, path, { ...options, fetchImpl });
+  const request = (path: string, options: { method: string; body?: unknown; accept?: string }) =>
+    craftRequest(baseUrl, apiKey, path, { ...options, fetchImpl });
   return {
     async getConnection() {
       return request("/connection", { method: "GET" });
@@ -190,10 +188,9 @@ export function createCraftClient({
     },
 
     async listDocuments({ folderId, createdDateGte, createdDateLte, fetchMetadata }) {
-      const listed = await request(
-        documentsQuery({ folderId, createdDateGte, createdDateLte, fetchMetadata }),
-        { method: "GET" },
-      );
+      const listed = await request(documentsQuery({ folderId, createdDateGte, createdDateLte, fetchMetadata }), {
+        method: "GET",
+      });
       const items: unknown[] = listed.items ?? listed.documents ?? [];
       return items.map(listedDocument).filter((item): item is CraftListedDocument => item !== null);
     },

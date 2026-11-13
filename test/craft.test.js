@@ -11,10 +11,7 @@ import {
 } from "../lambda/craft/craft.ts";
 
 test("craftAppDocumentLink はCraftアプリでドキュメントを開くURLを返す", () => {
-  assert.equal(
-    craftAppDocumentLink("space-1", "doc-1"),
-    "craftdocs://open?spaceId=space-1&blockId=doc-1",
-  );
+  assert.equal(craftAppDocumentLink("space-1", "doc-1"), "craftdocs://open?spaceId=space-1&blockId=doc-1");
 });
 
 test("connectionSpaceId はGET /connectionからspace idを読み取る", () => {
@@ -94,11 +91,7 @@ test("listDocuments はフォルダと作成日でフィルタする", async () 
     calls.push({ url, accept: options.headers.accept, method: options.method });
     return new Response(
       JSON.stringify({
-        items: [
-          { id: "doc-1", title: "月曜" },
-          { documentId: "doc-2", title: "火曜" },
-          { title: "idなし" },
-        ],
+        items: [{ id: "doc-1", title: "月曜" }, { documentId: "doc-2", title: "火曜" }, { title: "idなし" }],
       }),
       { status: 200 },
     );
@@ -169,10 +162,7 @@ test("readMarkdown はドキュメントをmarkdownとして取得する", async
   const markdown = await craft.readMarkdown("doc/1");
   assert.equal(markdown, "# 本文");
   assert.equal(calls[0].accept, "text/markdown");
-  assert.equal(
-    calls[0].url,
-    "https://connect.craft.do/links/example/api/v1/blocks?id=doc%2F1",
-  );
+  assert.equal(calls[0].url, "https://connect.craft.do/links/example/api/v1/blocks?id=doc%2F1");
 });
 
 test("appendMarkdown はページ末尾にmarkdownをPOSTする", async () => {

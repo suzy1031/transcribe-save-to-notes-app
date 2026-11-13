@@ -34,10 +34,7 @@ test("reminderTargetDate は東京日付の7暦日前を返す", () => {
 });
 
 test("reminderTitleCandidates はゼロ埋めと非ゼロ埋め日付のタイトルを返す", () => {
-  assert.deepEqual(reminderTitleCandidates("2026-11-01"), [
-    "週次まとめ 2026-11-01",
-    "週次まとめ 2026-11-1",
-  ]);
+  assert.deepEqual(reminderTitleCandidates("2026-11-01"), ["週次まとめ 2026-11-01", "週次まとめ 2026-11-1"]);
 });
 
 test("filterDocumentsByReminderTitle は対象日の週次まとめタイトルのみ残す", () => {
@@ -82,10 +79,7 @@ test("一致するノートが1件の場合はタイトルとCraftアプリリ�
   const result = await run();
   assert.deepEqual(result, { reminded: 1, documentId: "doc-1" });
   assert.deepEqual(calls.push, [
-    reminderDeliveredMessage(
-      "週次まとめ 2026-11-01",
-      craftAppDocumentLink("space-1", "doc-1"),
-    ),
+    reminderDeliveredMessage("週次まとめ 2026-11-01", craftAppDocumentLink("space-1", "doc-1")),
   ]);
 });
 

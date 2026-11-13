@@ -42,15 +42,9 @@ test("orphanTextFiles は画像が残る間は対応txtを残す", () => {
 
 test("resolveUniqueFolder はフォルダ名がちょうど1件であることを要求する", () => {
   assert.equal(resolveUniqueFolder([], "00_notes_inbox").ok, false);
-  assert.deepEqual(
-    resolveUniqueFolder([folder("a", "00_notes_inbox")], "00_notes_inbox"),
-    { ok: true, id: "a" },
-  );
+  assert.deepEqual(resolveUniqueFolder([folder("a", "00_notes_inbox")], "00_notes_inbox"), { ok: true, id: "a" });
   assert.equal(
-    resolveUniqueFolder(
-      [folder("a", "00_notes_inbox"), folder("b", "00_notes_inbox")],
-      "00_notes_inbox",
-    ).ok,
+    resolveUniqueFolder([folder("a", "00_notes_inbox"), folder("b", "00_notes_inbox")], "00_notes_inbox").ok,
     false,
   );
 });
@@ -73,14 +67,8 @@ test("escapeDriveQuery はバックスラッシュとシングルクォートを
   assert.equal(escapeDriveQuery("folder's"), "folder\\'s");
   assert.equal(escapeDriveQuery("folder\\name"), "folder\\\\name");
   // クエリインジェクション対策: \' を含む文字列でバックスラッシュが先にエスケープされること
-  assert.equal(
-    escapeDriveQuery("test\\' or name = 'inbox"),
-    "test\\\\\\' or name = \\'inbox",
-  );
-  assert.equal(
-    escapeDriveQuery("\\' or 1=1 --"),
-    "\\\\\\' or 1=1 --",
-  );
+  assert.equal(escapeDriveQuery("test\\' or name = 'inbox"), "test\\\\\\' or name = \\'inbox");
+  assert.equal(escapeDriveQuery("\\' or 1=1 --"), "\\\\\\' or 1=1 --");
   assert.equal(escapeDriveQuery(12345), "12345");
 });
 

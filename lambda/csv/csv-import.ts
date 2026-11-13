@@ -1,18 +1,14 @@
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import {
-  DEFAULT_CSV_INBOX_FOLDER,
-  DEFAULT_CSV_PROCESSED_FOLDER,
-  DEFAULT_CSV_SPREADSHEET_ID,
-} from "../shared/const.ts";
-import { parseCsv, sheetTitle, spreadsheetAppLink, tokyoDate, appendTotalRow } from "./csv.ts";
 import { createDriveClient } from "../drive/drive.ts";
+import type { DriveFile } from "../drive/types/drive.ts";
 import { loadCredentials, settingsFromEnv } from "../inbox/index.ts";
 import { createLineClient, csvImportFailedMessage, csvImportSummaryMessage, EMPTY_CSV_MESSAGE } from "../line/line.ts";
+import type { LineClient } from "../line/types/line.ts";
+import { DEFAULT_CSV_INBOX_FOLDER, DEFAULT_CSV_PROCESSED_FOLDER, DEFAULT_CSV_SPREADSHEET_ID } from "../shared/const.ts";
 import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
 import { createSheetsClient } from "../sheets/sheets.ts";
+import { appendDebitTotalRow, appendTotalRow, parseCsv, sheetTitle, spreadsheetAppLink, tokyoDate } from "./csv.ts";
 import type { CsvImportResult, CsvImportSettings } from "./types/csv.ts";
-import type { DriveFile } from "../drive/types/drive.ts";
-import type { LineClient } from "../line/types/line.ts";
 
 export function csvImportSettingsFromEnv(env: NodeJS.ProcessEnv = process.env): CsvImportSettings {
   return {
@@ -65,7 +61,7 @@ export async function importCsvFiles({
     try {
       const bytes = await download(file);
       const text = Buffer.from(bytes).toString("utf8");
-      const rows = appendTotalRow(parseCsv(text));
+      const rows = appendDebitTotalRow(appendTotalRow(parseCsv(text)));
       await writeSheet({ title, rows });
       titles.add(title.toLowerCase());
     } catch (error) {
@@ -108,10 +104,7 @@ export async function handler(event: unknown, context: unknown): Promise<CsvImpo
 
 async function runCsvImport(): Promise<CsvImportResult> {
   const settings = csvImportSettingsFromEnv();
-  const credentials = await loadCredentials(
-    settings,
-    new SecretsManagerClient({ region: settings.bedrockRegion }),
-  );
+  const credentials = await loadCredentials(settings, new SecretsManagerClient({ region: settings.bedrockRegion }));
   const line =
     credentials.lineChannelAccessToken && credentials.lineUserId
       ? createLineClient({
@@ -141,8 +134,7 @@ async function runCsvImport(): Promise<CsvImportResult> {
   }
 
   const files = await drive.listCsvFiles(inbox.id);
-  const existingSheetTitles =
-    files.length === 0 ? [] : await sheets.listSheetTitles(settings.spreadsheetId);
+  const existingSheetTitles = files.length === 0 ? [] : await sheets.listSheetTitles(settings.spreadsheetId);
   return importCsvFiles({
     files,
     download: (file) => drive.download(file.id),
