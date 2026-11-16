@@ -110,6 +110,11 @@ const DEBIT_CATEGORY = "デビット支払い";
 const DEBIT_TOTAL_LABEL = "デビット支払い合計";
 const DEBIT_AMOUNT_COLUMN_INDEX = 0;
 const DEBIT_CATEGORY_COLUMN_INDEX = 3;
+const CASH_CATEGORIES = new Set(["現金", "現金支払い"]);
+const CASH_TOTAL_LABEL = "現金支払い";
+const CASH_AMOUNT_COLUMN_INDEX = 0;
+const CASH_CATEGORY_COLUMN_INDEX = 2;
+const CASH_TOTAL_LABEL_COLUMN_INDEX = 3;
 
 function parseAmount(value: unknown): number | null {
   const trimmed = String(value ?? "").trim();
@@ -198,4 +203,24 @@ export function appendDebitTotalRow(rows: ReadonlyArray<ReadonlyArray<string>>):
   debitTotal[DEBIT_AMOUNT_COLUMN_INDEX] = formatTotal(sum);
   debitTotal[DEBIT_CATEGORY_COLUMN_INDEX] = DEBIT_TOTAL_LABEL;
   return [...rows.map((row) => [...row]), debitTotal];
+}
+
+export function appendCashTotalRow(rows: ReadonlyArray<ReadonlyArray<string>>): string[][] {
+  let sum = 0;
+  for (const row of rows.slice(1)) {
+    const category = String(row[CASH_CATEGORY_COLUMN_INDEX] ?? "").trim();
+    if (!CASH_CATEGORIES.has(category)) continue;
+    const parsed = parseAmount(row[CASH_AMOUNT_COLUMN_INDEX] ?? "");
+    if (parsed === null) continue;
+    sum += parsed;
+  }
+
+  const width = Math.max(
+    rows.reduce((max, row) => Math.max(max, row.length), 0),
+    CASH_TOTAL_LABEL_COLUMN_INDEX + 1,
+  );
+  const cashTotal = Array.from({ length: width }, () => "");
+  cashTotal[CASH_AMOUNT_COLUMN_INDEX] = formatTotal(sum);
+  cashTotal[CASH_TOTAL_LABEL_COLUMN_INDEX] = CASH_TOTAL_LABEL;
+  return [...rows.map((row) => [...row]), cashTotal];
 }
