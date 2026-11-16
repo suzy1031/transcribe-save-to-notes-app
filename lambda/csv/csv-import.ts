@@ -6,7 +6,15 @@ import { DEFAULT_CSV_INBOX_FOLDER, DEFAULT_CSV_PROCESSED_FOLDER, DEFAULT_CSV_SPR
 import { createLinePush, runLogged } from "../shared/job.ts";
 import { loadCredentials, settingsFromEnv } from "../shared/settings.ts";
 import { createSheetsClient } from "../sheets/sheets.ts";
-import { appendDebitTotalRow, appendTotalRow, parseCsv, sheetTitle, spreadsheetAppLink, tokyoDate } from "./csv.ts";
+import {
+  appendCashTotalRow,
+  appendDebitTotalRow,
+  appendTotalRow,
+  parseCsv,
+  sheetTitle,
+  spreadsheetAppLink,
+  tokyoDate,
+} from "./csv.ts";
 import type { CsvImportResult, CsvImportSettings } from "./types.ts";
 
 export function csvImportSettingsFromEnv(env: NodeJS.ProcessEnv = process.env): CsvImportSettings {
@@ -60,7 +68,7 @@ export async function importCsvFiles({
     try {
       const bytes = await download(file);
       const text = Buffer.from(bytes).toString("utf8");
-      const rows = appendDebitTotalRow(appendTotalRow(parseCsv(text)));
+      const rows = appendCashTotalRow(appendDebitTotalRow(appendTotalRow(parseCsv(text))));
       await writeSheet({ title, rows });
       titles.add(title.toLowerCase());
     } catch (error) {
