@@ -1,81 +1,18 @@
-import { readFile } from "node:fs/promises";
-import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
+import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
 import { createCraftClient } from "../craft/craft.ts";
 import { connectionSpaceId, craftAppDocumentLink } from "../craft/helper.ts";
 import { createDriveClient } from "../drive/drive.ts";
 import { fileStem, orphanTextFiles } from "../drive/helper.ts";
-import type { DriveClient, DriveFile, GoogleServiceAccount } from "../drive/types.ts";
+import type { DriveClient, DriveFile } from "../drive/types.ts";
 import { transcriptionFailedMessage, transcriptionSavedMessage } from "../line/helper.ts";
-import { createLineClient } from "../line/line.ts";
-import type { LineClient } from "../line/types.ts";
-import {
-  DEFAULT_AWS_REGION,
-  DEFAULT_BEDROCK_MODEL_ID,
-  DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
-  DEFAULT_CRAFT_TRANSCRIBE_FOLDER,
-  DEFAULT_TRANSCRIPTION_PROVIDER,
-  INBOX_FOLDER_NAME,
-  MIN_REMAINING_MS,
-  PROCESSED_DRIVE_FOLDER_NAME,
-} from "../shared/const.ts";
+import { INBOX_FOLDER_NAME, MIN_REMAINING_MS, PROCESSED_DRIVE_FOLDER_NAME } from "../shared/const.ts";
+import { createLinePush, runLogged } from "../shared/job.ts";
 import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
-import type { BaseSettings, Credentials, LambdaContextLike, LoggerLike, SecretsClientLike } from "../shared/types.ts";
+import { loadCredentials, settingsFromEnv } from "../shared/settings.ts";
+import type { LambdaContextLike, LoggerLike } from "../shared/types.ts";
 import { createTranscription, MAX_IMAGE_BYTES } from "../transcribe/index.ts";
 import type { ParsedTranscription, TranscribeInput } from "../transcribe/types.ts";
 import type { ProcessInboxSummary } from "./types.ts";
-
-export function settingsFromEnv(env: NodeJS.ProcessEnv = process.env): BaseSettings {
-  return {
-    secretId: env.SECRET_ID ?? "",
-    bedrockModelId: env.BEDROCK_MODEL_ID || DEFAULT_BEDROCK_MODEL_ID,
-    bedrockRegion: env.BEDROCK_REGION || env.AWS_REGION || DEFAULT_AWS_REGION,
-    craftFolderName: env.CRAFT_FOLDER_NAME || DEFAULT_CRAFT_TRANSCRIBE_FOLDER,
-    craftApiBaseUrl: env.CRAFT_API_BASE_URL ?? "",
-    craftApiKey: env.CRAFT_API_KEY ?? "",
-    anthropicApiKey: env.ANTHROPIC_API_KEY ?? "",
-    claudeModelId: env.CLAUDE_MODEL_ID || DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
-    transcriptionProvider: env.TRANSCRIPTION_PROVIDER || DEFAULT_TRANSCRIPTION_PROVIDER,
-    googleServiceAccountJson: env.GOOGLE_SERVICE_ACCOUNT_JSON ?? "",
-    lineChannelAccessToken: env.LINE_CHANNEL_ACCESS_TOKEN ?? "",
-    lineUserId: env.LINE_USER_ID ?? "",
-  };
-}
-
-export async function loadCredentials(settings: BaseSettings, secretsClient: SecretsClientLike): Promise<Credentials> {
-  if (settings.secretId) {
-    const output = await secretsClient.send(new GetSecretValueCommand({ SecretId: settings.secretId }));
-    const parsed = JSON.parse(output.SecretString ?? "") as {
-      googleServiceAccount?: GoogleServiceAccount;
-      craftApiBaseUrl: string;
-      craftApiKey: string;
-      anthropicApiKey?: string;
-      lineChannelAccessToken?: string;
-      lineUserId?: string;
-    };
-    return {
-      serviceAccount: parsed.googleServiceAccount,
-      craftApiBaseUrl: parsed.craftApiBaseUrl,
-      craftApiKey: parsed.craftApiKey,
-      anthropicApiKey: parsed.anthropicApiKey,
-      lineChannelAccessToken: parsed.lineChannelAccessToken ?? "",
-      lineUserId: parsed.lineUserId ?? "",
-    };
-  }
-  if (!settings.googleServiceAccountJson || !settings.craftApiBaseUrl || !settings.craftApiKey) {
-    throw new Error("SECRET_ID or local Google and Craft credentials are required");
-  }
-  const raw = settings.googleServiceAccountJson.trim().startsWith("{")
-    ? settings.googleServiceAccountJson
-    : await readFile(settings.googleServiceAccountJson, "utf8");
-  return {
-    serviceAccount: JSON.parse(raw) as GoogleServiceAccount,
-    craftApiBaseUrl: settings.craftApiBaseUrl,
-    craftApiKey: settings.craftApiKey,
-    anthropicApiKey: settings.anthropicApiKey,
-    lineChannelAccessToken: settings.lineChannelAccessToken ?? "",
-    lineUserId: settings.lineUserId ?? "",
-  };
-}
 
 export async function processInbox({
   files,
@@ -180,12 +117,7 @@ export async function processInbox({
 }
 
 export async function handler(event: unknown, context: LambdaContextLike): Promise<ProcessInboxSummary> {
-  console.log("start");
-  try {
-    return await runPipeline(context);
-  } finally {
-    console.log("end");
-  }
+  return runLogged(() => runPipeline(context));
 }
 
 async function runPipeline(context: LambdaContextLike): Promise<ProcessInboxSummary> {
@@ -194,7 +126,7 @@ async function runPipeline(context: LambdaContextLike): Promise<ProcessInboxSumm
   const drive = createDriveClient({ serviceAccount: credentials.serviceAccount });
   const inbox = await drive.findUniqueFolder(INBOX_FOLDER_NAME);
   const processed = await drive.findUniqueFolder(PROCESSED_DRIVE_FOLDER_NAME);
-  const notify = createLineNotifier(credentials);
+  const notify = createLineNotifier(createLinePush(credentials));
   if (!inbox.ok || !processed.ok) {
     const inboxCount = inbox.ok ? 1 : inbox.count;
     const processedCount = processed.ok ? 1 : processed.count;
@@ -269,36 +201,16 @@ async function runPipeline(context: LambdaContextLike): Promise<ProcessInboxSumm
   return summary;
 }
 
-function createLineNotifier(credentials: Credentials) {
-  const line =
-    credentials.lineChannelAccessToken && credentials.lineUserId
-      ? createLineClient({
-          channelAccessToken: credentials.lineChannelAccessToken,
-          userId: credentials.lineUserId,
-        })
-      : null;
+function createLineNotifier(pushLine: (text: string) => Promise<void>) {
   return {
     async saved({ title, documentId, spaceId }: { title: string; documentId: string; spaceId: string }) {
       const appLink = spaceId && documentId ? craftAppDocumentLink(spaceId, documentId) : "";
-      await pushLine(line, transcriptionSavedMessage(title, appLink));
+      await pushLine(transcriptionSavedMessage(title, appLink));
     },
     async failed({ fileName, reason }: { fileName: string; reason: string }) {
-      await pushLine(line, transcriptionFailedMessage(fileName, reason));
+      await pushLine(transcriptionFailedMessage(fileName, reason));
     },
   };
-}
-
-async function pushLine(line: LineClient | null, text: string): Promise<void> {
-  if (!line) {
-    console.error("LINE通知失敗: credentials are missing");
-    return;
-  }
-  try {
-    await line.push(text);
-    console.log("LINE通知");
-  } catch (error) {
-    console.error(`LINE通知失敗: ${sanitizeErrorMessage((error as Error).message)}`);
-  }
 }
 
 async function discardInboxText({

@@ -2,12 +2,13 @@ import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
 import { createCraftClient } from "../craft/craft.ts";
 import { connectionSpaceId, craftAppDocumentLink } from "../craft/helper.ts";
 import type { CraftClient, CraftListedDocument } from "../craft/types.ts";
-import { loadCredentials, settingsFromEnv } from "../inbox/index.ts";
 import { EMPTY_REMINDER_MESSAGE, reminderDeliveredMessage, reminderFailedMessage } from "../line/helper.ts";
 import { createLineClient } from "../line/line.ts";
 import type { LineClient } from "../line/types.ts";
 import { ALL_CRAFT_DOCUMENTS_SINCE, DEFAULT_CRAFT_SUMMARY_FOLDER, REMINDER_LOOKBACK_DAYS } from "../shared/const.ts";
+import { pushLineMessage, runLogged } from "../shared/job.ts";
 import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
+import { loadCredentials, settingsFromEnv } from "../shared/settings.ts";
 import type { Credentials, SecretsClientLike } from "../shared/types.ts";
 import { daysBeforeTokyoDate } from "../weekly/weekly.ts";
 import type { ReminderSettings } from "./types.ts";
@@ -126,25 +127,11 @@ export async function notifyReminderLineError({
           userId: credentials.lineUserId,
         })
       : null);
-  if (!client) {
-    console.error("LINE通知失敗: credentials are missing");
-    return;
-  }
-  try {
-    await client.push(message);
-    console.log("LINE通知");
-  } catch (pushError) {
-    console.error(`LINE通知失敗: ${(pushError as Error).message}`);
-  }
+  await pushLineMessage(client, message);
 }
 
 export async function handler(): Promise<{ reminded: number; documentId?: string }> {
-  console.log("start");
-  try {
-    return await runReminder();
-  } finally {
-    console.log("end");
-  }
+  return runLogged(() => runReminder());
 }
 
 async function runReminder(): Promise<{ reminded: number; documentId?: string }> {
