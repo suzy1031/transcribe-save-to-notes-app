@@ -1,5 +1,6 @@
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
 import { formatWeeklyUsage, getWeeklyUsage } from "../claude/claude-usage.ts";
+import { fetchUsdJpyRate } from "../claude/fx-rate.ts";
 import type { WeeklyUsageItem } from "../claude/types.ts";
 import { createCraftClient } from "../craft/craft.ts";
 import type { CraftListedDocument } from "../craft/types.ts";
@@ -73,15 +74,26 @@ export async function loadWeeklyCredentials(
 
 export async function reportWeeklyUsage({
   getUsage,
+  getUsdJpyRate = fetchUsdJpyRate,
   pushLine,
   log = console.log,
 }: {
   getUsage: () => Promise<WeeklyUsageItem | null>;
+  getUsdJpyRate?: () => Promise<number | null>;
   pushLine?: (text: string) => Promise<void>;
   log?: (text: string) => void;
 }): Promise<{ item: WeeklyUsageItem | null; text: string }> {
   const item = await getUsage();
-  const text = formatWeeklyUsage(item);
+  let usdJpyRate: number | null = null;
+  if (item) {
+    try {
+      usdJpyRate = await getUsdJpyRate();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.warn(`為替レート取得に失敗: ${sanitizeErrorMessage(message)}`);
+    }
+  }
+  const text = formatWeeklyUsage(item, usdJpyRate);
   log(text);
   if (item && pushLine) await pushLine(text);
   return { item, text };
