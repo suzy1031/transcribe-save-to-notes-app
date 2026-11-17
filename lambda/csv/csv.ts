@@ -149,7 +149,7 @@ const CUMULATIVE_TOTAL_LABEL = "累計 合計";
 const CUMULATIVE_DEBIT_LABEL = "デビット 合計";
 const CUMULATIVE_CASH_LABEL = "現金 合計";
 const DATE_HEADER = "日付";
-const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
+const DATE_PATTERN = /^(\d{4})([-/])(\d{2})\2(\d{2})$/;
 
 function parseAmount(value: unknown): number | null {
   const trimmed = String(value ?? "").trim();
@@ -269,8 +269,9 @@ function dateColumnIndex(rows: ReadonlyArray<ReadonlyArray<unknown>>): number | 
 function rowDate(row: ReadonlyArray<unknown>, dateIndex: number): string | null {
   const value = String(row[dateIndex] ?? "").trim();
   if (value === "") return null;
-  if (!DATE_PATTERN.test(value)) throw new Error(`日付にできない値です: ${value}`);
-  return value;
+  const match = DATE_PATTERN.exec(value);
+  if (!match) throw new Error(`日付にできない値です: ${value}`);
+  return `${match[1]}-${match[3]}-${match[4]}`;
 }
 
 export function cumulativeMonth(rows: ReadonlyArray<ReadonlyArray<string>>): string | null {

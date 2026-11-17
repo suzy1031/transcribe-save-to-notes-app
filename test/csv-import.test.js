@@ -291,6 +291,27 @@ test("appendCumulativeRows は対象月の金額が数値でないと失敗す�
   );
 });
 
+test("appendCumulativeRows はスラッシュ区切りの日付を同じ月として足す", () => {
+  const weekly = appendCashTotalRow(
+    appendDebitTotalRow(
+      appendTotalRow([
+        ["金額", "日付", "内容", "カテゴリー"],
+        ["100", "2026/11/17", "現金", "食費"],
+        ["999", "2026/12/01", "書籍", "デビット支払い"],
+      ]),
+    ),
+  );
+  assert.deepEqual(
+    appendCumulativeRows(weekly, [
+      [
+        ["金額", "日付", "内容", "カテゴリー"],
+        ["40", "2026-11-08", "ランチ", "デビット支払い"],
+      ],
+    ]),
+    [...weekly, ["140", "", "", "累計 合計"], ["40", "", "", "デビット 合計"], ["100", "", "", "現金 合計"]],
+  );
+});
+
 test("earlierSheetTitles は同じファイル名で今回より前のシートを新しい順に返す", () => {
   assert.deepEqual(
     earlierSheetTitles(
