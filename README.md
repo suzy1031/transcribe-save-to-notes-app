@@ -24,9 +24,10 @@ lambda/shared/               共有定数、タイムアウト、エラー整形
 ## コマンド
 
 ```sh
-npm install
-npm run check
-npm test
-npx cdk synth
-npx cdk deploy
+bun install
+bun run check
+bun run typecheck
+bun run test
+bunx cdk synth
+bunx cdk deploy
 ```

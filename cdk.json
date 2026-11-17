@@ -1,5 +1,5 @@
 {
-  "app": "node infra/app.js",
+  "app": "bun infra/app.js",
   "context": {
     "@aws-cdk/core:checkSecretUsage": true
   }
