@@ -4,10 +4,14 @@ on:
   pull_request:
     paths-ignore:
       - ".cursor/**"
+      - ".agents/**"
+      - "**/*.md"
   push:
     branches: [main]
     paths-ignore:
       - ".cursor/**"
+      - ".agents/**"
+      - "**/*.md"
 
 permissions:
   contents: read
