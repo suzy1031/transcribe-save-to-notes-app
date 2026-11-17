@@ -2,12 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   appendCashTotalRow,
+  appendCumulativeRows,
   appendDebitTotalRow,
   appendTotalRow,
+  earlierSheetTitles,
   gridSize,
   isCsvFile,
   parseCsv,
   sheetTitle,
+  sheetValuesRange,
   spreadsheetAppLink,
   valuesRange,
 } from "../lambda/csv/csv.ts";
@@ -183,6 +186,121 @@ test("appendDebitTotalRow はデビット支払い行のA列が数値でない�
   );
 });
 
+test("appendCumulativeRows は同じ月の前週明細を足し、現金が無い前週は0になる", () => {
+  const weekly = appendCashTotalRow(
+    appendDebitTotalRow(
+      appendTotalRow([
+        ["金額", "日付", "内容", "カテゴリー"],
+        ["1000", "2026-11-15", "ランチ", "デビット支払い"],
+        ["300", "2026-11-16", "現金", "食費"],
+      ]),
+    ),
+  );
+  assert.deepEqual(
+    appendCumulativeRows(weekly, [
+      [
+        ["金額", "日付", "内容", "カテゴリー"],
+        ["2000", "2026-11-08", "書籍", "デビット支払い"],
+        ["5000", "2026-10-31", "先月", "デビット支払い"],
+        ["1500", "", "", "デビット支払い合計"],
+      ],
+    ]),
+    [...weekly, ["3300", "", "", "累計 合計"], ["3000", "", "", "デビット 合計"], ["300", "", "", "現金 合計"]],
+  );
+});
+
+test("appendCumulativeRows は月をまたぐ週では早い月の日付だけを累計する", () => {
+  const weekly = appendCashTotalRow(
+    appendDebitTotalRow(
+      appendTotalRow([
+        ["金額", "日付", "内容", "カテゴリー"],
+        ["100", "2026-11-29", "現金", "食費"],
+        ["50", "2026-11-30", "ランチ", "デビット支払い"],
+        ["999", "2026-12-01", "書籍", "デビット支払い"],
+        ["10", "2026-12-05", "現金", "交通"],
+      ]),
+    ),
+  );
+  assert.deepEqual(
+    appendCumulativeRows(weekly, [
+      [
+        ["金額", "日付", "内容", "カテゴリー"],
+        ["1000", "2026-11-22", "ランチ", "デビット支払い"],
+      ],
+    ]),
+    [...weekly, ["1150", "", "", "累計 合計"], ["1050", "", "", "デビット 合計"], ["100", "", "", "現金 合計"]],
+  );
+});
+
+test("appendCumulativeRows は翌月の累計に前週のその月の明細だけを足す", () => {
+  const weekly = appendCashTotalRow(
+    appendDebitTotalRow(
+      appendTotalRow([
+        ["金額", "日付", "内容", "カテゴリー"],
+        ["200", "2026-12-06", "現金", "食費"],
+        ["80", "2026-12-07", "ランチ", "デビット支払い"],
+      ]),
+    ),
+  );
+  assert.deepEqual(
+    appendCumulativeRows(weekly, [
+      [
+        ["金額", "日付", "内容", "カテゴリー"],
+        ["100", "2026-11-29", "現金", "食費"],
+        ["50", "2026-11-30", "ランチ", "デビット支払い"],
+        ["999", "2026-12-01", "書籍", "デビット支払い"],
+        ["10", "2026-12-05", "現金", "交通"],
+      ],
+      [
+        ["金額", "日付", "内容", "カテゴリー"],
+        ["1000", "2026-11-22", "ランチ", "デビット支払い"],
+      ],
+    ]),
+    [...weekly, ["1289", "", "", "累計 合計"], ["1079", "", "", "デビット 合計"], ["210", "", "", "現金 合計"]],
+  );
+});
+
+test("appendCumulativeRows は日付列が無いCSVに累計行を付けない", () => {
+  const weekly = appendCashTotalRow(
+    appendDebitTotalRow(
+      appendTotalRow([
+        ["name", "qty"],
+        ["pen", "2"],
+      ]),
+    ),
+  );
+  assert.deepEqual(
+    appendCumulativeRows(weekly, [
+      [
+        ["金額", "日付"],
+        ["9", "2026-11-01"],
+      ],
+    ]),
+    weekly,
+  );
+});
+
+test("appendCumulativeRows は対象月の金額が数値でないと失敗する", () => {
+  assert.throws(
+    () =>
+      appendCumulativeRows([
+        ["金額", "日付", "内容", "カテゴリー"],
+        ["未定", "2026-11-15", "現金", "食費"],
+      ]),
+    /金額にできない値です/,
+  );
+});
+
+test("earlierSheetTitles は同じファイル名で今回より前のシートを新しい順に返す", () => {
+  assert.deepEqual(
+    earlierSheetTitles(
+      ["2026-11-22_household", "2026-11-15_Household", "2026-11-22_other", "2026-12-06_household", "notes"],
+      "2026-11-29_household",
+    ),
+    ["2026-11-22_household", "2026-11-15_Household"],
+  );
+});
+
 test("spreadsheetAppLink はSheetsアプリで開くURLを返す", () => {
   assert.equal(spreadsheetAppLink("sheet-1"), "googlesheets://https://docs.google.com/spreadsheets/d/sheet-1/edit");
 });
@@ -258,6 +376,42 @@ test("CSVを新しいシートへ書き、成功後に移動してLINEする", a
   ]);
 });
 
+test("日付があるCSVは同じ月の前週シートだけを読んで累計行を足す", async () => {
+  const reads = [];
+  let written = [];
+  const result = await importCsvFiles({
+    files: [{ id: "file-1", name: "household.csv" }],
+    download: async () => Buffer.from("金額,日付,内容,カテゴリー\n100,2026-11-15,現金,食費\n"),
+    existingSheetTitles: ["2026-11-08_household", "2026-10-25_household", "2026-10-18_household"],
+    readSheet: async (title) => {
+      reads.push(title);
+      if (title === "2026-11-08_household") {
+        return [
+          ["金額", "日付", "内容", "カテゴリー"],
+          ["40", "2026-11-08", "ランチ", "デビット支払い"],
+        ];
+      }
+      return [
+        ["金額", "日付", "内容", "カテゴリー"],
+        ["9", "2026-10-25", "ランチ", "デビット支払い"],
+      ];
+    },
+    writeSheet: async ({ title, rows }) => {
+      assert.equal(title, "2026-11-15_household");
+      written = rows;
+    },
+    moveToProcessed: async () => {},
+    pushLine: async () => {},
+    spreadsheetUrl: "googlesheets://https://docs.google.com/spreadsheets/d/sheet/edit",
+    now: new Date("2026-11-15T01:00:00.000Z"),
+  });
+  assert.equal(result.imported, 1);
+  assert.deepEqual(reads, ["2026-11-08_household", "2026-10-25_household"]);
+  assert.deepEqual(written.at(-3), ["140", "", "", "累計 合計"]);
+  assert.deepEqual(written.at(-2), ["40", "", "", "デビット 合計"]);
+  assert.deepEqual(written.at(-1), ["100", "", "", "現金 合計"]);
+});
+
 test("同名シートがあるファイルは上書きも移動もしない", async () => {
   let downloaded = false;
   let moved = false;
@@ -331,4 +485,27 @@ test("addSheetWithValues はシートを追加してRAWで書き込む", async (
   assert.deepEqual(calls[1].body.values, [["name"], ["pen"]]);
   assert.deepEqual(gridSize([["name"], ["pen"]]), { rowCount: 2, columnCount: 1 });
   assert.equal(valuesRange("it's"), "'it''s'!A1");
+});
+
+test("getSheetValues はシート全体の値を文字列で返す", async () => {
+  const fetchImpl = async (url) => {
+    assert.equal(String(url).includes(`/values/${encodeURIComponent(sheetValuesRange("it's"))}`), true);
+    return new Response(
+      JSON.stringify({
+        values: [
+          ["金額", "日付"],
+          [1200, "2026-11-01"],
+        ],
+      }),
+      { status: 200 },
+    );
+  };
+  const sheets = createSheetsClient({
+    authClient: { getAccessToken: async () => "token" },
+    fetchImpl,
+  });
+  assert.deepEqual(await sheets.getSheetValues("sheet-id", "it's"), [
+    ["金額", "日付"],
+    ["1200", "2026-11-01"],
+  ]);
 });

@@ -94,7 +94,37 @@ export function spreadsheetAppLink(spreadsheetId: string): string {
 }
 
 export function valuesRange(title: unknown): string {
-  return `'${String(title).replaceAll("'", "''")}'!A1`;
+  return `'${quotedSheetTitle(title)}'!A1`;
+}
+
+export function sheetValuesRange(title: unknown): string {
+  return `'${quotedSheetTitle(title)}'`;
+}
+
+function quotedSheetTitle(title: unknown): string {
+  return String(title).replaceAll("'", "''");
+}
+
+const SHEET_TITLE_PATTERN = /^(\d{4}-\d{2}-\d{2})_(.+)$/;
+
+export function parseSheetTitle(title: string): { date: string; stem: string } | null {
+  const match = SHEET_TITLE_PATTERN.exec(title);
+  if (!match) return null;
+  return { date: match[1], stem: match[2] };
+}
+
+export function earlierSheetTitles(titles: ReadonlyArray<string>, currentTitle: string): string[] {
+  const current = parseSheetTitle(currentTitle);
+  if (!current) return [];
+  const stem = current.stem.toLowerCase();
+  return titles
+    .flatMap((title) => {
+      const parsed = parseSheetTitle(title);
+      if (!parsed || parsed.stem.toLowerCase() !== stem || parsed.date >= current.date) return [];
+      return [{ title, date: parsed.date }];
+    })
+    .sort((left, right) => (left.date < right.date ? 1 : left.date > right.date ? -1 : 0))
+    .map((item) => item.title);
 }
 
 export function gridSize(rows: ReadonlyArray<ReadonlyArray<unknown>>): {
@@ -115,6 +145,11 @@ const CASH_TOTAL_LABEL = "現金支払い";
 const CASH_AMOUNT_COLUMN_INDEX = 0;
 const CASH_CATEGORY_COLUMN_INDEX = 2;
 const CASH_TOTAL_LABEL_COLUMN_INDEX = 3;
+const CUMULATIVE_TOTAL_LABEL = "累計 合計";
+const CUMULATIVE_DEBIT_LABEL = "デビット 合計";
+const CUMULATIVE_CASH_LABEL = "現金 合計";
+const DATE_HEADER = "日付";
+const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 function parseAmount(value: unknown): number | null {
   const trimmed = String(value ?? "").trim();
@@ -223,4 +258,93 @@ export function appendCashTotalRow(rows: ReadonlyArray<ReadonlyArray<string>>): 
   cashTotal[CASH_AMOUNT_COLUMN_INDEX] = formatTotal(sum);
   cashTotal[CASH_TOTAL_LABEL_COLUMN_INDEX] = CASH_TOTAL_LABEL;
   return [...rows.map((row) => [...row]), cashTotal];
+}
+
+function dateColumnIndex(rows: ReadonlyArray<ReadonlyArray<unknown>>): number | null {
+  if (rows.length === 0) return null;
+  const index = rows[0].findIndex((cell) => String(cell).trim() === DATE_HEADER);
+  return index === -1 ? null : index;
+}
+
+function rowDate(row: ReadonlyArray<unknown>, dateIndex: number): string | null {
+  const value = String(row[dateIndex] ?? "").trim();
+  if (value === "") return null;
+  if (!DATE_PATTERN.test(value)) throw new Error(`日付にできない値です: ${value}`);
+  return value;
+}
+
+export function cumulativeMonth(rows: ReadonlyArray<ReadonlyArray<string>>): string | null {
+  const dateIndex = dateColumnIndex(rows);
+  if (dateIndex === null) return null;
+  let earliest: string | null = null;
+  for (const row of rows.slice(1)) {
+    const date = rowDate(row, dateIndex);
+    if (date !== null && (earliest === null || date < earliest)) earliest = date;
+  }
+  if (earliest === null) throw new Error("日付がありません");
+  return earliest.slice(0, 7);
+}
+
+export function sheetHasCumulativeMonth(rows: ReadonlyArray<ReadonlyArray<string>>, month: string): boolean {
+  const dateIndex = dateColumnIndex(rows);
+  if (dateIndex === null) return false;
+  return rows.slice(1).some((row) => {
+    const date = rowDate(row, dateIndex);
+    return date !== null && date.slice(0, 7) === month;
+  });
+}
+
+function monthSums(
+  rows: ReadonlyArray<ReadonlyArray<string>>,
+  month: string,
+): {
+  total: number;
+  debit: number;
+  cash: number;
+} {
+  const dateIndex = dateColumnIndex(rows);
+  const sums = { total: 0, debit: 0, cash: 0 };
+  if (dateIndex === null) return sums;
+  for (const row of rows.slice(1)) {
+    const date = rowDate(row, dateIndex);
+    if (date === null || date.slice(0, 7) !== month) continue;
+    const amount = parseAmount(row[CASH_AMOUNT_COLUMN_INDEX] ?? "");
+    if (amount === null) continue;
+    sums.total += amount;
+    if (String(row[DEBIT_CATEGORY_COLUMN_INDEX] ?? "").trim() === DEBIT_CATEGORY) sums.debit += amount;
+    if (CASH_CATEGORIES.has(String(row[CASH_CATEGORY_COLUMN_INDEX] ?? "").trim())) sums.cash += amount;
+  }
+  return sums;
+}
+
+function cumulativeRow(width: number, amount: number, label: string): string[] {
+  const row = Array.from({ length: Math.max(width, CASH_TOTAL_LABEL_COLUMN_INDEX + 1) }, () => "");
+  row[CASH_AMOUNT_COLUMN_INDEX] = formatTotal(amount);
+  row[CASH_TOTAL_LABEL_COLUMN_INDEX] = label;
+  return row;
+}
+
+export function appendCumulativeRows(
+  rows: ReadonlyArray<ReadonlyArray<string>>,
+  previousSheets: ReadonlyArray<ReadonlyArray<ReadonlyArray<string>>> = [],
+): string[][] {
+  const month = cumulativeMonth(rows);
+  if (month === null) return rows.map((row) => [...row]);
+
+  const sums = monthSums(rows, month);
+  for (const sheet of previousSheets) {
+    if (!sheetHasCumulativeMonth(sheet, month)) break;
+    const previous = monthSums(sheet, month);
+    sums.total += previous.total;
+    sums.debit += previous.debit;
+    sums.cash += previous.cash;
+  }
+
+  const width = rows.reduce((max, row) => Math.max(max, row.length), 0);
+  return [
+    ...rows.map((row) => [...row]),
+    cumulativeRow(width, sums.total, CUMULATIVE_TOTAL_LABEL),
+    cumulativeRow(width, sums.debit, CUMULATIVE_DEBIT_LABEL),
+    cumulativeRow(width, sums.cash, CUMULATIVE_CASH_LABEL),
+  ];
 }
