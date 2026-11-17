@@ -1,13 +1,20 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-import { EMPTY_WEEK_MESSAGE } from "../lambda/line/helper.ts";
-import { createdSinceDate, processWeekly, tokyoDate } from "../lambda/weekly/weekly.ts";
+import { expect, test } from "vitest";
+import { EMPTY_WEEK_MESSAGE } from "../line/helper.ts";
+import { createdSinceDate, processWeekly, tokyoDate } from "./weekly.ts";
 
 const now = new Date("2026-11-01T00:00:00Z");
 
-function weekly(overrides) {
-  const calls = { push: [], create: [], move: [], read: [] };
-  const deps = {
+type ProcessWeeklyArgs = Parameters<typeof processWeekly>[0];
+
+function weekly(overrides: Partial<ProcessWeeklyArgs> = {}) {
+  const calls: {
+    push: string[];
+    create: Array<{ title: string; markdown: string; folderId: string }>;
+    move: string[][];
+    read: string[];
+    notesText?: string;
+  } = { push: [], create: [], move: [], read: [] };
+  const deps: ProcessWeeklyArgs = {
     documents: [
       { id: "doc-1", title: "月曜" },
       { id: "doc-2", title: "火曜" },
@@ -38,31 +45,31 @@ function weekly(overrides) {
 }
 
 test("createdSinceDate は東京日付の7暦日前を返す", () => {
-  assert.equal(tokyoDate(now), "2026-11-01");
-  assert.equal(createdSinceDate(now), "2026-10-25");
-  assert.equal(tokyoDate(new Date("2026-10-31T16:00:00Z")), "2026-11-01");
+  expect(tokyoDate(now)).toBe("2026-11-01");
+  expect(createdSinceDate(now)).toBe("2026-10-25");
+  expect(tokyoDate(new Date("2026-10-31T16:00:00Z"))).toBe("2026-11-01");
 });
 
 test("ノートがない週は固定のLINEメッセージを送りCraftへの書き込みをしない", async () => {
   const { calls, run } = weekly({ documents: [] });
   const summary = await run();
-  assert.deepEqual(summary, { summarized: 0, moved: 0 });
-  assert.deepEqual(calls.push, [EMPTY_WEEK_MESSAGE]);
-  assert.equal(calls.create.length, 0);
-  assert.equal(calls.move.length, 0);
+  expect(summary).toEqual({ summarized: 0, moved: 0 });
+  expect(calls.push).toEqual([EMPTY_WEEK_MESSAGE]);
+  expect(calls.create.length).toBe(0);
+  expect(calls.move.length).toBe(0);
 });
 
 test("ノートがある週はLINE通知し要約を保存してから元ノートを移動する", async () => {
   const { calls, run } = weekly();
   const summary = await run();
-  assert.deepEqual(summary, { summarized: 2, moved: 2 });
-  assert.equal(calls.notesText.includes("# 月曜"), true);
-  assert.equal(calls.notesText.includes("doc-1の本文"), true);
-  assert.equal(calls.push[0].length, 5000);
-  assert.equal(calls.create[0].title, "週次まとめ 2026-11-01");
-  assert.equal(calls.create[0].folderId, "folder-summaries");
-  assert.equal(calls.create[0].markdown.length, 5001);
-  assert.deepEqual(calls.move, [["doc-1", "doc-2"]]);
+  expect(summary).toEqual({ summarized: 2, moved: 2 });
+  expect(calls.notesText?.includes("# 月曜")).toBe(true);
+  expect(calls.notesText?.includes("doc-1の本文")).toBe(true);
+  expect(calls.push[0].length).toBe(5000);
+  expect(calls.create[0].title).toBe("週次まとめ 2026-11-01");
+  expect(calls.create[0].folderId).toBe("folder-summaries");
+  expect(calls.create[0].markdown.length).toBe(5001);
+  expect(calls.move).toEqual([["doc-1", "doc-2"]]);
 });
 
 test("要約失敗時はLINE送信とノート移動をしない", async () => {
@@ -71,10 +78,10 @@ test("要約失敗時はLINE送信とノート移動をしない", async () => {
       throw new Error("model failed");
     },
   });
-  await assert.rejects(run, /model failed/);
-  assert.equal(calls.push.length, 0);
-  assert.equal(calls.create.length, 0);
-  assert.equal(calls.move.length, 0);
+  await expect(run()).rejects.toThrow(/model failed/);
+  expect(calls.push.length).toBe(0);
+  expect(calls.create.length).toBe(0);
+  expect(calls.move.length).toBe(0);
 });
 
 test("LINE失敗時は要約保存とノート移動をしない", async () => {
@@ -83,9 +90,9 @@ test("LINE失敗時は要約保存とノート移動をしない", async () => {
       throw new Error("line failed");
     },
   });
-  await assert.rejects(run, /line failed/);
-  assert.equal(calls.create.length, 0);
-  assert.equal(calls.move.length, 0);
+  await expect(run()).rejects.toThrow(/line failed/);
+  expect(calls.create.length).toBe(0);
+  expect(calls.move.length).toBe(0);
 });
 
 test("Craft保存失敗時はノートを移動しない", async () => {
@@ -94,7 +101,7 @@ test("Craft保存失敗時はノートを移動しない", async () => {
       throw new Error("craft failed");
     },
   });
-  await assert.rejects(run, /craft failed/);
-  assert.equal(calls.push.length, 1);
-  assert.equal(calls.move.length, 0);
+  await expect(run()).rejects.toThrow(/craft failed/);
+  expect(calls.push.length).toBe(1);
+  expect(calls.move.length).toBe(0);
 });

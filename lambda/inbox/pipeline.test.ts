@@ -1,7 +1,6 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-import { processInbox } from "../lambda/inbox/index.ts";
-import { MAX_IMAGE_BYTES } from "../lambda/transcribe/index.ts";
+import { expect, test } from "vitest";
+import { MAX_IMAGE_BYTES } from "../transcribe/index.ts";
+import { processInbox } from "./index.ts";
 
 const image = {
   id: "file-1",
@@ -9,9 +8,19 @@ const image = {
   mimeType: "image/png",
 };
 
-function pipeline(overrides) {
-  const calls = { download: 0, transcribe: 0, create: [], move: [], removed: [], saved: [], failed: [] };
-  const deps = {
+type ProcessInboxArgs = Parameters<typeof processInbox>[0];
+
+function pipeline(overrides: Partial<ProcessInboxArgs> = {}) {
+  const calls: {
+    download: number;
+    transcribe: number;
+    create: Array<{ title: string; markdown: string; folderId: string }>;
+    move: Array<Parameters<ProcessInboxArgs["moveToProcessed"]>[0]>;
+    removed: string[];
+    saved: Array<{ title: string; documentId: string }>;
+    failed: Array<{ fileName: string; reason: string }>;
+  } = { download: 0, transcribe: 0, create: [], move: [], removed: [], saved: [], failed: [] };
+  const deps: ProcessInboxArgs = {
     files: [image],
     download: async () => {
       calls.download += 1;
@@ -48,13 +57,13 @@ function pipeline(overrides) {
 test("保存成功時はLINE通知し、受信箱が空の場合は通知しない", async () => {
   const saved = pipeline();
   await saved.run();
-  assert.deepEqual(saved.calls.saved, [{ title: "朝のメモ", documentId: "doc-1" }]);
-  assert.equal(saved.calls.failed.length, 0);
+  expect(saved.calls.saved).toEqual([{ title: "朝のメモ", documentId: "doc-1" }]);
+  expect(saved.calls.failed.length).toBe(0);
 
   const empty = pipeline({ files: [] });
   await empty.run();
-  assert.equal(empty.calls.saved.length, 0);
-  assert.equal(empty.calls.failed.length, 0);
+  expect(empty.calls.saved.length).toBe(0);
+  expect(empty.calls.failed.length).toBe(0);
 });
 
 test("文字起こし失敗時はLINE通知し画像を受信箱に残す", async () => {
@@ -64,10 +73,10 @@ test("文字起こし失敗時はLINE通知し画像を受信箱に残す", asyn
     },
   });
   const summary = await run();
-  assert.equal(summary.failed, 1);
-  assert.equal(calls.move.length, 0);
-  assert.deepEqual(calls.failed, [{ fileName: "note.png", reason: "model failed" }]);
-  assert.equal(calls.saved.length, 0);
+  expect(summary.failed).toBe(1);
+  expect(calls.move.length).toBe(0);
+  expect(calls.failed).toEqual([{ fileName: "note.png", reason: "model failed" }]);
+  expect(calls.saved.length).toBe(0);
 });
 
 test("既存のcraftDocumentIdがある場合は新規作成せず移動する", async () => {
@@ -78,17 +87,17 @@ test("既存のcraftDocumentIdがある場合は新規作成せず移動する",
     },
   });
   const summary = await run();
-  assert.equal(summary.processed, 1);
-  assert.equal(calls.create.length, 0);
-  assert.equal(calls.move[0].craftDocumentId, "doc-existing");
+  expect(summary.processed).toBe(1);
+  expect(calls.create.length).toBe(0);
+  expect(calls.move[0].craftDocumentId).toBe("doc-existing");
 });
 
 test("新規ノートは解決したCraftフォルダに作成してから移動する", async () => {
   const { calls, run } = pipeline();
   const summary = await run();
-  assert.equal(summary.processed, 1);
-  assert.equal(calls.create[0].folderId, "folder-daily");
-  assert.equal(calls.move[0].craftDocumentId, "doc-1");
+  expect(summary.processed).toBe(1);
+  expect(calls.create[0].folderId).toBe("folder-daily");
+  expect(calls.move[0].craftDocumentId).toBe("doc-1");
 });
 
 test("サイズ超過の画像は受信箱に残す", async () => {
@@ -99,10 +108,10 @@ test("サイズ超過の画像は受信箱に残す", async () => {
     },
   });
   const summary = await run();
-  assert.equal(summary.skipped, 1);
-  assert.equal(calls.download, 0);
-  assert.equal(calls.move.length, 0);
-  assert.equal(calls.create.length, 0);
+  expect(summary.skipped).toBe(1);
+  expect(calls.download).toBe(0);
+  expect(calls.move.length).toBe(0);
+  expect(calls.create.length).toBe(0);
 });
 
 test("一覧にサイズが無い場合はダウンロード後にサイズ超過を判定する", async () => {
@@ -113,14 +122,14 @@ test("一覧にサイズが無い場合はダウンロード後にサイズ超�
     },
   });
   const summary = await run();
-  assert.equal(summary.skipped, 1);
-  assert.equal(calls.download, 1);
-  assert.equal(calls.move.length, 0);
-  assert.equal(calls.create.length, 0);
+  expect(summary.skipped).toBe(1);
+  expect(calls.download).toBe(1);
+  expect(calls.move.length).toBe(0);
+  expect(calls.create.length).toBe(0);
 });
 
 test("processInbox は取得・文字起こし・Craft保存をログに記録する", async () => {
-  const lines = [];
+  const lines: unknown[] = [];
   const { run } = pipeline({
     log: {
       info(message) {
@@ -132,7 +141,7 @@ test("processInbox は取得・文字起こし・Craft保存をログに記録�
     },
   });
   await run();
-  assert.deepEqual(lines, [
+  expect(lines).toEqual([
     "画像ファイル取得成功 note.png",
     "文字起こし start note.png",
     "文字起こし end note.png",
@@ -142,7 +151,7 @@ test("processInbox は取得・文字起こし・Craft保存をログに記録�
 });
 
 test("受信箱が空の場合は画像なしをログに記録する", async () => {
-  const lines = [];
+  const lines: unknown[] = [];
   const { calls, run } = pipeline({
     files: [],
     log: {
@@ -153,15 +162,15 @@ test("受信箱が空の場合は画像なしをログに記録する", async ()
     },
   });
   const summary = await run();
-  assert.deepEqual(lines, ["画像ファイル取得なし"]);
-  assert.equal(summary.processed, 0);
-  assert.equal(calls.create.length, 0);
+  expect(lines).toEqual(["画像ファイル取得なし"]);
+  expect(summary.processed).toBe(0);
+  expect(calls.create.length).toBe(0);
 });
 
 test("移動した画像は付随テキストを削除する", async () => {
   const { calls, run } = pipeline();
   await run();
-  assert.deepEqual(calls.removed, ["note.png"]);
+  expect(calls.removed).toEqual(["note.png"]);
 });
 
 test("文字起こし失敗時は付随テキストを残す", async () => {
@@ -171,7 +180,7 @@ test("文字起こし失敗時は付随テキストを残す", async () => {
     },
   });
   await run();
-  assert.equal(calls.removed.length, 0);
+  expect(calls.removed.length).toBe(0);
 });
 
 test("Craft作成失敗時は画像を移動しない", async () => {
@@ -181,6 +190,6 @@ test("Craft作成失敗時は画像を移動しない", async () => {
     },
   });
   const summary = await run();
-  assert.equal(summary.failed, 1);
-  assert.equal(calls.move.length, 0);
+  expect(summary.failed).toBe(1);
+  expect(calls.move.length).toBe(0);
 });
