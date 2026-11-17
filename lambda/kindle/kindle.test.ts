@@ -1,22 +1,15 @@
-import assert from "node:assert/strict";
-import test from "node:test";
-import { craftAppDocumentLink } from "../lambda/craft/helper.ts";
-import { processKindleBooks, summaryDocumentState } from "../lambda/kindle/kindle.ts";
-import { kindleRunSummaryMessage } from "../lambda/line/helper.ts";
+import { expect, test } from "vitest";
+import { craftAppDocumentLink } from "../craft/helper.ts";
+import { kindleRunSummaryMessage } from "../line/helper.ts";
+import { processKindleBooks, summaryDocumentState } from "./kindle.ts";
 
 test("summaryDocumentState は0件または1件のドキュメントを受け付ける", () => {
-  assert.deepEqual(summaryDocumentState([]), { action: "create" });
-  assert.deepEqual(summaryDocumentState([{ id: "doc-1", title: "要約" }]), {
+  expect(summaryDocumentState([])).toEqual({ action: "create" });
+  expect(summaryDocumentState([{ id: "doc-1" }])).toEqual({
     action: "append",
     documentId: "doc-1",
   });
-  assert.equal(
-    summaryDocumentState([
-      { id: "a", title: "a" },
-      { id: "b", title: "b" },
-    ]).action,
-    "error",
-  );
+  expect(summaryDocumentState([{ id: "a" }, { id: "b" }]).action).toBe("error");
 });
 
 test("kindleRunSummaryMessage にフォルダ名とCraftリンクが列挙される", () => {
@@ -30,16 +23,16 @@ test("kindleRunSummaryMessage にフォルダ名とCraftリンクが列挙され
       },
     ],
   });
-  assert.match(text, /Kindle要約完了/);
-  assert.match(text, /処理: 2枚/);
-  assert.match(text, /kindle_book/);
-  assert.match(text, /craftdocs:\/\/open\?/);
+  expect(text).toMatch(/Kindle要約完了/);
+  expect(text).toMatch(/処理: 2枚/);
+  expect(text).toMatch(/kindle_book/);
+  expect(text).toMatch(/craftdocs:\/\/open\?/);
 });
 
 test("processKindleBooks はCraftのないフォルダをスキップし1ドキュメントに追記する", async () => {
-  const moves = [];
-  const appends = [];
-  const creates = [];
+  const moves: Array<Parameters<Parameters<typeof processKindleBooks>[0]["moveImageToProcessed"]>[0]> = [];
+  const appends: Array<{ documentId: string; markdown: string }> = [];
+  const creates: Array<{ folderId: string; markdown: string }> = [];
   const bookFolders = [
     { id: "drive-1", name: "kindle_missing_craft" },
     { id: "drive-2", name: "kindle_book" },
@@ -73,16 +66,16 @@ test("processKindleBooks はCraftのないフォルダをスキップし1ドキ�
     },
   });
 
-  assert.equal(summary.foldersSkippedNoCraft, 1);
-  assert.equal(summary.imagesSummarized, 1);
-  assert.equal(creates.length, 0);
-  assert.deepEqual(appends, [{ documentId: "doc-1", markdown: "要約本文" }]);
-  assert.equal(moves.length, 1);
-  assert.deepEqual(summary.links, [{ folderName: "kindle_book", documentId: "doc-1" }]);
+  expect(summary.foldersSkippedNoCraft).toBe(1);
+  expect(summary.imagesSummarized).toBe(1);
+  expect(creates.length).toBe(0);
+  expect(appends).toEqual([{ documentId: "doc-1", markdown: "要約本文" }]);
+  expect(moves.length).toBe(1);
+  expect(summary.links).toEqual([{ folderName: "kindle_book", documentId: "doc-1" }]);
 });
 
 test("processKindleBooks はCraftフォルダが空のとき要約ドキュメントを作成する", async () => {
-  const creates = [];
+  const creates: Array<{ folderId: string; markdown: string }> = [];
   const summary = await processKindleBooks({
     bookFolders: [{ id: "drive-1", name: "kindle_book" }],
     listImages: async () => [{ id: "img-1", name: "page.png", mimeType: "image/png" }],
@@ -99,7 +92,7 @@ test("processKindleBooks はCraftフォルダが空のとき要約ドキュメ�
     moveImageToProcessed: async () => {},
   });
 
-  assert.equal(summary.imagesSummarized, 1);
-  assert.deepEqual(creates, [{ folderId: "craft-folder", markdown: "初回要約" }]);
-  assert.deepEqual(summary.links, [{ folderName: "kindle_book", documentId: "doc-new" }]);
+  expect(summary.imagesSummarized).toBe(1);
+  expect(creates).toEqual([{ folderId: "craft-folder", markdown: "初回要約" }]);
+  expect(summary.links).toEqual([{ folderName: "kindle_book", documentId: "doc-new" }]);
 });
