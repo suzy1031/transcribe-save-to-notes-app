@@ -171,24 +171,54 @@ export async function getWeeklyUsage({
   return (result.Item as WeeklyUsageItem | undefined) ?? null;
 }
 
-function usdText(value: unknown): string {
+function toAmount(value: unknown): number {
   const amount = Number(value ?? 0);
-  if (!Number.isFinite(amount)) return "0.000000";
-  return amount.toFixed(6);
+  return Number.isFinite(amount) ? amount : 0;
 }
 
-export function formatWeeklyUsage(item: WeeklyUsageItem | null | undefined): string {
+function usdText(value: unknown): string {
+  return toAmount(value).toFixed(3);
+}
+
+function jpyText(usdValue: unknown, rate: number): string {
+  return `約${(toAmount(usdValue) * rate).toFixed(1)}円`;
+}
+
+function formatCount(value: unknown): string {
+  const count = Number(value ?? 0);
+  if (!Number.isFinite(count) || count < 0) return "0";
+  return Math.floor(count).toLocaleString("en-US");
+}
+
+function validRate(rate?: number | null): number | null {
+  return typeof rate === "number" && Number.isFinite(rate) && rate > 0 ? rate : null;
+}
+
+export function formatWeeklyUsage(item: WeeklyUsageItem | null | undefined, usdJpyRate?: number | null): string {
   if (!item) return "Claude利用量: 当週の記録はありません";
+  const rate = validRate(usdJpyRate);
+  const weekLabel = item.pk.replace(/^WEEK#/, "");
+  const totalUsd = usdText(item.estimatedUsd);
+  const totalLine =
+    rate !== null
+      ? `合計: ${jpyText(item.estimatedUsd, rate)} ($${totalUsd}) ※1ドル=${rate.toFixed(1)}円`
+      : `合計: $${totalUsd} (円換算取得失敗)`;
   const lines = [
-    `Claude利用量 ${item.pk}`,
-    `calls ${item.callCount ?? 0} / in ${item.inputTokens ?? 0} / out ${item.outputTokens ?? 0}`,
-    `推定 $${usdText(item.estimatedUsd)}`,
+    `Claude利用量 (${weekLabel})`,
+    totalLine,
+    `${formatCount(item.callCount)}回 / 入力 ${formatCount(item.inputTokens)} / 出力 ${formatCount(item.outputTokens)} tok`,
   ];
   const byFunction = item.byFunction ?? {};
   for (const name of ["index", "weekly", "kindle"]) {
     const row = byFunction[name];
     if (!row) continue;
-    lines.push(`${name}: calls ${row.callCount ?? 0} / $${usdText(row.estimatedUsd)}`);
+    const rowUsd = usdText(row.estimatedUsd);
+    const calls = formatCount(row.callCount);
+    lines.push(
+      rate !== null
+        ? `- ${name}: ${jpyText(row.estimatedUsd, rate)} ($${rowUsd} / ${calls}回)`
+        : `- ${name}: $${rowUsd} (${calls}回)`,
+    );
   }
   return lines.join("\n");
 }

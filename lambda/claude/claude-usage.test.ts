@@ -128,55 +128,108 @@ test("getWeeklyUsage は当週の行を読む", async () => {
   expect(item?.callCount).toBe(2);
 });
 
-test("formatWeeklyUsage は週合計と関数別の推定額を返す", () => {
-  const text = formatWeeklyUsage({
-    pk: "WEEK#2026-W45",
-    callCount: 3,
-    inputTokens: 100,
-    outputTokens: 20,
-    estimatedUsd: 0.0025,
+test("formatWeeklyUsage は週合計と関数別の推定額を日本円・ドルで返す", () => {
+  const sample = {
+    pk: "WEEK#2026-W46",
+    callCount: 16,
+    inputTokens: 75892,
+    outputTokens: 7329,
+    estimatedUsd: 0.20075,
     byFunction: {
-      index: { callCount: 2, estimatedUsd: 0.002 },
-      kindle: { callCount: 1, estimatedUsd: 0.0005 },
+      index: { callCount: 5, estimatedUsd: 0.06377 },
+      weekly: { callCount: 1, estimatedUsd: 0.00128 },
+      kindle: { callCount: 10, estimatedUsd: 0.1357 },
     },
-  });
-  expect(text).toMatch(/WEEK#2026-W45/);
-  expect(text).toMatch(/calls 3/);
-  expect(text).toMatch(/推定 \$0\.002500/);
-  expect(text).toMatch(/index: calls 2/);
-  expect(text).toMatch(/kindle: calls 1/);
+  };
+
+  const withRate = formatWeeklyUsage(sample, 154.5);
+  expect(withRate).toBe(
+    [
+      "Claude利用量 (2026-W46)",
+      "合計: 約31.0円 ($0.201) ※1ドル=154.5円",
+      "16回 / 入力 75,892 / 出力 7,329 tok",
+      "- index: 約9.9円 ($0.064 / 5回)",
+      "- weekly: 約0.2円 ($0.001 / 1回)",
+      "- kindle: 約21.0円 ($0.136 / 10回)",
+    ].join("\n"),
+  );
+
+  const withoutRate = formatWeeklyUsage(sample, null);
+  expect(withoutRate).toBe(
+    [
+      "Claude利用量 (2026-W46)",
+      "合計: $0.201 (円換算取得失敗)",
+      "16回 / 入力 75,892 / 出力 7,329 tok",
+      "- index: $0.064 (5回)",
+      "- weekly: $0.001 (1回)",
+      "- kindle: $0.136 (10回)",
+    ].join("\n"),
+  );
+
   expect(formatWeeklyUsage(null)).toBe("Claude利用量: 当週の記録はありません");
 });
 
-test("reportWeeklyUsage は記録があるときだけ LINE する", async () => {
+test("reportWeeklyUsage は記録があるときだけ為替取得して LINE する", async () => {
   const pushed: string[] = [];
   const logs: string[] = [];
+  let rateCalls = 0;
+
   const reported = await reportWeeklyUsage({
     getUsage: async () => ({
       pk: "WEEK#2026-W45",
       callCount: 1,
       inputTokens: 1,
       outputTokens: 1,
-      estimatedUsd: 0.000012,
+      estimatedUsd: 0.01,
     }),
+    getUsdJpyRate: async () => {
+      rateCalls += 1;
+      return 150;
+    },
     pushLine: async (text) => {
       pushed.push(text);
     },
     log: (text) => logs.push(text),
   });
+  expect(rateCalls).toBe(1);
   expect(logs.length).toBe(1);
   expect(pushed.length).toBe(1);
-  expect(reported.text).toMatch(/WEEK#2026-W45/);
+  expect(reported.text).toMatch(/2026-W45/);
+  expect(reported.text).toMatch(/約1\.5円 \(\$0\.010\)/);
+
+  const fallback = await reportWeeklyUsage({
+    getUsage: async () => ({
+      pk: "WEEK#2026-W45",
+      callCount: 1,
+      inputTokens: 1,
+      outputTokens: 1,
+      estimatedUsd: 0.01,
+    }),
+    getUsdJpyRate: async () => {
+      throw new Error("fx down");
+    },
+    pushLine: async (text) => {
+      pushed.push(text);
+    },
+    log: (text) => logs.push(text),
+  });
+  expect(pushed.length).toBe(2);
+  expect(fallback.text).toMatch(/\$0\.010 \(円換算取得失敗\)/);
 
   const empty = await reportWeeklyUsage({
     getUsage: async () => null,
+    getUsdJpyRate: async () => {
+      rateCalls += 1;
+      return 150;
+    },
     pushLine: async () => {
       pushed.push("unused");
     },
     log: (text) => logs.push(text),
   });
+  expect(rateCalls).toBe(1);
   expect(empty.text).toMatch(/記録はありません/);
-  expect(pushed.length).toBe(1);
+  expect(pushed.length).toBe(2);
 });
 
 function claudeResponse(
