@@ -9,7 +9,7 @@ import {
   listedDocument,
   moveDocumentsPayload,
 } from "./helper.ts";
-import type { CraftClient } from "./types.ts";
+import type { CraftClient, CraftListedDocument } from "./types.ts";
 
 async function craftRequest(
   baseUrl: string,
