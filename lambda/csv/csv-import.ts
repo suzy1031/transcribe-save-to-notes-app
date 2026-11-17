@@ -8,9 +8,13 @@ import { loadCredentials, settingsFromEnv } from "../shared/settings.ts";
 import { createSheetsClient } from "../sheets/sheets.ts";
 import {
   appendCashTotalRow,
+  appendCumulativeRows,
   appendDebitTotalRow,
   appendTotalRow,
+  cumulativeMonth,
+  earlierSheetTitles,
   parseCsv,
+  sheetHasCumulativeMonth,
   sheetTitle,
   spreadsheetAppLink,
   tokyoDate,
@@ -30,6 +34,7 @@ export async function importCsvFiles({
   files,
   download,
   existingSheetTitles,
+  readSheet,
   writeSheet,
   moveToProcessed,
   pushLine,
@@ -39,6 +44,7 @@ export async function importCsvFiles({
   files: ReadonlyArray<DriveFile>;
   download: (file: DriveFile) => Promise<Uint8Array | Buffer>;
   existingSheetTitles: ReadonlyArray<string>;
+  readSheet?: (title: string) => Promise<ReadonlyArray<ReadonlyArray<string>>>;
   writeSheet: (input: { title: string; rows: string[][] }) => Promise<void>;
   moveToProcessed: (file: DriveFile) => Promise<void>;
   pushLine: (text: string) => Promise<void>;
@@ -51,6 +57,7 @@ export async function importCsvFiles({
   }
 
   const titles = new Set(existingSheetTitles.map((title) => title.toLowerCase()));
+  const knownTitles = [...existingSheetTitles];
   const date = tokyoDate(now);
   const result: CsvImportResult = { imported: 0, failed: 0, failures: [] };
 
@@ -68,9 +75,12 @@ export async function importCsvFiles({
     try {
       const bytes = await download(file);
       const text = Buffer.from(bytes).toString("utf8");
-      const rows = appendCashTotalRow(appendDebitTotalRow(appendTotalRow(parseCsv(text))));
+      const parsed = parseCsv(text);
+      const weekly = appendCashTotalRow(appendDebitTotalRow(appendTotalRow(parsed)));
+      const rows = await rowsWithCumulative(weekly, title, knownTitles, readSheet);
       await writeSheet({ title, rows });
       titles.add(title.toLowerCase());
+      knownTitles.push(title);
     } catch (error) {
       result.failed += 1;
       result.failures.push({ fileName: file.name, reason: (error as Error).message });
@@ -98,6 +108,24 @@ export async function importCsvFiles({
     }),
   );
   return result;
+}
+
+async function rowsWithCumulative(
+  weekly: string[][],
+  title: string,
+  titles: ReadonlyArray<string>,
+  readSheet: ((title: string) => Promise<ReadonlyArray<ReadonlyArray<string>>>) | undefined,
+): Promise<string[][]> {
+  const month = cumulativeMonth(weekly);
+  if (month === null) return weekly;
+  const previous: string[][][] = [];
+  for (const earlier of earlierSheetTitles(titles, title)) {
+    if (!readSheet) throw new Error("前週のシートを読めません");
+    const sheetRows = await readSheet(earlier);
+    if (!sheetHasCumulativeMonth(sheetRows, month)) break;
+    previous.push(sheetRows.map((row) => row.map((cell) => String(cell))));
+  }
+  return appendCumulativeRows(weekly, previous);
 }
 
 export async function handler(event: unknown, context: unknown): Promise<CsvImportResult> {
@@ -135,6 +163,7 @@ async function runCsvImport(): Promise<CsvImportResult> {
     files,
     download: (file) => drive.download(file.id),
     existingSheetTitles,
+    readSheet: (title) => sheets.getSheetValues(settings.spreadsheetId, title),
     writeSheet: ({ title, rows }) =>
       sheets.addSheetWithValues({
         spreadsheetId: settings.spreadsheetId,

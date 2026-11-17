@@ -1,5 +1,5 @@
 import { JWT } from "google-auth-library";
-import { gridSize, valuesRange } from "../csv/csv.ts";
+import { gridSize, sheetValuesRange, valuesRange } from "../csv/csv.ts";
 import type { AuthClientLike, GoogleServiceAccount } from "../drive/types.ts";
 import { JSON_CONTENT_TYPE } from "../shared/const.ts";
 import { withFetchTimeout } from "../shared/fetch-with-timeout.ts";
@@ -59,6 +59,12 @@ export function createSheetsClient({
       return (payload.sheets ?? [])
         .map((sheet: any) => sheet.properties?.title)
         .filter((title: unknown): title is string => typeof title === "string");
+    },
+
+    async getSheetValues(spreadsheetId: string, title: string) {
+      const range = encodeURIComponent(sheetValuesRange(title));
+      const payload = await readJson(await request(`${SHEETS_API}/${spreadsheetId}/values/${range}`));
+      return (payload.values ?? []).map((row: unknown[]) => row.map((cell) => String(cell ?? "")));
     },
 
     async addSheetWithValues({ spreadsheetId, title, rows }) {
