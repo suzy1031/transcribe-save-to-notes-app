@@ -5,6 +5,7 @@ import { createCraftClient } from "../craft/craft.ts";
 import type { CraftListedDocument } from "../craft/types.ts";
 import { EMPTY_WEEK_MESSAGE, fitLineText } from "../line/helper.ts";
 import { createLineClient } from "../line/line.ts";
+import { bunLambdaHandler } from "../shared/bun-handler.ts";
 import {
   DEFAULT_CRAFT_PROCESSED_FOLDER,
   DEFAULT_CRAFT_SUMMARY_FOLDER,
@@ -188,3 +189,5 @@ async function runWeekly(): Promise<{ summarized: number; moved: number }> {
   }
   return summary;
 }
+
+export default bunLambdaHandler(handler);

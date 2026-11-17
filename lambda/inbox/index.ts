@@ -5,6 +5,7 @@ import { createDriveClient } from "../drive/drive.ts";
 import { fileStem, orphanTextFiles } from "../drive/helper.ts";
 import type { DriveClient, DriveFile } from "../drive/types.ts";
 import { transcriptionFailedMessage, transcriptionSavedMessage } from "../line/helper.ts";
+import { bunLambdaHandler } from "../shared/bun-handler.ts";
 import { INBOX_FOLDER_NAME, MIN_REMAINING_MS, PROCESSED_DRIVE_FOLDER_NAME } from "../shared/const.ts";
 import { createLinePush, runLogged } from "../shared/job.ts";
 import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
@@ -249,3 +250,5 @@ async function discardInboxText({
     }
   }
 }
+
+export default bunLambdaHandler(handler);

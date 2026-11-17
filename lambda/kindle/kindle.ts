@@ -5,6 +5,7 @@ import type { CraftListedDocument } from "../craft/types.ts";
 import { createDriveClient } from "../drive/drive.ts";
 import type { DriveFile } from "../drive/types.ts";
 import { kindleFailedMessage, kindleRunSummaryMessage } from "../line/helper.ts";
+import { bunLambdaHandler } from "../shared/bun-handler.ts";
 import {
   ALL_CRAFT_DOCUMENTS_SINCE,
   DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
@@ -240,3 +241,5 @@ async function runKindle(context: LambdaContextLike): Promise<ProcessKindleResul
   );
   return summary;
 }
+
+export default bunLambdaHandler(handler);

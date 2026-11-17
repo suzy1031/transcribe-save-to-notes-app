@@ -2,6 +2,7 @@ import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
 import { createDriveClient } from "../drive/drive.ts";
 import type { DriveFile } from "../drive/types.ts";
 import { csvImportFailedMessage, csvImportSummaryMessage, EMPTY_CSV_MESSAGE } from "../line/helper.ts";
+import { bunLambdaHandler } from "../shared/bun-handler.ts";
 import { DEFAULT_CSV_INBOX_FOLDER, DEFAULT_CSV_PROCESSED_FOLDER, DEFAULT_CSV_SPREADSHEET_ID } from "../shared/const.ts";
 import { createLinePush, runLogged } from "../shared/job.ts";
 import { loadCredentials, settingsFromEnv } from "../shared/settings.ts";
@@ -180,3 +181,5 @@ async function runCsvImport(): Promise<CsvImportResult> {
     spreadsheetUrl: spreadsheetAppLink(settings.spreadsheetId),
   });
 }
+
+export default bunLambdaHandler(handler);

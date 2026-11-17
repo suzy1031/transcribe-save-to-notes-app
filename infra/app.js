@@ -1,10 +1,10 @@
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { App, Duration, RemovalPolicy, Stack, TimeZone } from "aws-cdk-lib";
 import { AttributeType, BillingMode, Table } from "aws-cdk-lib/aws-dynamodb";
 import { OpenIdConnectProvider, PolicyStatement, Role, WebIdentityPrincipal } from "aws-cdk-lib/aws-iam";
-import { Runtime, RuntimeFamily } from "aws-cdk-lib/aws-lambda";
-import { NodejsFunction, OutputFormat } from "aws-cdk-lib/aws-lambda-nodejs";
+import { Architecture, Code, Function as LambdaFunction, LayerVersion, Runtime } from "aws-cdk-lib/aws-lambda";
 import { RetentionDays } from "aws-cdk-lib/aws-logs";
 import { Schedule, ScheduleExpression } from "aws-cdk-lib/aws-scheduler";
 import { LambdaInvoke } from "aws-cdk-lib/aws-scheduler-targets";
@@ -28,23 +28,44 @@ import {
 } from "../lambda/shared/const.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-const bundling = {
-  format: OutputFormat.ESM,
-  target: "node26",
-  mainFields: ["module", "main"],
-  banner: "import { createRequire } from 'module'; const require = createRequire(import.meta.url);",
-};
-
+const lambdaDir = path.join(__dirname, "../lambda");
 const lambdaLogRetention = RetentionDays.ONE_MONTH;
 
 class NotesPipelineStack extends Stack {
   constructor(scope, id, props) {
     super(scope, id, props);
 
-    const runtime = new Runtime("nodejs26.x", RuntimeFamily.NODEJS, {
-      supportsInlineCode: true,
-    });
+    const bunLayerArn = process.env.BUN_LAYER_ARN || `arn:aws:lambda:${this.region}:${this.account}:layer:bun:1`;
+    const bunLayer = LayerVersion.fromLayerVersionArn(this, "BunLayer", bunLayerArn);
+
+    const createBunFunction = (fnId, { entry, ...rest }) =>
+      new LambdaFunction(this, fnId, {
+        runtime: Runtime.PROVIDED_AL2023,
+        architecture: Architecture.ARM_64,
+        handler: "index.fetch",
+        layers: [bunLayer],
+        code: Code.fromAsset(lambdaDir, {
+          exclude: ["**/*.test.ts"],
+          bundling: {
+            image: Runtime.PROVIDED_AL2023.bundlingImage,
+            environment: {
+              ENTRY: path.relative(lambdaDir, entry),
+            },
+            local: {
+              tryBundle(outputDir) {
+                execFileSync(
+                  "bun",
+                  ["build", entry, "--target=bun", "--format=esm", "--outfile", path.join(outputDir, "index.js")],
+                  { stdio: "inherit" },
+                );
+                return true;
+              },
+            },
+          },
+        }),
+        logRetention: lambdaLogRetention,
+        ...rest,
+      });
 
     const secret = new Secret(this, "Credentials", {
       secretName: "notes-pipeline/credentials",
@@ -70,12 +91,8 @@ class NotesPipelineStack extends Stack {
       removalPolicy: RemovalPolicy.RETAIN,
     });
 
-    const fn = new NodejsFunction(this, "Handler", {
-      entry: path.join(__dirname, "../lambda/inbox/index.ts"),
-      projectRoot: path.join(__dirname, ".."),
-      depsLockFilePath: path.join(__dirname, "../package-lock.json"),
-      handler: "handler",
-      runtime,
+    const fn = createBunFunction("Handler", {
+      entry: path.join(lambdaDir, "inbox/index.ts"),
       memorySize: 512,
       timeout: Duration.minutes(5),
       reservedConcurrentExecutions: 1,
@@ -89,17 +106,11 @@ class NotesPipelineStack extends Stack {
         CLAUDE_MODEL_ID: DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
         CLAUDE_USAGE_TABLE_NAME: claudeUsage.tableName,
       },
-      bundling,
-      logRetention: lambdaLogRetention,
     });
 
-    const weekly = new NodejsFunction(this, "WeeklySummarizer", {
+    const weekly = createBunFunction("WeeklySummarizer", {
       functionName: "craft-weekly-summarizer",
-      entry: path.join(__dirname, "../lambda/weekly/weekly.ts"),
-      projectRoot: path.join(__dirname, ".."),
-      depsLockFilePath: path.join(__dirname, "../package-lock.json"),
-      handler: "handler",
-      runtime,
+      entry: path.join(lambdaDir, "weekly/weekly.ts"),
       memorySize: 512,
       timeout: Duration.minutes(3),
       reservedConcurrentExecutions: 1,
@@ -114,8 +125,6 @@ class NotesPipelineStack extends Stack {
         CRAFT_SUMMARY_FOLDER_NAME: DEFAULT_CRAFT_SUMMARY_FOLDER,
         CLAUDE_USAGE_TABLE_NAME: claudeUsage.tableName,
       },
-      bundling,
-      logRetention: lambdaLogRetention,
     });
 
     const bedrockAccess = () =>
@@ -132,13 +141,9 @@ class NotesPipelineStack extends Stack {
     fn.addToRolePolicy(bedrockAccess());
     weekly.addToRolePolicy(bedrockAccess());
 
-    const reminder = new NodejsFunction(this, "WeeklyReminder", {
+    const reminder = createBunFunction("WeeklyReminder", {
       functionName: "craft-weekly-reminder",
-      entry: path.join(__dirname, "../lambda/reminder/reminder.ts"),
-      projectRoot: path.join(__dirname, ".."),
-      depsLockFilePath: path.join(__dirname, "../package-lock.json"),
-      handler: "handler",
-      runtime,
+      entry: path.join(lambdaDir, "reminder/reminder.ts"),
       memorySize: 256,
       timeout: Duration.minutes(1),
       reservedConcurrentExecutions: 1,
@@ -146,19 +151,13 @@ class NotesPipelineStack extends Stack {
         SECRET_ID: secret.secretArn,
         CRAFT_SUMMARY_FOLDER_NAME: DEFAULT_CRAFT_SUMMARY_FOLDER,
       },
-      bundling,
-      logRetention: lambdaLogRetention,
     });
 
     secret.grantRead(reminder);
 
-    const csvImport = new NodejsFunction(this, "CsvImport", {
+    const csvImport = createBunFunction("CsvImport", {
       functionName: "csv-spreadsheet-import",
-      entry: path.join(__dirname, "../lambda/csv/csv-import.ts"),
-      projectRoot: path.join(__dirname, ".."),
-      depsLockFilePath: path.join(__dirname, "../package-lock.json"),
-      handler: "handler",
-      runtime,
+      entry: path.join(lambdaDir, "csv/csv-import.ts"),
       memorySize: 512,
       timeout: Duration.minutes(3),
       reservedConcurrentExecutions: 1,
@@ -168,19 +167,13 @@ class NotesPipelineStack extends Stack {
         CSV_PROCESSED_FOLDER_NAME: DEFAULT_CSV_PROCESSED_FOLDER,
         CSV_SPREADSHEET_ID: DEFAULT_CSV_SPREADSHEET_ID,
       },
-      bundling,
-      logRetention: lambdaLogRetention,
     });
 
     secret.grantRead(csvImport);
 
-    const kindle = new NodejsFunction(this, "KindleSummarizer", {
+    const kindle = createBunFunction("KindleSummarizer", {
       functionName: "craft-kindle-summarizer",
-      entry: path.join(__dirname, "../lambda/kindle/kindle.ts"),
-      projectRoot: path.join(__dirname, ".."),
-      depsLockFilePath: path.join(__dirname, "../package-lock.json"),
-      handler: "handler",
-      runtime,
+      entry: path.join(lambdaDir, "kindle/kindle.ts"),
       memorySize: 512,
       timeout: Duration.minutes(5),
       reservedConcurrentExecutions: 1,
@@ -196,8 +189,6 @@ class NotesPipelineStack extends Stack {
         KINDLE_SUMMARY_DOC_TITLE: DEFAULT_KINDLE_SUMMARY_DOC_TITLE,
         CLAUDE_USAGE_TABLE_NAME: claudeUsage.tableName,
       },
-      bundling,
-      logRetention: lambdaLogRetention,
     });
 
     secret.grantRead(kindle);

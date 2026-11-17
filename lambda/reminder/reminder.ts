@@ -5,6 +5,7 @@ import type { CraftClient, CraftListedDocument } from "../craft/types.ts";
 import { EMPTY_REMINDER_MESSAGE, reminderDeliveredMessage, reminderFailedMessage } from "../line/helper.ts";
 import { createLineClient } from "../line/line.ts";
 import type { LineClient } from "../line/types.ts";
+import { bunLambdaHandler } from "../shared/bun-handler.ts";
 import { ALL_CRAFT_DOCUMENTS_SINCE, DEFAULT_CRAFT_SUMMARY_FOLDER, REMINDER_LOOKBACK_DAYS } from "../shared/const.ts";
 import { pushLineMessage, runLogged } from "../shared/job.ts";
 import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
@@ -178,3 +179,5 @@ async function runReminder(): Promise<{ reminded: number; documentId?: string }>
     throw error;
   }
 }
+
+export default bunLambdaHandler(handler);
