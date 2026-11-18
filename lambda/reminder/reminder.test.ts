@@ -1,7 +1,7 @@
 import { expect, test, vi } from "vitest";
 import { craftAppDocumentLink } from "../craft/helper.ts";
 import { EMPTY_REMINDER_MESSAGE, reminderDeliveredMessage, reminderFailedMessage } from "../line/helper.ts";
-import { tokyoDate } from "../weekly/weekly.ts";
+import { tokyoDate } from "../shared/tokyo-date.ts";
 import {
   filterDocumentsByReminderTitle,
   listReminderDocuments,

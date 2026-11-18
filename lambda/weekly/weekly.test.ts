@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import { EMPTY_WEEK_MESSAGE } from "../line/helper.ts";
-import { createdSinceDate, processWeekly, tokyoDate } from "./weekly.ts";
+import { tokyoDate } from "../shared/tokyo-date.ts";
+import { createdSinceDate, processWeekly } from "./weekly.ts";
 
 const now = new Date("2026-11-01T00:00:00Z");
 

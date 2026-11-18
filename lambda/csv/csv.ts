@@ -1,19 +1,39 @@
 import path from "node:path";
-import { TOKYO_TIME_ZONE } from "../shared/const.ts";
+import {
+  CASH_AMOUNT_COLUMN_INDEX,
+  CASH_CATEGORIES,
+  CASH_CATEGORY_COLUMN_INDEX,
+  CASH_TOTAL_LABEL,
+  CASH_TOTAL_LABEL_COLUMN_INDEX,
+  CUMULATIVE_CASH_LABEL,
+  CUMULATIVE_DEBIT_LABEL,
+  CUMULATIVE_TOTAL_LABEL,
+  DEBIT_AMOUNT_COLUMN_INDEX,
+  DEBIT_CATEGORY,
+  DEBIT_CATEGORY_COLUMN_INDEX,
+  DEBIT_TOTAL_LABEL,
+  INVALID_SHEET_CHARS,
+  SHEET_TITLE_MAX,
+  SHEET_TITLE_PATTERN,
+} from "./const.ts";
+import {
+  amountColumnIndex,
+  cumulativeRow,
+  dateColumnIndex,
+  formatTotal,
+  monthSums,
+  parseAmount,
+  quotedSheetTitle,
+  rowDate,
+} from "./helper.ts";
 import type { FileLike } from "./types.ts";
 
-const SHEET_TITLE_MAX = 100;
-const INVALID_SHEET_CHARS = /[:\\/?*[\]]/g;
-
-export function tokyoDate(now: Date = new Date(), timeZone: string = TOKYO_TIME_ZONE): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(now);
-}
-
+/**
+ * Google Drive のファイル情報が CSV ファイルであるかを MIME タイプと拡張子から判定する。
+ * Google Workspace 固有ファイル（スプレッドシート等）は除外する。
+ * @param file 判定対象のファイル情報
+ * @returns CSV ファイルであれば `true`
+ */
 export function isCsvFile(file: FileLike): boolean {
   const mime = file.mimeType ?? "";
   if (mime.startsWith("application/vnd.google-apps.")) return false;
@@ -21,6 +41,12 @@ export function isCsvFile(file: FileLike): boolean {
   return mime === "text/csv" || extension === ".csv";
 }
 
+/**
+ * RFC 4180 準拠（BOM・CRLF・引用符内改行・`""` エスケープ対応）で CSV 文字列を 2 次元配列にパースする。
+ * 引用符が閉じていない場合はエラーを送出する。
+ * @param text CSV テキスト
+ * @returns パースされた行とセルの 2 次元配列
+ */
 export function parseCsv(text: unknown): string[][] {
   const source = String(text).replace(/^\uFEFF/, "");
   if (source === "") return [];
@@ -32,37 +58,50 @@ export function parseCsv(text: unknown): string[][] {
 
   for (let index = 0; index < source.length; index += 1) {
     const char = source[index];
-    if (inQuotes) {
-      if (char === '"') {
-        if (source[index + 1] === '"') {
-          field += '"';
-          index += 1;
-        } else {
-          inQuotes = false;
-        }
-      } else {
-        field += char;
-      }
+
+    const isQuotedLiteralChar = inQuotes && char !== '"';
+    if (isQuotedLiteralChar) {
+      field += char;
       continue;
     }
 
-    if (char === '"' && field === "") {
+    const isEscapedQuote = inQuotes && source[index + 1] === '"';
+    if (isEscapedQuote) {
+      field += '"';
+      index += 1;
+      continue;
+    }
+
+    const isClosingQuote = inQuotes;
+    if (isClosingQuote) {
+      inQuotes = false;
+      continue;
+    }
+
+    const isOpeningQuote = char === '"' && field === "";
+    if (isOpeningQuote) {
       inQuotes = true;
       continue;
     }
-    if (char === ",") {
+
+    const isFieldDelimiter = char === ",";
+    if (isFieldDelimiter) {
       row.push(field);
       field = "";
       continue;
     }
-    if (char === "\n" || char === "\r") {
+
+    const isLineBreak = char === "\n" || char === "\r";
+    if (isLineBreak) {
       row.push(field);
       rows.push(row);
       row = [];
       field = "";
-      if (char === "\r" && source[index + 1] === "\n") index += 1;
+      const isCrLf = char === "\r" && source[index + 1] === "\n";
+      if (isCrLf) index += 1;
       continue;
     }
+
     field += char;
   }
 
@@ -74,6 +113,11 @@ export function parseCsv(text: unknown): string[][] {
   return rows;
 }
 
+/**
+ * 日付とファイル名から Google Sheets の制限に収まるシートタイトル（`YYYY-MM-DD_<stem>`）を生成する。
+ * @param params 日付文字列と元ファイル名
+ * @returns 生成されたシートタイトル
+ */
 export function sheetTitle({ date, fileName }: { date: string; fileName?: string }): string {
   const stem = path.basename(fileName ?? "", path.extname(fileName ?? ""));
   const cleaned = stem
@@ -85,34 +129,60 @@ export function sheetTitle({ date, fileName }: { date: string; fileName?: string
   return `${date}_${cleaned || "csv"}`.slice(0, SHEET_TITLE_MAX);
 }
 
+/**
+ * スプレッドシート ID から Google Sheets の編集画面 URL を生成する。
+ * @param spreadsheetId スプレッドシート ID
+ * @returns 編集画面の HTTPS URL
+ */
 export function spreadsheetUrl(spreadsheetId: string): string {
   return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`;
 }
 
+/**
+ * スプレッドシート ID から Google Sheets アプリ用のディープリンク URL (`googlesheets://...`) を生成する。
+ * @param spreadsheetId スプレッドシート ID
+ * @returns Google Sheets アプリ用 URL
+ */
 export function spreadsheetAppLink(spreadsheetId: string): string {
   return `googlesheets://${spreadsheetUrl(spreadsheetId)}`;
 }
 
+/**
+ * シートタイトルから `'<title>'!A1` 形式の書き込み開始レンジ文字列を生成する。
+ * @param title シートタイトル
+ * @returns A1 表記の範囲文字列
+ */
 export function valuesRange(title: unknown): string {
   return `'${quotedSheetTitle(title)}'!A1`;
 }
 
+/**
+ * シートタイトルから `'<title>'` 形式のシート全体レンジ文字列を生成する。
+ * @param title シートタイトル
+ * @returns クォート済みシート名
+ */
 export function sheetValuesRange(title: unknown): string {
   return `'${quotedSheetTitle(title)}'`;
 }
 
-function quotedSheetTitle(title: unknown): string {
-  return String(title).replaceAll("'", "''");
-}
-
-const SHEET_TITLE_PATTERN = /^(\d{4}-\d{2}-\d{2})_(.+)$/;
-
+/**
+ * `YYYY-MM-DD_<stem>` 形式のシートタイトルを日付とファイル名部分（stem）に分解する。
+ * 形式に一致しない場合は `null` を返す。
+ * @param title シートタイトル
+ * @returns 分解結果、または不一致時は `null`
+ */
 export function parseSheetTitle(title: string): { date: string; stem: string } | null {
   const match = SHEET_TITLE_PATTERN.exec(title);
   if (!match) return null;
   return { date: match[1], stem: match[2] };
 }
 
+/**
+ * 既存シートタイトル一覧から、指定タイトルと同じ stem を持ち日付がより古いシートを新しい順に返す。
+ * @param titles 既存シートタイトル一覧
+ * @param currentTitle 基準となるシートタイトル
+ * @returns 日付降順に並んだ過去シートタイトルの配列
+ */
 export function earlierSheetTitles(titles: ReadonlyArray<string>, currentTitle: string): string[] {
   const current = parseSheetTitle(currentTitle);
   if (!current) return [];
@@ -127,6 +197,11 @@ export function earlierSheetTitles(titles: ReadonlyArray<string>, currentTitle: 
     .map((item) => item.title);
 }
 
+/**
+ * 2 次元配列の行数・列数から Google Sheets 作成時に必要な最小グリッドサイズを返す。
+ * @param rows シートの行データ
+ * @returns 行数と最大列数（最小 1）
+ */
 export function gridSize(rows: ReadonlyArray<ReadonlyArray<unknown>>): {
   rowCount: number;
   columnCount: number;
@@ -135,67 +210,12 @@ export function gridSize(rows: ReadonlyArray<ReadonlyArray<unknown>>): {
   return { rowCount: Math.max(rows.length, 1), columnCount };
 }
 
-const AMOUNT_PATTERN = /^-?\d+(\.\d+)?$/;
-const DEBIT_CATEGORY = "デビット支払い";
-const DEBIT_TOTAL_LABEL = "デビット支払い合計";
-const DEBIT_AMOUNT_COLUMN_INDEX = 0;
-const DEBIT_CATEGORY_COLUMN_INDEX = 3;
-const CASH_CATEGORIES = new Set(["現金", "現金支払い"]);
-const CASH_TOTAL_LABEL = "現金支払い";
-const CASH_AMOUNT_COLUMN_INDEX = 0;
-const CASH_CATEGORY_COLUMN_INDEX = 2;
-const CASH_TOTAL_LABEL_COLUMN_INDEX = 3;
-const CUMULATIVE_TOTAL_LABEL = "累計 合計";
-const CUMULATIVE_DEBIT_LABEL = "デビット 合計";
-const CUMULATIVE_CASH_LABEL = "現金 合計";
-const DATE_HEADER = "日付";
-const DATE_PATTERN = /^(\d{4})([-/])(\d{2})\2(\d{2})$/;
-
-function parseAmount(value: unknown): number | null {
-  const trimmed = String(value ?? "").trim();
-  if (trimmed === "") return null;
-  const normalized = trimmed.replace(/[¥￥円,\s]/g, "");
-  if (!AMOUNT_PATTERN.test(normalized)) {
-    throw new Error(`金額にできない値です: ${trimmed}`);
-  }
-  return Number(normalized);
-}
-
-function formatTotal(sum: number): string {
-  if (Number.isInteger(sum)) return String(sum);
-  return String(Math.round(sum * 100) / 100);
-}
-
-function amountColumnIndex(rows: ReadonlyArray<ReadonlyArray<unknown>>): number {
-  const header = rows[0].map((cell) => String(cell).trim());
-  const exact: number[] = [];
-  const contains: number[] = [];
-  header.forEach((name, index) => {
-    if (name === "金額" || name === "合計金額") exact.push(index);
-    else if (name.includes("金額")) contains.push(index);
-  });
-  if (exact.length > 0) return exact[exact.length - 1];
-  if (contains.length > 0) return contains[contains.length - 1];
-
-  const width = rows.reduce((max, row) => Math.max(max, row.length), 0);
-  for (let column = width - 1; column >= 0; column -= 1) {
-    let hasValue = false;
-    let numeric = true;
-    for (const row of rows.slice(1)) {
-      const cell = String(row[column] ?? "").trim();
-      if (cell === "") continue;
-      hasValue = true;
-      try {
-        parseAmount(cell);
-      } catch {
-        numeric = false;
-      }
-    }
-    if (numeric && hasValue) return column;
-  }
-  throw new Error("合計する数値の列がありません");
-}
-
+/**
+ * 金額列の合計を算出し、末尾に合計行を追加した新しい 2 次元配列を返す。
+ * データ行または数値が無い場合はエラーを送出する。
+ * @param rows ヘッダーを含む CSV の行データ
+ * @returns 合計行が追加された新しい行データ
+ */
 export function appendTotalRow(rows: ReadonlyArray<ReadonlyArray<string>>): string[][] {
   if (rows.length < 2) throw new Error("合計する数値がありません");
   const column = amountColumnIndex(rows);
@@ -219,6 +239,11 @@ export function appendTotalRow(rows: ReadonlyArray<ReadonlyArray<string>>): stri
   return [...rows.map((row) => [...row]), total];
 }
 
+/**
+ * 「デビット支払い」カテゴリの行を集計し、末尾にデビット合計行を追加した新しい 2 次元配列を返す。
+ * @param rows 行データ
+ * @returns デビット支払い合計行が追加された新しい行データ
+ */
 export function appendDebitTotalRow(rows: ReadonlyArray<ReadonlyArray<string>>): string[][] {
   let sum = 0;
   for (const row of rows.slice(1)) {
@@ -240,6 +265,11 @@ export function appendDebitTotalRow(rows: ReadonlyArray<ReadonlyArray<string>>):
   return [...rows.map((row) => [...row]), debitTotal];
 }
 
+/**
+ * 「現金」「現金支払い」カテゴリの行を集計し、末尾に現金支払い合計行を追加した新しい 2 次元配列を返す。
+ * @param rows 行データ
+ * @returns 現金支払い合計行が追加された新しい行データ
+ */
 export function appendCashTotalRow(rows: ReadonlyArray<ReadonlyArray<string>>): string[][] {
   let sum = 0;
   for (const row of rows.slice(1)) {
@@ -260,20 +290,12 @@ export function appendCashTotalRow(rows: ReadonlyArray<ReadonlyArray<string>>): 
   return [...rows.map((row) => [...row]), cashTotal];
 }
 
-function dateColumnIndex(rows: ReadonlyArray<ReadonlyArray<unknown>>): number | null {
-  if (rows.length === 0) return null;
-  const index = rows[0].findIndex((cell) => String(cell).trim() === DATE_HEADER);
-  return index === -1 ? null : index;
-}
-
-function rowDate(row: ReadonlyArray<unknown>, dateIndex: number): string | null {
-  const value = String(row[dateIndex] ?? "").trim();
-  if (value === "") return null;
-  const match = DATE_PATTERN.exec(value);
-  if (!match) throw new Error(`日付にできない値です: ${value}`);
-  return `${match[1]}-${match[3]}-${match[4]}`;
-}
-
+/**
+ * 行データ内の最古の日付から累計対象月（`YYYY-MM`）を返す。
+ * 日付列が存在しない場合は `null` を返し、日付値が 1 件も無い場合はエラーを送出する。
+ * @param rows 行データ
+ * @returns `YYYY-MM` 形式の月文字列、または日付列が無い場合は `null`
+ */
 export function cumulativeMonth(rows: ReadonlyArray<ReadonlyArray<string>>): string | null {
   const dateIndex = dateColumnIndex(rows);
   if (dateIndex === null) return null;
@@ -286,6 +308,12 @@ export function cumulativeMonth(rows: ReadonlyArray<ReadonlyArray<string>>): str
   return earliest.slice(0, 7);
 }
 
+/**
+ * シートの行データに指定された月（`YYYY-MM`）の日付を持つ行が含まれているかを判定する。
+ * @param rows シートの行データ
+ * @param month 判定対象月（`YYYY-MM`）
+ * @returns 指定月の行が存在すれば `true`
+ */
 export function sheetHasCumulativeMonth(rows: ReadonlyArray<ReadonlyArray<string>>, month: string): boolean {
   const dateIndex = dateColumnIndex(rows);
   if (dateIndex === null) return false;
@@ -295,36 +323,13 @@ export function sheetHasCumulativeMonth(rows: ReadonlyArray<ReadonlyArray<string
   });
 }
 
-function monthSums(
-  rows: ReadonlyArray<ReadonlyArray<string>>,
-  month: string,
-): {
-  total: number;
-  debit: number;
-  cash: number;
-} {
-  const dateIndex = dateColumnIndex(rows);
-  const sums = { total: 0, debit: 0, cash: 0 };
-  if (dateIndex === null) return sums;
-  for (const row of rows.slice(1)) {
-    const date = rowDate(row, dateIndex);
-    if (date === null || date.slice(0, 7) !== month) continue;
-    const amount = parseAmount(row[CASH_AMOUNT_COLUMN_INDEX] ?? "");
-    if (amount === null) continue;
-    sums.total += amount;
-    if (String(row[DEBIT_CATEGORY_COLUMN_INDEX] ?? "").trim() === DEBIT_CATEGORY) sums.debit += amount;
-    if (CASH_CATEGORIES.has(String(row[CASH_CATEGORY_COLUMN_INDEX] ?? "").trim())) sums.cash += amount;
-  }
-  return sums;
-}
-
-function cumulativeRow(width: number, amount: number, label: string): string[] {
-  const row = Array.from({ length: Math.max(width, CASH_TOTAL_LABEL_COLUMN_INDEX + 1) }, () => "");
-  row[CASH_AMOUNT_COLUMN_INDEX] = formatTotal(amount);
-  row[CASH_TOTAL_LABEL_COLUMN_INDEX] = label;
-  return row;
-}
-
+/**
+ * 当週シートおよび過去同月シートの金額を合算し、累計 合計・デビット 合計・現金 合計の 3 行を末尾に追加する。
+ * 日付列が無い場合は行データのコピーをそのまま返す。
+ * @param rows 当週の行データ
+ * @param previousSheets 過去シートの行データ配列
+ * @returns 累計行が追加された新しい行データ
+ */
 export function appendCumulativeRows(
   rows: ReadonlyArray<ReadonlyArray<string>>,
   previousSheets: ReadonlyArray<ReadonlyArray<ReadonlyArray<string>>> = [],

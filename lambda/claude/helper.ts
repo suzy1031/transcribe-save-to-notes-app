@@ -40,21 +40,6 @@ export function microFromTokens(tokens: number, dollarsPerMTok: number): number 
 }
 
 /**
- * 指定されたタイムゾーンにおける日付を `YYYY-MM-DD` 形式で返す。
- * @param now 対象日時
- * @param timeZone IANA タイムゾーン名
- * @returns `YYYY-MM-DD` 形式の日付文字列
- */
-export function tokyoDate(now: Date, timeZone: string): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(now);
-}
-
-/**
  * 数値を DynamoDB の数値属性 (`N`) に変換する。
  * @param value 数値
  * @returns DynamoDB の `AttributeValue`

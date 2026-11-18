@@ -17,19 +17,11 @@ import {
 import { runLogged } from "../shared/job.ts";
 import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
 import { loadCredentials, settingsFromEnv } from "../shared/settings.ts";
+import { tokyoDate } from "../shared/tokyo-date.ts";
 import type { Credentials, SecretsClientLike } from "../shared/types.ts";
 import { createSummarizer } from "../summarize/summarize.ts";
 import { combineNotes } from "../summarize/summary-prompt.ts";
 import type { WeeklySettings } from "./types.ts";
-
-export function tokyoDate(now: Date = new Date(), timeZone: string = TOKYO_TIME_ZONE): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(now);
-}
 
 export function daysBeforeTokyoDate(
   now: Date = new Date(),

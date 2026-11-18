@@ -1,27 +1,18 @@
-import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import { createDriveClient } from "../drive/drive.ts";
-import type { DriveFile } from "../drive/types.ts";
-import { csvImportFailedMessage, csvImportSummaryMessage, EMPTY_CSV_MESSAGE } from "../line/helper.ts";
+import { csvImportSummaryMessage, EMPTY_CSV_MESSAGE } from "../line/helper.ts";
 import { bunLambdaHandler } from "../shared/bun-handler.ts";
 import { DEFAULT_CSV_INBOX_FOLDER, DEFAULT_CSV_PROCESSED_FOLDER, DEFAULT_CSV_SPREADSHEET_ID } from "../shared/const.ts";
-import { createLinePush, runLogged } from "../shared/job.ts";
-import { loadCredentials, settingsFromEnv } from "../shared/settings.ts";
-import { createSheetsClient } from "../sheets/sheets.ts";
-import {
-  appendCashTotalRow,
-  appendCumulativeRows,
-  appendDebitTotalRow,
-  appendTotalRow,
-  cumulativeMonth,
-  earlierSheetTitles,
-  parseCsv,
-  sheetHasCumulativeMonth,
-  sheetTitle,
-  spreadsheetAppLink,
-  tokyoDate,
-} from "./csv.ts";
-import type { CsvImportResult, CsvImportSettings } from "./types.ts";
+import { runLogged } from "../shared/job.ts";
+import { settingsFromEnv } from "../shared/settings.ts";
+import { tokyoDate } from "../shared/tokyo-date.ts";
+import { appendCashTotalRow, appendDebitTotalRow, appendTotalRow, parseCsv, sheetTitle } from "./csv.ts";
+import { rowsWithCumulative, runCsvImport } from "./helper.ts";
+import type { CsvImportResult, CsvImportSettings, ImportCsvFilesOptions } from "./types.ts";
 
+/**
+ * 環境変数から CSV 取り込み用の設定（受信フォルダ名・処理済みフォルダ名・スプレッドシート ID 等）を構築する。
+ * @param env 環境変数オブジェクト（デフォルトは `process.env`）
+ * @returns CSV 取り込み設定
+ */
 export function csvImportSettingsFromEnv(env: NodeJS.ProcessEnv = process.env): CsvImportSettings {
   return {
     ...settingsFromEnv(env),
@@ -31,6 +22,11 @@ export function csvImportSettingsFromEnv(env: NodeJS.ProcessEnv = process.env): 
   };
 }
 
+/**
+ * 指定された CSV ファイル群をダウンロード・集計してスプレッドシートへ書き込み、処理済みフォルダへ移動して LINE 通知する。
+ * @param options ファイル一覧・I/O コールバック・通知関数・基準日時などのオプション
+ * @returns 取り込み件数・失敗件数・失敗詳細を含む実行結果
+ */
 export async function importCsvFiles({
   files,
   download,
@@ -41,17 +37,7 @@ export async function importCsvFiles({
   pushLine,
   spreadsheetUrl: sheetUrl,
   now = new Date(),
-}: {
-  files: ReadonlyArray<DriveFile>;
-  download: (file: DriveFile) => Promise<Uint8Array | Buffer>;
-  existingSheetTitles: ReadonlyArray<string>;
-  readSheet?: (title: string) => Promise<ReadonlyArray<ReadonlyArray<string>>>;
-  writeSheet: (input: { title: string; rows: string[][] }) => Promise<void>;
-  moveToProcessed: (file: DriveFile) => Promise<void>;
-  pushLine: (text: string) => Promise<void>;
-  spreadsheetUrl?: string;
-  now?: Date;
-}): Promise<CsvImportResult> {
+}: ImportCsvFilesOptions): Promise<CsvImportResult> {
   if (files.length === 0) {
     await pushLine(EMPTY_CSV_MESSAGE);
     return { imported: 0, failed: 0, failures: [] };
@@ -111,75 +97,14 @@ export async function importCsvFiles({
   return result;
 }
 
-async function rowsWithCumulative(
-  weekly: string[][],
-  title: string,
-  titles: ReadonlyArray<string>,
-  readSheet: ((title: string) => Promise<ReadonlyArray<ReadonlyArray<string>>>) | undefined,
-): Promise<string[][]> {
-  const month = cumulativeMonth(weekly);
-  if (month === null) return weekly;
-  const previous: string[][][] = [];
-  for (const earlier of earlierSheetTitles(titles, title)) {
-    if (!readSheet) throw new Error("前週のシートを読めません");
-    const sheetRows = await readSheet(earlier);
-    if (!sheetHasCumulativeMonth(sheetRows, month)) break;
-    previous.push(sheetRows.map((row) => row.map((cell) => String(cell))));
-  }
-  return appendCumulativeRows(weekly, previous);
-}
-
+/**
+ * CSV 取り込み Lambda のエントリポイントハンドラー。
+ * @param event Lambda イベント
+ * @param context Lambda コンテキスト
+ * @returns 取り込み結果
+ */
 export async function handler(event: unknown, context: unknown): Promise<CsvImportResult> {
   return runLogged(() => runCsvImport());
-}
-
-async function runCsvImport(): Promise<CsvImportResult> {
-  const settings = csvImportSettingsFromEnv();
-  const credentials = await loadCredentials(settings, new SecretsManagerClient({ region: settings.bedrockRegion }));
-  const pushLine = createLinePush(credentials);
-  const drive = createDriveClient({ serviceAccount: credentials.serviceAccount });
-  const sheets = createSheetsClient({ serviceAccount: credentials.serviceAccount });
-
-  if (!settings.spreadsheetId) {
-    const reason = "CSV_SPREADSHEET_ID is required";
-    console.error(reason);
-    await pushLine(csvImportFailedMessage(reason));
-    throw new Error(reason);
-  }
-
-  const inbox = await drive.findUniqueFolder(settings.inboxFolderName);
-  const processed = await drive.findUniqueFolder(settings.processedFolderName);
-  if (!inbox.ok || !processed.ok) {
-    const inboxCount = inbox.ok ? 1 : inbox.count;
-    const processedCount = processed.ok ? 1 : processed.count;
-    const reason = `Drive folder lookup failed: csv_inbox=${inboxCount} csv_processed=${processedCount}`;
-    console.error(reason);
-    await pushLine(csvImportFailedMessage(reason));
-    return { imported: 0, failed: 0, failures: [], folderLookup: "failed" };
-  }
-
-  const files = await drive.listCsvFiles(inbox.id);
-  const existingSheetTitles = files.length === 0 ? [] : await sheets.listSheetTitles(settings.spreadsheetId);
-  return importCsvFiles({
-    files,
-    download: (file) => drive.download(file.id),
-    existingSheetTitles,
-    readSheet: (title) => sheets.getSheetValues(settings.spreadsheetId, title),
-    writeSheet: ({ title, rows }) =>
-      sheets.addSheetWithValues({
-        spreadsheetId: settings.spreadsheetId,
-        title,
-        rows,
-      }),
-    moveToProcessed: (file) =>
-      drive.moveFile({
-        fileId: file.id,
-        addParentId: processed.id,
-        removeParentId: inbox.id,
-      }),
-    pushLine,
-    spreadsheetUrl: spreadsheetAppLink(settings.spreadsheetId),
-  });
 }
 
 export default bunLambdaHandler(handler);
