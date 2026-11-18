@@ -6,17 +6,17 @@
 
 | CDK 論理 ID | 関数名 | エントリ | スケジュール (JST) |
 |-------------|--------|----------|-------------------|
-| Handler | (スタック生成名) | `lambda/index.js` | 毎日 8:00–11:50、10分間隔 |
-| WeeklySummarizer | `craft-weekly-summarizer` | `lambda/weekly.js` | 毎週日曜 9:00 |
-| WeeklyReminder | `craft-weekly-reminder` | `lambda/reminder.js` | 毎週日曜 9:00 |
-| CsvImport | `csv-spreadsheet-import` | `lambda/csv-import.js` | 毎週日曜 10:00 |
-| KindleSummarizer | `craft-kindle-summarizer` | `lambda/kindle.js` | 毎週月曜 6:00 |
+| Handler | (スタック生成名) | `lambda/inbox/index.ts` | 毎日 8:00–11:50、10分間隔 |
+| WeeklySummarizer | `craft-weekly-summarizer` | `lambda/weekly/weekly.ts` | 毎週日曜 9:00 |
+| WeeklyReminder | `craft-weekly-reminder` | `lambda/reminder/reminder.ts` | 毎週日曜 9:00 |
+| CsvImport | `csv-spreadsheet-import` | `lambda/csv/csv-import.ts` | 毎週日曜 10:00 |
+| KindleSummarizer | `craft-kindle-summarizer` | `lambda/kindle/kindle.ts` | 毎週月曜 6:00 |
 
-共通: Secrets Manager (`SECRET_ID`)、`TRANSCRIPTION_PROVIDER` は `claude` または `bedrock`。
+共通: Secrets Manager (`SECRET_ID`)、ランタイムは Bun (`provided.al2023` / `arm64`)、`TRANSCRIPTION_PROVIDER` は `claude` または `bedrock`。
 
 ---
 
-## Handler — 朝の文字起こしパイプライン (`lambda/index.js`)
+## Handler — 朝の文字起こしパイプライン (`lambda/inbox/index.ts`)
 
 Google Drive の `00_notes_inbox` 内画像を文字起こしし Craft の `daily_note_transcribe` に保存。処理済みは `01_processed` へ移動。成功・失敗を LINE に通知（資格情報が無い場合はログのみ）。
 
@@ -24,13 +24,13 @@ Google Drive の `00_notes_inbox` 内画像を文字起こしし Craft の `dail
 sequenceDiagram
     autonumber
     actor Scheduler as EventBridge Scheduler<br/>(8–11時 JST / 10分)
-    participant Handler as lambda/index.js
+    participant Handler as lambda/inbox/index.ts
     participant SM as Secrets Manager
-    participant Drive as Google Drive<br/>(drive.js)
+    participant Drive as Google Drive<br/>(drive/drive.ts)
     participant Transcribe as transcribe/<br/>(claude or bedrock)
-    participant Parse as transcribe/parse.js
-    participant Craft as Craft API<br/>(craft.js)
-    participant Line as LINE Push<br/>(line.js)
+    participant Parse as transcribe/parse.ts
+    participant Craft as Craft API<br/>(craft/craft.ts)
+    participant Line as LINE Push<br/>(line/line.ts)
 
     Scheduler->>Handler: Invoke handler
     Handler->>SM: GetSecretValue (SECRET_ID)
@@ -81,20 +81,22 @@ sequenceDiagram
 
 ---
 
-## WeeklySummarizer — 週次要約 (`lambda/weekly.js`)
+## WeeklySummarizer — 週次要約 (`lambda/weekly/weekly.ts`)
 
-Craft `daily_note_transcribe` 内の直近7日分ドキュメントを要約し LINE に送信。同内容を `daily_note_summaries` に保存後、元ドキュメントを Craft `processed` へ移動。
+Craft `daily_note_transcribe` 内の直近7日分ドキュメントを要約し LINE に送信。同内容を `daily_note_summaries` に保存後、元ドキュメントを Craft `processed` へ移動。さらに DynamoDB（`ClaudeUsage`）から当週の Claude 利用量を取得し、為替レート（`claude/fx-rate.ts`）で円換算して LINE に通知。
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor Scheduler as EventBridge Scheduler<br/>(日曜 9:00 JST)
-    participant Weekly as lambda/weekly.js
+    participant Weekly as lambda/weekly/weekly.ts
     participant SM as Secrets Manager
-    participant Craft as Craft API<br/>(craft.js)
-    participant Prompt as summary-prompt.js<br/>(combineNotes)
-    participant Summarize as summarize.js<br/>(claude or bedrock)
-    participant Line as LINE Push<br/>(line.js)
+    participant Craft as Craft API<br/>(craft/craft.ts)
+    participant Prompt as summarize/summary-prompt.ts<br/>(combineNotes)
+    participant Summarize as summarize/summarize.ts<br/>(claude or bedrock)
+    participant Usage as DynamoDB ClaudeUsage<br/>(claude/claude-usage.ts)
+    participant Fx as 為替レート API<br/>(claude/fx-rate.ts)
+    participant Line as LINE Push<br/>(line/line.ts)
 
     Scheduler->>Weekly: Invoke handler
     Weekly->>SM: GetSecretValue (SECRET_ID)
@@ -105,7 +107,6 @@ sequenceDiagram
 
     alt ドキュメント 0 件
         Weekly->>Line: EMPTY_WEEK_MESSAGE
-        Weekly-->>Scheduler: { summarized: 0, moved: 0 }
     else 1 件以上
         loop 各ドキュメント
             Weekly->>Craft: readMarkdown(documentId)
@@ -124,13 +125,22 @@ sequenceDiagram
         Weekly->>Craft: createDocument(週次まとめ YYYY-MM-DD)
         Weekly->>Craft: ensureFolder(processed)
         Weekly->>Craft: moveDocuments → processed
-        Weekly-->>Scheduler: { summarized, moved }
     end
+
+    Weekly->>Usage: getWeeklyUsage(now)
+    Usage-->>Weekly: WeeklyUsageItem (または null)
+    opt 当週の利用記録あり
+        Weekly->>Fx: fetchUsdJpyRate()
+        Fx-->>Weekly: usdJpyRate
+        Weekly->>Usage: formatWeeklyUsage(item, usdJpyRate)
+        Weekly->>Line: push(Claude利用量サマリー)
+    end
+    Weekly-->>Scheduler: { summarized, moved }
 ```
 
 ---
 
-## WeeklyReminder — 週次リマインド (`lambda/reminder.js`)
+## WeeklyReminder — 週次リマインド (`lambda/reminder/reminder.ts`)
 
 `daily_note_summaries` 内で「実行日の7日前」に作成されたノートを1件だけ LINE で再通知（タイトル + Craft アプリリンク）。
 
@@ -138,10 +148,10 @@ sequenceDiagram
 sequenceDiagram
     autonumber
     actor Scheduler as EventBridge Scheduler<br/>(日曜 9:00 JST)
-    participant Reminder as lambda/reminder.js
+    participant Reminder as lambda/reminder/reminder.ts
     participant SM as Secrets Manager
-    participant Craft as Craft API<br/>(craft.js)
-    participant Line as LINE Push<br/>(line.js)
+    participant Craft as Craft API<br/>(craft/craft.ts)
+    participant Line as LINE Push<br/>(line/line.ts)
 
     Scheduler->>Reminder: Invoke handler
     Reminder->>SM: GetSecretValue (SECRET_ID)
@@ -164,7 +174,7 @@ sequenceDiagram
         Reminder->>Line: reminderFailedMessage
         Reminder-->>Scheduler: throw
     else ちょうど 1 件
-        Reminder->>Line: transcriptionSavedMessage(title, appLink)
+        Reminder->>Line: reminderDeliveredMessage(title, appLink)
         Reminder-->>Scheduler: { reminded: 1, documentId }
     end
 
@@ -175,7 +185,7 @@ sequenceDiagram
 
 ---
 
-## KindleSummarizer — Kindle スクリーンショット要約 (`lambda/kindle.js`)
+## KindleSummarizer — Kindle スクリーンショット要約 (`lambda/kindle/kindle.ts`)
 
 Drive `kindle` 配下の `kindle_*` フォルダ内画像を Vision 要約し、Craft に同名フォルダがあれば「要約」ドキュメントへ追記（無ければ新規、2件以上あればその書籍フォルダはスキップ）。成功した画像は各 `kindle_*/processed` へ移動。
 
@@ -183,13 +193,13 @@ Drive `kindle` 配下の `kindle_*` フォルダ内画像を Vision 要約し、
 sequenceDiagram
     autonumber
     actor Scheduler as EventBridge Scheduler<br/>(月曜 6:00 JST)
-    participant Kindle as lambda/kindle.js
+    participant Kindle as lambda/kindle/kindle.ts
     participant SM as Secrets Manager
-    participant Drive as Google Drive<br/>(drive.js)
-    participant Summarize as kindle-summarize.js<br/>(claude or bedrock)
-    participant Prompt as kindle-prompt.js
-    participant Craft as Craft API<br/>(craft.js)
-    participant Line as LINE Push<br/>(line.js)
+    participant Drive as Google Drive<br/>(drive/drive.ts)
+    participant Summarize as kindle/kindle-summarize.ts<br/>(claude or bedrock)
+    participant Prompt as kindle/kindle-prompt.ts
+    participant Craft as Craft API<br/>(craft/craft.ts)
+    participant Line as LINE Push<br/>(line/line.ts)
 
     Scheduler->>Kindle: Invoke handler
     Kindle->>SM: GetSecretValue (SECRET_ID)
@@ -247,7 +257,7 @@ sequenceDiagram
 
 ---
 
-## CsvImport — CSV をスプレッドシートへ取り込む (`lambda/csv-import.js`)
+## CsvImport — CSV をスプレッドシートへ取り込む (`lambda/csv/csv-import.ts`)
 
 Drive の `csv_inbox` にある CSV を読み、`CSV_SPREADSHEET_ID` のスプレッドシートへ実行日（JST）とファイル名の新しいシートとして書く。成功したファイルだけ `csv_processed` へ移動する。0件は LINE に「今週対象のCSVはありませんでした」。1件以上は成功件数、失敗件数、Sheets アプリで開くリンク（`googlesheets://`）、失敗ファイルを1通で通知する。同名シートがあるファイルは上書きしない。
 
@@ -255,12 +265,12 @@ Drive の `csv_inbox` にある CSV を読み、`CSV_SPREADSHEET_ID` のスプ�
 sequenceDiagram
     autonumber
     actor Scheduler as EventBridge Scheduler<br/>(日曜 10:00 JST)
-    participant Csv as lambda/csv-import.js
+    participant Csv as lambda/csv/csv-import.ts
     participant SM as Secrets Manager
-    participant Drive as Google Drive<br/>(drive.js)
-    participant Parse as csv.js
-    participant Sheets as Google Sheets<br/>(sheets.js)
-    participant Line as LINE Push<br/>(line.js)
+    participant Drive as Google Drive<br/>(drive/drive.ts)
+    participant Parse as csv/csv.ts
+    participant Sheets as Google Sheets<br/>(sheets/sheets.ts)
+    participant Line as LINE Push<br/>(line/line.ts)
 
     Scheduler->>Csv: handler
     Csv->>SM: GetSecretValue
@@ -296,10 +306,12 @@ sequenceDiagram
 
 | モジュール | Handler | Weekly | Reminder | Kindle | Csv |
 |------------|:-------:|:------:|:--------:|:------:|:---:|
-| `drive.js` | ○ | — | — | ○ | ○ |
-| `craft.js` | ○ | ○ | ○ | ○ | — |
-| `line.js` | ○ | ○ | ○ | ○ | ○ |
-| `transcribe/*` + `prompt.js` | ○ | — | — | — | — |
-| `summarize.js` + `summary-prompt.js` | — | ○ | — | — | — |
-| `kindle-summarize.js` + `kindle-prompt.js` | — | — | — | ○ | — |
-| `csv.js` + `sheets.js` | — | — | — | — | ○ |
+| `drive/drive.ts` + `drive/helper.ts` | ○ | — | — | ○ | ○ |
+| `craft/craft.ts` + `craft/helper.ts` | ○ | ○ | ○ | ○ | — |
+| `line/line.ts` + `line/helper.ts` | ○ | ○ | ○ | ○ | ○ |
+| `claude/claude-usage.ts` + `claude/fx-rate.ts` | ○ | ○ | — | ○ | — |
+| `transcribe/*` | ○ | — | — | ○ | — |
+| `summarize/summarize.ts` + `summarize/summary-prompt.ts` | — | ○ | — | — | — |
+| `kindle/kindle-summarize.ts` + `kindle/kindle-prompt.ts` | — | — | — | ○ | — |
+| `csv/csv.ts` + `csv/helper.ts` + `sheets/sheets.ts` | — | — | — | — | ○ |
+| `shared/*` | ○ | ○ | ○ | ○ | ○ |
