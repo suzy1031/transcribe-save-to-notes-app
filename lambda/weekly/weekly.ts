@@ -17,22 +17,11 @@ import {
 import { runLogged } from "../shared/job.ts";
 import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
 import { loadCredentials, settingsFromEnv } from "../shared/settings.ts";
-import { tokyoDate } from "../shared/tokyo-date.ts";
+import { daysBeforeTokyoDate, tokyoDate } from "../shared/tokyo-date.ts";
 import type { Credentials, SecretsClientLike } from "../shared/types.ts";
 import { createSummarizer } from "../summarize/summarize.ts";
 import { combineNotes } from "../summarize/summary-prompt.ts";
 import type { WeeklySettings } from "./types.ts";
-
-export function daysBeforeTokyoDate(
-  now: Date = new Date(),
-  days: number = WEEKLY_LOOKBACK_DAYS,
-  timeZone: string = TOKYO_TIME_ZONE,
-): string {
-  const [year, month, day] = tokyoDate(now, timeZone).split("-").map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day));
-  date.setUTCDate(date.getUTCDate() - days);
-  return date.toISOString().slice(0, 10);
-}
 
 export function createdSinceDate(now: Date = new Date(), timeZone: string = TOKYO_TIME_ZONE): string {
   return daysBeforeTokyoDate(now, WEEKLY_LOOKBACK_DAYS, timeZone);
