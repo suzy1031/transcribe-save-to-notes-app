@@ -10,6 +10,19 @@ export interface DocumentsQueryParams {
   fetchMetadata?: boolean;
 }
 
+export interface CraftRequestOptions {
+  method: string;
+  body?: unknown;
+  fetchImpl: typeof fetch;
+  accept?: string;
+}
+
+export interface CreateCraftClientOptions {
+  baseUrl?: string;
+  apiKey?: string;
+  fetchImpl?: typeof fetch;
+}
+
 export interface CraftClient {
   getConnection(): Promise<unknown>;
   findFolder(name: string): Promise<string | null>;

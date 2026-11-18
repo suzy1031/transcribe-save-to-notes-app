@@ -1,7 +1,6 @@
-import { JSON_CONTENT_TYPE } from "../shared/const.ts";
-import { withFetchTimeout } from "../shared/fetch-with-timeout.ts";
-import { formatHttpErrorDetail } from "../shared/sanitize-error.ts";
+import { TEXT_MARKDOWN_CONTENT_TYPE } from "./const.ts";
 import {
+  craftRequest,
   createdDocumentId,
   documentPayload,
   documentsQuery,
@@ -9,56 +8,15 @@ import {
   listedDocument,
   moveDocumentsPayload,
 } from "./helper.ts";
-import type { CraftClient, CraftListedDocument } from "./types.ts";
+import type { CraftClient, CraftListedDocument, CreateCraftClientOptions } from "./types.ts";
 
-async function craftRequest(
-  baseUrl: string,
-  apiKey: string,
-  path: string,
-  {
-    method,
-    body,
-    fetchImpl,
-    accept = JSON_CONTENT_TYPE,
-  }: {
-    method: string;
-    body?: unknown;
-    fetchImpl: typeof fetch;
-    accept?: string;
-  },
-): Promise<any> {
-  const url = `${baseUrl.replace(/\/$/, "")}${path}`;
-  const response = await fetchImpl(
-    url,
-    withFetchTimeout({
-      method,
-      headers: {
-        accept,
-        authorization: `Bearer ${apiKey}`,
-        ...(body === undefined ? {} : { "content-type": JSON_CONTENT_TYPE }),
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    }),
-  );
-  const text = await response.text();
-  if (!response.ok) {
-    throw new Error(
-      `Craft ${method} ${path} failed: ${formatHttpErrorDetail(response.status, text, response.statusText)}`,
-    );
-  }
-  if (accept !== JSON_CONTENT_TYPE) return text;
-  return text === "" ? {} : JSON.parse(text);
-}
-
-export function createCraftClient({
-  baseUrl = "",
-  apiKey,
-  fetchImpl = fetch,
-}: {
-  baseUrl?: string;
-  apiKey?: string;
-  fetchImpl?: typeof fetch;
-}): CraftClient {
+/**
+ * Craft API クライアントを生成する。
+ * `apiKey` が未指定の場合はエラーを送出する。
+ * @param options ベース URL・API キー・fetch 実装などのオプション
+ * @returns `CraftClient` インスタンス
+ */
+export function createCraftClient({ baseUrl = "", apiKey, fetchImpl = fetch }: CreateCraftClientOptions): CraftClient {
   if (!apiKey) throw new Error("Craft API key is required");
   const request = (path: string, options: { method: string; body?: unknown; accept?: string }) =>
     craftRequest(baseUrl, apiKey, path, { ...options, fetchImpl });
@@ -127,7 +85,7 @@ export function createCraftClient({
     async readMarkdown(id: string) {
       return request(`/blocks?id=${encodeURIComponent(id)}`, {
         method: "GET",
-        accept: "text/markdown",
+        accept: TEXT_MARKDOWN_CONTENT_TYPE,
       });
     },
 
