@@ -10,8 +10,8 @@ import { ALL_CRAFT_DOCUMENTS_SINCE, DEFAULT_CRAFT_SUMMARY_FOLDER, REMINDER_LOOKB
 import { pushLineMessage, runLogged } from "../shared/job.ts";
 import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
 import { loadCredentials, settingsFromEnv } from "../shared/settings.ts";
+import { daysBeforeTokyoDate } from "../shared/tokyo-date.ts";
 import type { Credentials, SecretsClientLike } from "../shared/types.ts";
-import { daysBeforeTokyoDate } from "../weekly/weekly.ts";
 import type { ReminderSettings } from "./types.ts";
 
 export const REMINDER_TITLE_PREFIX = "週次まとめ ";
