@@ -18,7 +18,7 @@ Craft APIから指定フォルダ内の過去1週間分のノートを取得し�
 [AWS EventBridge]
    │ 毎週日曜日 JST 09:00 (Cron: cron(0 0 ? * SUN *))
    ▼
-[AWS Lambda] (Node.js 26.x)
+[AWS Lambda] (Bun / provided.al2023)
    │
    ├── 1. Craft API より `/daily_note_transcribe` 内の直近7日分ドキュメントを取得
    ├── 2. 取得した全ノートのMarkdown本文を統合
@@ -40,7 +40,7 @@ Craft APIから指定フォルダ内の過去1週間分のノートを取得し�
 
 ### 3.2. AWS Lambda (バックエンド)
 * **関数名**: `craft-weekly-summarizer`
-* **ランタイム**: Node.js 26.x
+* **ランタイム**: Bun (`provided.al2023` / arm64)
 * **タイムアウト設定**: 3分（API応答およびAI推論時間を考慮）
 * **環境変数**:
   * `CRAFT_API_KEY`: Craft Connect APIの認証キー

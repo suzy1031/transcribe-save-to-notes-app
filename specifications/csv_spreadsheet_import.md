@@ -1,6 +1,6 @@
 # 日曜 CSV をスプレッドシートへ取り込む
 
-既存の週次ジョブ（[lambda/weekly.js](../lambda/weekly.js)、[lambda/kindle.js](../lambda/kindle.js)、[infra/app.js](../infra/app.js)）と同じく、EventBridge Scheduler から Lambda を起動する。Drive と LINE の認証は今の Secrets Manager（サービスアカウント、`lineChannelAccessToken`、`lineUserId`）を流用する。
+既存の週次ジョブ（[lambda/weekly/weekly.ts](../lambda/weekly/weekly.ts)、[lambda/kindle/kindle.ts](../lambda/kindle/kindle.ts)、[infra/app.js](../infra/app.js)）と同じく、EventBridge Scheduler から Lambda を起動する。Drive と LINE の認証は今の Secrets Manager（サービスアカウント、`lineChannelAccessToken`、`lineUserId`）を流用する。
 
 ```mermaid
 flowchart LR
@@ -52,23 +52,23 @@ Drive API が有効でも Sheets API は別物です。未設定のまま書き�
 
 日曜 10:00 JST（`weekDay: SUN`, `hour: 10`, `minute: 0`, `Asia/Tokyo`）。9:00 の週次要約・リマインドと通知が重ならないようにする。
 
-[lambda/csv-import.js](../lambda/csv-import.js) の流れ:
+[lambda/csv/csv-import.ts](../lambda/csv/csv-import.ts)（および [lambda/csv/helper.ts](../lambda/csv/helper.ts)）の流れ:
 
 1. `csv_inbox` 直下の `.csv`（`text/csv` または拡張子 `.csv`）を列挙する。
 2. 0件なら LINE に「今週対象のCSVはありませんでした」と送り、シートは作らない。
 3. 各ファイルについて、シート名 `YYYY-MM-DD_<ファイル名stem>`（JST、シート名に使えない文字は除く）で新しいシートを追加し、CSV の全セルを `RAW` で書く。1行目はヘッダーとしてそのまま書き、データの次の行に金額列の合計を足す。金額列はヘッダー `金額` または `合計金額`、無ければ `金額` を含む列、それも無ければ右端の数値列。合計値は計算した数値で、金額列が A 列でなければ A 列に `合計` と書く。さらに最終行として、D 列のカテゴリー名が `デビット支払い` の行のみを対象に A 列の数値を合計した行（A 列に合計値、D 列に `デビット支払い合計`、該当 0 件なら A 列は `0`）を追加する。その次の最終行として、C 列が `現金` または `現金支払い` の行のみを対象に A 列の数値を合計した行（A 列に合計値、D 列に `現金支払い`、該当 0 件なら A 列は `0`）を追加する。末尾は全合計、デビット合計、現金合計の順になる。ヘッダーに `日付` があるときだけ、その次に対象月の累計3行を足す。A 列は金額、D 列は `累計 合計`、`デビット 合計`、`現金 合計`。対象月は今回の `日付`（`YYYY-MM-DD` または `YYYY/MM/DD`）でいちばん早い月で、その月の明細だけを足す。前週シートは同じファイル名でタイトル日付が今回より前のものを新しい順に読み、対象月の日付が無いシートで打ち切る。前週に現金の明細が無いときは `0`。月をまたぐ週は早い月だけを累計し、翌月分は翌週の累計で前週明細から拾う。`日付` が無い CSV には累計行を付けない。
-4. 書き込みが成功したファイルだけ `csv_processed` へ移す（[lambda/drive.js](../lambda/drive.js) の `moveFile` を使う）。
+4. 書き込みが成功したファイルだけ `csv_processed` へ移す（[lambda/drive/drive.ts](../lambda/drive/drive.ts) の `moveFile` を使う）。
 5. 全ファイルの処理後に LINE を1通送る。成功件数、失敗件数、Sheets アプリで開くリンク（`googlesheets://https://docs.google.com/spreadsheets/d/<id>/edit`）、失敗したファイル名を入れる。特定のシートへの gid は付けない。iOS の Sheets アプリはこのスキームではタブを指定できない。
 
 失敗したファイルは inbox に残す。同名シートが既にある場合はそのファイルを失敗にし、上書きしない。
 
-Sheets API は Drive とは別クライアントにする。JWT の scope は `https://www.googleapis.com/auth/spreadsheets` のみ。呼び出しは [lambda/drive.js](../lambda/drive.js) と同じく `google-auth-library` と `fetch`（`spreadsheets.batchUpdate` でシート追加、`values.update` で書き込み）。新しい npm 依存は足さない。CSV は引用符・カンマ・セル内改行を扱う小さなパーサをテスト付きで置く。
+Sheets API は Drive とは別クライアントにする。JWT の scope は `https://www.googleapis.com/auth/spreadsheets` のみ。呼び出しは [lambda/drive/drive.ts](../lambda/drive/drive.ts) と同じく `google-auth-library` と `fetch`（`spreadsheets.batchUpdate` でシート追加、`values.update` で書き込み）。新しいパッケージ依存は足さない。CSV は引用符・カンマ・セル内改行を扱う小さなパーサをテスト付きで置く。
 
 ## 変更するファイル
 
-- 新規: `lambda/csv-import.js`、`lambda/csv.js`（パースとシート名）、`lambda/sheets.js`、`test/csv-import.test.js`
-- [lambda/const.ts](../lambda/const.ts): フォルダ名の既定値
-- [lambda/line.js](../lambda/line.js): 完了・対象なし・失敗の文面
+- 新規: [lambda/csv/csv-import.ts](../lambda/csv/csv-import.ts)、[lambda/csv/csv.ts](../lambda/csv/csv.ts)（パースとシート名）、[lambda/csv/helper.ts](../lambda/csv/helper.ts)、[lambda/sheets/sheets.ts](../lambda/sheets/sheets.ts)、[lambda/csv/csv-import.test.ts](../lambda/csv/csv-import.test.ts)
+- [lambda/shared/const.ts](../lambda/shared/const.ts)、[lambda/csv/const.ts](../lambda/csv/const.ts): フォルダ名や集計列の既定値
+- [lambda/line/helper.ts](../lambda/line/helper.ts)、[lambda/line/line.ts](../lambda/line/line.ts): 完了・対象なし・失敗の文面と送信
 - [infra/app.js](../infra/app.js): Lambda、環境変数、日曜 10:00 の Schedule
 - [README.md](../README.md) と [specifications/request-sequence.md](request-sequence.md): このジョブの説明
 
