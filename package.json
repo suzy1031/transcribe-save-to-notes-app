@@ -11,17 +11,17 @@
     "cdk": "cdk"
   },
   "dependencies": {
-    "@aws-sdk/client-bedrock-runtime": "3.1160.0",
-    "@aws-sdk/client-dynamodb": "3.1160.0",
-    "@aws-sdk/client-secrets-manager": "3.1160.0",
-    "@aws-sdk/lib-dynamodb": "3.1160.0",
-    "google-auth-library": "11.3.2"
+    "@aws-sdk/client-bedrock-runtime": "3.1169.0",
+    "@aws-sdk/client-dynamodb": "3.1169.0",
+    "@aws-sdk/client-secrets-manager": "3.1169.0",
+    "@aws-sdk/lib-dynamodb": "3.1169.0",
+    "google-auth-library": "11.3.4"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.7",
     "@types/node": "26.6.6",
-    "aws-cdk": "2.1146.1",
-    "aws-cdk-lib": "2.275.0",
+    "aws-cdk": "2.1148.1",
+    "aws-cdk-lib": "2.277.0",
     "constructs": "10.8.1",
     "lefthook": "2.2.2",
     "typescript": "7.0.2",
