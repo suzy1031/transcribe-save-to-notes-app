@@ -64,3 +64,9 @@ export interface GetWeeklyUsageOptions {
   now?: Date;
   pk?: string;
 }
+
+export interface FetchUsdJpyRateOptions {
+  fetchFn?: typeof fetch;
+  timeoutMs?: number;
+  urls?: ReadonlyArray<string>;
+}

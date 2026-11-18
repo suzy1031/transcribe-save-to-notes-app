@@ -1,26 +1,27 @@
-import { type AttributeValue, DynamoDBClient, UpdateItemCommand } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, GetCommand } from "@aws-sdk/lib-dynamodb";
+import { GetCommand } from "@aws-sdk/lib-dynamodb";
 import { TOKYO_TIME_ZONE } from "../shared/const.ts";
 import { estimateUsdMicros, microToUsdDecimal, normalizeUsage } from "./claude-pricing.ts";
-import type {
-  DynamoLike,
-  GetWeeklyUsageOptions,
-  NormalizedUsage,
-  RecordWeeklyUsageOptions,
-  WeeklyUsageItem,
-} from "./types.ts";
+import { FUNCTION_NAME } from "./const.ts";
+import {
+  addUsageCommand,
+  documentClient,
+  dynamoClient,
+  ensureByFunction,
+  ensureFunctionSlice,
+  formatCount,
+  jpyText,
+  tokyoDate,
+  usdText,
+  validRate,
+} from "./helper.ts";
+import type { GetWeeklyUsageOptions, NormalizedUsage, RecordWeeklyUsageOptions, WeeklyUsageItem } from "./types.ts";
 
-const FUNCTION_NAME = /^[A-Za-z][A-Za-z0-9_-]*$/;
-
-function tokyoDate(now: Date, timeZone: string): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(now);
-}
-
+/**
+ * 指定日時・タイムゾーンから DynamoDB 用の ISO 週パーティションキー（`WEEK#YYYY-Www`）を生成する。
+ * @param now 対象日時（デフォルトは現在時刻）
+ * @param timeZone IANA タイムゾーン名（デフォルトは東京時間）
+ * @returns `WEEK#YYYY-Www` 形式のパーティションキー
+ */
 export function isoWeekKey(now: Date = new Date(), timeZone: string = TOKYO_TIME_ZONE): string {
   const [year, month, day] = tokyoDate(now, timeZone).split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1, day));
@@ -32,104 +33,12 @@ export function isoWeekKey(now: Date = new Date(), timeZone: string = TOKYO_TIME
   return `WEEK#${isoYear}-W${String(week).padStart(2, "0")}`;
 }
 
-function numberAttribute(value: number): AttributeValue {
-  return { N: String(value) };
-}
-
-function zeroSlice(): AttributeValue {
-  return {
-    M: {
-      callCount: numberAttribute(0),
-      inputTokens: numberAttribute(0),
-      outputTokens: numberAttribute(0),
-      cacheReadInputTokens: numberAttribute(0),
-      cacheCreationInputTokens: numberAttribute(0),
-      estimatedUsd: { N: microToUsdDecimal(0) },
-    },
-  };
-}
-
-async function ensureByFunction(dynamo: DynamoLike, tableName: string, pk: string): Promise<void> {
-  await dynamo.send(
-    new UpdateItemCommand({
-      TableName: tableName,
-      Key: { pk: { S: pk } },
-      UpdateExpression: "SET #byFunction = if_not_exists(#byFunction, :empty)",
-      ExpressionAttributeNames: { "#byFunction": "byFunction" },
-      ExpressionAttributeValues: { ":empty": { M: {} } },
-    }),
-  );
-}
-
-async function ensureFunctionSlice(
-  dynamo: DynamoLike,
-  tableName: string,
-  pk: string,
-  functionName: string,
-): Promise<void> {
-  await dynamo.send(
-    new UpdateItemCommand({
-      TableName: tableName,
-      Key: { pk: { S: pk } },
-      UpdateExpression: "SET #byFunction.#fn = if_not_exists(#byFunction.#fn, :zero)",
-      ExpressionAttributeNames: { "#byFunction": "byFunction", "#fn": functionName },
-      ExpressionAttributeValues: { ":zero": zeroSlice() },
-    }),
-  );
-}
-
-function addUsageCommand({
-  tableName,
-  pk,
-  functionName,
-  tokens,
-  micros,
-}: {
-  tableName: string;
-  pk: string;
-  functionName: string;
-  tokens: NormalizedUsage;
-  micros: number;
-}): UpdateItemCommand {
-  return new UpdateItemCommand({
-    TableName: tableName,
-    Key: { pk: { S: pk } },
-    UpdateExpression: [
-      "ADD callCount :one, inputTokens :input, outputTokens :output,",
-      "cacheReadInputTokens :cacheRead, cacheCreationInputTokens :cacheCreate, estimatedUsd :usd,",
-      "#byFunction.#fn.#callCount :one, #byFunction.#fn.#input :input, #byFunction.#fn.#output :output,",
-      "#byFunction.#fn.#cacheRead :cacheRead, #byFunction.#fn.#cacheCreate :cacheCreate, #byFunction.#fn.#usd :usd",
-    ].join(" "),
-    ExpressionAttributeNames: {
-      "#byFunction": "byFunction",
-      "#fn": functionName,
-      "#callCount": "callCount",
-      "#input": "inputTokens",
-      "#output": "outputTokens",
-      "#cacheRead": "cacheReadInputTokens",
-      "#cacheCreate": "cacheCreationInputTokens",
-      "#usd": "estimatedUsd",
-    },
-    ExpressionAttributeValues: {
-      ":one": numberAttribute(1),
-      ":input": numberAttribute(tokens.inputTokens),
-      ":output": numberAttribute(tokens.outputTokens),
-      ":cacheRead": numberAttribute(tokens.cacheReadInputTokens),
-      ":cacheCreate": numberAttribute(tokens.cacheCreationInputTokens),
-      ":usd": { N: microToUsdDecimal(micros) },
-    },
-  });
-}
-
-function dynamoClient(dynamo?: DynamoLike): DynamoLike {
-  return dynamo ?? new DynamoDBClient({});
-}
-
-function documentClient(document?: DynamoLike, dynamo?: DynamoLike): DynamoLike {
-  if (document) return document;
-  return DynamoDBDocumentClient.from(dynamoClient(dynamo) as DynamoDBClient);
-}
-
+/**
+ * Claude API のトークン使用量と推定コストを DynamoDB の週次集計レコードに加算記録する。
+ * `tableName` が未設定の場合は何もせず `null` を返す。
+ * @param options 関数名・モデル ID・usage・テーブル名などのオプション
+ * @returns 記録されたキー・トークン数・推定 USD 文字列、またはスキップ時は `null`
+ */
 export async function recordWeeklyUsage(
   {
     functionName,
@@ -153,6 +62,12 @@ export async function recordWeeklyUsage(
   return { pk, ...tokens, estimatedUsd: microToUsdDecimal(micros) };
 }
 
+/**
+ * 指定された週の Claude 利用量集計アイテムを DynamoDB から整合性読み込みで取得する。
+ * `tableName` が未設定の場合は `null` を返す。
+ * @param options テーブル名・クライアント・対象日時・パーティションキーなどのオプション
+ * @returns 週次利用量アイテム、または存在しない場合・未設定時は `null`
+ */
 export async function getWeeklyUsage({
   tableName = process.env.CLAUDE_USAGE_TABLE_NAME ?? "",
   dynamo,
@@ -171,29 +86,12 @@ export async function getWeeklyUsage({
   return (result.Item as WeeklyUsageItem | undefined) ?? null;
 }
 
-function toAmount(value: unknown): number {
-  const amount = Number(value ?? 0);
-  return Number.isFinite(amount) ? amount : 0;
-}
-
-function usdText(value: unknown): string {
-  return toAmount(value).toFixed(3);
-}
-
-function jpyText(usdValue: unknown, rate: number): string {
-  return `約${(toAmount(usdValue) * rate).toFixed(1)}円`;
-}
-
-function formatCount(value: unknown): string {
-  const count = Number(value ?? 0);
-  if (!Number.isFinite(count) || count < 0) return "0";
-  return Math.floor(count).toLocaleString("en-US");
-}
-
-function validRate(rate?: number | null): number | null {
-  return typeof rate === "number" && Number.isFinite(rate) && rate > 0 ? rate : null;
-}
-
+/**
+ * 週次利用量アイテムを LINE 通知向けの日本語サマリー文字列に整形する。
+ * @param item 週次利用量アイテム
+ * @param usdJpyRate 任意の USD/JPY 為替レート（無効または未指定時はドル表記のみ）
+ * @returns 整形された週次利用量レポート文字列
+ */
 export function formatWeeklyUsage(item: WeeklyUsageItem | null | undefined, usdJpyRate?: number | null): string {
   if (!item) return "Claude利用量: 当週の記録はありません";
   const rate = validRate(usdJpyRate);

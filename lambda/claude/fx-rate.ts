@@ -1,27 +1,14 @@
 import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
+import { DEFAULT_FX_RATE_URLS, DEFAULT_TIMEOUT_MS } from "./const.ts";
+import { parseJpyRate } from "./helper.ts";
+import type { FetchUsdJpyRateOptions } from "./types.ts";
 
-export const DEFAULT_FX_RATE_URLS = [
-  "https://api.frankfurter.dev/v1/latest?base=USD&symbols=JPY",
-  "https://open.er-api.com/v6/latest/USD",
-] as const;
-
-const DEFAULT_TIMEOUT_MS = 5_000;
-
-export interface FetchUsdJpyRateOptions {
-  fetchFn?: typeof fetch;
-  timeoutMs?: number;
-  urls?: ReadonlyArray<string>;
-}
-
-function parseJpyRate(payload: unknown): number | null {
-  if (!payload || typeof payload !== "object") return null;
-  const rates = (payload as { rates?: unknown }).rates;
-  if (!rates || typeof rates !== "object") return null;
-  const jpy = (rates as { JPY?: unknown }).JPY;
-  if (typeof jpy !== "number" || !Number.isFinite(jpy) || jpy <= 0) return null;
-  return jpy;
-}
-
+/**
+ * 複数の為替レート API を順に試行して現在の USD/JPY レートを取得する。
+ * すべての API が失敗または不正なレスポンスだった場合は `null` を返す。
+ * @param options `fetch` 実装・タイムアウト・取得先 URL リストなどのオプション
+ * @returns USD/JPY レート、または取得失敗時は `null`
+ */
 export async function fetchUsdJpyRate({
   fetchFn = fetch,
   timeoutMs = DEFAULT_TIMEOUT_MS,
