@@ -3,6 +3,8 @@ import {
   ANTHROPIC_API_VERSION,
   CLAUDE_API_URL,
   DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
+  IMAGE_MIME_JPEG,
+  IMAGE_MIME_PNG,
   JSON_CONTENT_TYPE,
   MAX_IMAGE_BYTES,
   MAX_TRANSCRIPTION_TOKENS,
@@ -16,9 +18,9 @@ import type { ClaudeTranscriberOptions, ParsedTranscription, TranscribeInput } f
 
 export { MAX_IMAGE_BYTES as maxImageBytes };
 
-function mediaType(mimeType?: string): "image/png" | "image/jpeg" {
-  if (mimeType === "image/png") return "image/png";
-  if (mimeType === "image/jpeg") return "image/jpeg";
+function mediaType(mimeType?: string): typeof IMAGE_MIME_PNG | typeof IMAGE_MIME_JPEG {
+  if (mimeType === IMAGE_MIME_PNG) return IMAGE_MIME_PNG;
+  if (mimeType === IMAGE_MIME_JPEG) return IMAGE_MIME_JPEG;
   throw new Error(`Unsupported image type: ${mimeType}`);
 }
 

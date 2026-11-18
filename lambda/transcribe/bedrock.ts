@@ -1,6 +1,8 @@
 import { BedrockRuntimeClient, ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
 import {
   DEFAULT_BEDROCK_MODEL_ID,
+  IMAGE_MIME_JPEG,
+  IMAGE_MIME_PNG,
   MAX_IMAGE_BYTES,
   MAX_TRANSCRIPTION_TOKENS,
   TRANSCRIBE_USER_PROMPT,
@@ -12,8 +14,8 @@ import type { BedrockTranscriberOptions, ParsedTranscription, TranscribeInput } 
 export { MAX_IMAGE_BYTES as maxImageBytes };
 
 function imageFormat(mimeType?: string): "png" | "jpeg" {
-  if (mimeType === "image/png") return "png";
-  if (mimeType === "image/jpeg") return "jpeg";
+  if (mimeType === IMAGE_MIME_PNG) return "png";
+  if (mimeType === IMAGE_MIME_JPEG) return "jpeg";
   throw new Error(`Unsupported image type: ${mimeType}`);
 }
 

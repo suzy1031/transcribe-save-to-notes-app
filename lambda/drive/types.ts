@@ -17,6 +17,12 @@ export interface AuthClientLike {
   getAccessToken(): Promise<string | { token?: string | null } | null | undefined>;
 }
 
+export interface CreateDriveClientOptions {
+  serviceAccount?: GoogleServiceAccount;
+  authClient?: AuthClientLike;
+  fetchImpl?: typeof fetch;
+}
+
 export interface DriveClient {
   findUniqueFolder(name: string): Promise<FolderResolution>;
   listImages(folderId: string): Promise<DriveFile[]>;

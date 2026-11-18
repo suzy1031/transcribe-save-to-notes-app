@@ -6,6 +6,8 @@ import {
   DEFAULT_BEDROCK_MODEL_ID,
   DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
   DEFAULT_TRANSCRIPTION_PROVIDER,
+  IMAGE_MIME_JPEG,
+  IMAGE_MIME_PNG,
   JSON_CONTENT_TYPE,
   MAX_SUMMARY_TOKENS,
 } from "../shared/const.ts";
@@ -17,15 +19,15 @@ import type { TranscribeInput } from "../transcribe/types.ts";
 import { KINDLE_SYSTEM_PROMPT, KINDLE_USER_PROMPT } from "./kindle-prompt.ts";
 import type { BedrockKindleSummarizerOptions, ClaudeKindleSummarizerOptions } from "./types.ts";
 
-function mediaType(mimeType?: string): "image/png" | "image/jpeg" {
-  if (mimeType === "image/png") return "image/png";
-  if (mimeType === "image/jpeg") return "image/jpeg";
+function mediaType(mimeType?: string): typeof IMAGE_MIME_PNG | typeof IMAGE_MIME_JPEG {
+  if (mimeType === IMAGE_MIME_PNG) return IMAGE_MIME_PNG;
+  if (mimeType === IMAGE_MIME_JPEG) return IMAGE_MIME_JPEG;
   throw new Error(`Unsupported image type: ${mimeType}`);
 }
 
 function imageFormat(mimeType?: string): "png" | "jpeg" {
-  if (mimeType === "image/png") return "png";
-  if (mimeType === "image/jpeg") return "jpeg";
+  if (mimeType === IMAGE_MIME_PNG) return "png";
+  if (mimeType === IMAGE_MIME_JPEG) return "jpeg";
   throw new Error(`Unsupported image type: ${mimeType}`);
 }
 
