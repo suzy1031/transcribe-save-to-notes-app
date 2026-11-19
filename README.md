@@ -8,8 +8,7 @@ lambda/inbox/                朝のパイプライン
 lambda/weekly/               週次要約
 lambda/reminder/             週次リマインド
 lambda/kindle/               Kindle 画像要約
-lambda/csv/                  CSV のパースとスプレッドシート取り込み
-lambda/sheets/               Google Sheets
+lambda/csv/                  CSV のパースと家計簿 Markdown テーブル保存
 lambda/drive/                Google Drive
 lambda/obsidian/             Obsidian Vault（S3 バックエンド）
 lambda/line/                 LINE
