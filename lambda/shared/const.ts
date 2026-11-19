@@ -4,20 +4,20 @@ export const DEFAULT_AWS_REGION = "ap-northeast-1";
 export const INBOX_FOLDER_NAME = "00_notes_inbox";
 export const PROCESSED_DRIVE_FOLDER_NAME = "01_processed";
 
-export const DEFAULT_CRAFT_TRANSCRIBE_FOLDER = "daily_note_transcribe";
-export const DEFAULT_CRAFT_PROCESSED_FOLDER = "processed";
-export const DEFAULT_CRAFT_SUMMARY_FOLDER = "daily_note_summaries";
+export const DEFAULT_OBSIDIAN_VAULT_NAME = "ks-vault";
+export const DEFAULT_OBSIDIAN_DAILY_FOLDER = "00_daily_notes";
+export const DEFAULT_OBSIDIAN_SUMMARY_FOLDER = "daily_note_summaries";
+export const DEFAULT_OBSIDIAN_KINDLE_FOLDER = "kindle";
 
 export const DEFAULT_KINDLE_DRIVE_PARENT = "kindle";
 export const DEFAULT_KINDLE_BOOK_PREFIX = "kindle_";
 export const DEFAULT_KINDLE_PROCESSED_FOLDER = "processed";
-export const DEFAULT_KINDLE_SUMMARY_DOC_TITLE = "要約";
 
 export const DEFAULT_CSV_INBOX_FOLDER = "csv_inbox";
 export const DEFAULT_CSV_PROCESSED_FOLDER = "csv_processed";
 export const DEFAULT_CSV_SPREADSHEET_ID = "1nKB9S7EHVue05Kcwb3F_VGVOHHuYBJ1F84-pUwQCHNU";
 
-export const ALL_CRAFT_DOCUMENTS_SINCE = "1970-01-01";
+export const ALL_NOTES_SINCE = "1970-01-01";
 export const MIN_REMAINING_MS = 60_000;
 export const REMINDER_LOOKBACK_DAYS = 7;
 export const WEEKLY_LOOKBACK_DAYS = 7;

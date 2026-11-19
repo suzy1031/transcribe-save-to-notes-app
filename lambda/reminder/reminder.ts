@@ -1,14 +1,13 @@
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import { createCraftClient } from "../craft/craft.ts";
-import { connectionSpaceId, craftAppDocumentLink } from "../craft/helper.ts";
-import type { CraftClient, CraftListedDocument } from "../craft/types.ts";
 import { EMPTY_REMINDER_MESSAGE, reminderDeliveredMessage, reminderFailedMessage } from "../line/helper.ts";
 import { createLineClient } from "../line/line.ts";
 import type { LineClient } from "../line/types.ts";
+import { obsidianAppNoteLink } from "../obsidian/helper.ts";
+import { createObsidianClient } from "../obsidian/obsidian.ts";
+import type { ObsidianClient, ObsidianListedNote } from "../obsidian/types.ts";
 import { bunLambdaHandler } from "../shared/bun-handler.ts";
-import { ALL_CRAFT_DOCUMENTS_SINCE, DEFAULT_CRAFT_SUMMARY_FOLDER, REMINDER_LOOKBACK_DAYS } from "../shared/const.ts";
+import { ALL_NOTES_SINCE, DEFAULT_OBSIDIAN_SUMMARY_FOLDER, REMINDER_LOOKBACK_DAYS } from "../shared/const.ts";
 import { pushLineMessage, runLogged } from "../shared/job.ts";
-import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
 import { loadCredentials, settingsFromEnv } from "../shared/settings.ts";
 import { daysBeforeTokyoDate } from "../shared/tokyo-date.ts";
 import type { Credentials, SecretsClientLike } from "../shared/types.ts";
@@ -38,15 +37,15 @@ export function filterDocumentsByReminderTitle<T extends { title?: string }>(
 }
 
 export async function listReminderDocuments(
-  craft: Pick<CraftClient, "listDocuments">,
-  summaryFolderId: string,
+  obsidian: Pick<ObsidianClient, "listNotes">,
+  summaryFolder: string,
   targetDate: string,
 ): Promise<{
-  documents: CraftListedDocument[];
+  documents: ObsidianListedNote[];
   matchedBy: "createdDate" | "title" | "none";
 }> {
-  const byCreatedDate = await craft.listDocuments({
-    folderId: summaryFolderId,
+  const byCreatedDate = await obsidian.listNotes({
+    folder: summaryFolder,
     createdDateGte: targetDate,
     createdDateLte: targetDate,
   });
@@ -54,9 +53,9 @@ export async function listReminderDocuments(
     return { documents: byCreatedDate, matchedBy: "createdDate" };
   }
 
-  const inFolder = await craft.listDocuments({
-    folderId: summaryFolderId,
-    createdDateGte: ALL_CRAFT_DOCUMENTS_SINCE,
+  const inFolder = await obsidian.listNotes({
+    folder: summaryFolder,
+    createdDateGte: ALL_NOTES_SINCE,
   });
   const byTitle = filterDocumentsByReminderTitle(inFolder, targetDate);
   return { documents: byTitle, matchedBy: byTitle.length > 0 ? "title" : "none" };
@@ -65,7 +64,7 @@ export async function listReminderDocuments(
 export function reminderSettingsFromEnv(env: NodeJS.ProcessEnv = process.env): ReminderSettings {
   return {
     ...settingsFromEnv(env),
-    summaryFolderName: env.CRAFT_SUMMARY_FOLDER_NAME || DEFAULT_CRAFT_SUMMARY_FOLDER,
+    summaryFolderName: env.OBSIDIAN_SUMMARY_FOLDER || DEFAULT_OBSIDIAN_SUMMARY_FOLDER,
   };
 }
 
@@ -74,12 +73,7 @@ export async function loadReminderCredentials(
   secretsClient: SecretsClientLike,
 ): Promise<Credentials> {
   if (settings.secretId) return loadCredentials(settings, secretsClient);
-  if (!settings.craftApiBaseUrl || !settings.craftApiKey) {
-    throw new Error("SECRET_ID or local Craft credentials are required");
-  }
   return {
-    craftApiBaseUrl: settings.craftApiBaseUrl,
-    craftApiKey: settings.craftApiKey,
     lineChannelAccessToken: settings.lineChannelAccessToken,
     lineUserId: settings.lineUserId,
   };
@@ -88,12 +82,12 @@ export async function loadReminderCredentials(
 export async function processReminder({
   documents,
   pushLine,
-  spaceId,
+  vaultName,
   targetDate,
 }: {
-  documents: ReadonlyArray<CraftListedDocument>;
+  documents: ReadonlyArray<Pick<ObsidianListedNote, "id" | "title">>;
   pushLine: (text: string) => Promise<void>;
-  spaceId?: string;
+  vaultName?: string;
   targetDate: string;
 }): Promise<{ reminded: number; documentId?: string }> {
   if (documents.length === 0) {
@@ -101,11 +95,11 @@ export async function processReminder({
     return { reminded: 0 };
   }
   if (documents.length > 1) {
-    throw new Error(`Craft folder had ${documents.length} documents for ${targetDate}; expected exactly one`);
+    throw new Error(`Summary folder had ${documents.length} documents for ${targetDate}; expected exactly one`);
   }
 
   const document = documents[0];
-  const link = spaceId ? craftAppDocumentLink(spaceId, document.id) : "";
+  const link = vaultName ? obsidianAppNoteLink(vaultName, document.id) : "";
   await pushLine(reminderDeliveredMessage(document.title, link));
   return { reminded: 1, documentId: document.id };
 }
@@ -145,31 +139,21 @@ async function runReminder(): Promise<{ reminded: number; documentId?: string }>
       channelAccessToken: credentials.lineChannelAccessToken,
       userId: credentials.lineUserId,
     });
-    const craft = createCraftClient({
-      baseUrl: credentials.craftApiBaseUrl,
-      apiKey: credentials.craftApiKey,
+    const obsidian = createObsidianClient({
+      bucketName: settings.notesBucketName,
+      region: settings.bedrockRegion,
     });
-    const summaryFolderId = await craft.findFolder(settings.summaryFolderName);
-    if (!summaryFolderId) {
-      throw new Error(`Craft folder "${settings.summaryFolderName}" was not found`);
-    }
-    let spaceId = "";
-    try {
-      spaceId = connectionSpaceId(await craft.getConnection());
-    } catch (error) {
-      console.error(`Craft connection lookup failed: ${sanitizeErrorMessage((error as Error).message)}`);
-    }
 
     const now = new Date();
     const targetDate = reminderTargetDate(now);
-    const { documents, matchedBy } = await listReminderDocuments(craft, summaryFolderId, targetDate);
+    const { documents, matchedBy } = await listReminderDocuments(obsidian, settings.summaryFolderName, targetDate);
     if (matchedBy === "title") {
       console.log(`週次リマインド: 作成日0件のためタイトルで ${documents.length} 件 (${targetDate})`);
     }
     const result = await processReminder({
       documents,
       pushLine: (text) => line!.push(text),
-      spaceId,
+      vaultName: settings.obsidianVaultName,
       targetDate,
     });
     console.log(`週次リマインド ${result.reminded}件 (${targetDate})`);

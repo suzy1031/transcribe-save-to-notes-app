@@ -5,7 +5,8 @@ import {
   DEFAULT_AWS_REGION,
   DEFAULT_BEDROCK_MODEL_ID,
   DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
-  DEFAULT_CRAFT_TRANSCRIBE_FOLDER,
+  DEFAULT_OBSIDIAN_DAILY_FOLDER,
+  DEFAULT_OBSIDIAN_VAULT_NAME,
   DEFAULT_TRANSCRIPTION_PROVIDER,
 } from "./const.ts";
 import type { BaseSettings, Credentials, SecretsClientLike } from "./types.ts";
@@ -15,9 +16,9 @@ export function settingsFromEnv(env: NodeJS.ProcessEnv = process.env): BaseSetti
     secretId: env.SECRET_ID ?? "",
     bedrockModelId: env.BEDROCK_MODEL_ID || DEFAULT_BEDROCK_MODEL_ID,
     bedrockRegion: env.BEDROCK_REGION || env.AWS_REGION || DEFAULT_AWS_REGION,
-    craftFolderName: env.CRAFT_FOLDER_NAME || DEFAULT_CRAFT_TRANSCRIBE_FOLDER,
-    craftApiBaseUrl: env.CRAFT_API_BASE_URL ?? "",
-    craftApiKey: env.CRAFT_API_KEY ?? "",
+    notesBucketName: env.NOTES_BUCKET_NAME ?? "",
+    obsidianVaultName: env.OBSIDIAN_VAULT_NAME || DEFAULT_OBSIDIAN_VAULT_NAME,
+    obsidianDailyFolder: env.OBSIDIAN_DAILY_FOLDER || DEFAULT_OBSIDIAN_DAILY_FOLDER,
     anthropicApiKey: env.ANTHROPIC_API_KEY ?? "",
     claudeModelId: env.CLAUDE_MODEL_ID || DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
     transcriptionProvider: env.TRANSCRIPTION_PROVIDER || DEFAULT_TRANSCRIPTION_PROVIDER,
@@ -32,31 +33,25 @@ export async function loadCredentials(settings: BaseSettings, secretsClient: Sec
     const output = await secretsClient.send(new GetSecretValueCommand({ SecretId: settings.secretId }));
     const parsed = JSON.parse(output.SecretString ?? "") as {
       googleServiceAccount?: GoogleServiceAccount;
-      craftApiBaseUrl: string;
-      craftApiKey: string;
       anthropicApiKey?: string;
       lineChannelAccessToken?: string;
       lineUserId?: string;
     };
     return {
       serviceAccount: parsed.googleServiceAccount,
-      craftApiBaseUrl: parsed.craftApiBaseUrl,
-      craftApiKey: parsed.craftApiKey,
       anthropicApiKey: parsed.anthropicApiKey,
       lineChannelAccessToken: parsed.lineChannelAccessToken ?? "",
       lineUserId: parsed.lineUserId ?? "",
     };
   }
-  if (!settings.googleServiceAccountJson || !settings.craftApiBaseUrl || !settings.craftApiKey) {
-    throw new Error("SECRET_ID or local Google and Craft credentials are required");
+  if (!settings.googleServiceAccountJson) {
+    throw new Error("SECRET_ID or local Google credentials are required");
   }
   const raw = settings.googleServiceAccountJson.trim().startsWith("{")
     ? settings.googleServiceAccountJson
     : await readFile(settings.googleServiceAccountJson, "utf8");
   return {
     serviceAccount: JSON.parse(raw) as GoogleServiceAccount,
-    craftApiBaseUrl: settings.craftApiBaseUrl,
-    craftApiKey: settings.craftApiKey,
     anthropicApiKey: settings.anthropicApiKey,
     lineChannelAccessToken: settings.lineChannelAccessToken ?? "",
     lineUserId: settings.lineUserId ?? "",

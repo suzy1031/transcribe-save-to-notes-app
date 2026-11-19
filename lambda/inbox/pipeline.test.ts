@@ -14,7 +14,7 @@ function pipeline(overrides: Partial<ProcessInboxArgs> = {}) {
   const calls: {
     download: number;
     transcribe: number;
-    create: Array<{ title: string; markdown: string; folderId: string }>;
+    create: Array<{ title: string; markdown: string }>;
     move: Array<Parameters<ProcessInboxArgs["moveToProcessed"]>[0]>;
     removed: string[];
     saved: Array<{ title: string; documentId: string }>;
@@ -30,10 +30,9 @@ function pipeline(overrides: Partial<ProcessInboxArgs> = {}) {
       calls.transcribe += 1;
       return { title: "朝のメモ", markdown: "本文" };
     },
-    ensureFolder: async () => "folder-daily",
-    createDocument: async (input) => {
+    saveNote: async (input) => {
       calls.create.push(input);
-      return "doc-1";
+      return "00_daily_notes/朝のメモ.md";
     },
     moveToProcessed: async (input) => {
       calls.move.push(input);
@@ -57,7 +56,7 @@ function pipeline(overrides: Partial<ProcessInboxArgs> = {}) {
 test("保存成功時はLINE通知し、受信箱が空の場合は通知しない", async () => {
   const saved = pipeline();
   await saved.run();
-  expect(saved.calls.saved).toEqual([{ title: "朝のメモ", documentId: "doc-1" }]);
+  expect(saved.calls.saved).toEqual([{ title: "朝のメモ", documentId: "00_daily_notes/朝のメモ.md" }]);
   expect(saved.calls.failed.length).toBe(0);
 
   const empty = pipeline({ files: [] });
@@ -92,12 +91,12 @@ test("既存のcraftDocumentIdがある場合は新規作成せず移動する",
   expect(calls.move[0].craftDocumentId).toBe("doc-existing");
 });
 
-test("新規ノートは解決したCraftフォルダに作成してから移動する", async () => {
+test("新規ノートはObsidian(S3)に保存してから移動する", async () => {
   const { calls, run } = pipeline();
   const summary = await run();
   expect(summary.processed).toBe(1);
-  expect(calls.create[0].folderId).toBe("folder-daily");
-  expect(calls.move[0].craftDocumentId).toBe("doc-1");
+  expect(calls.create[0]).toEqual({ title: "朝のメモ", markdown: "本文" });
+  expect(calls.move[0].craftDocumentId).toBe("00_daily_notes/朝のメモ.md");
 });
 
 test("サイズ超過の画像は受信箱に残す", async () => {
@@ -128,7 +127,7 @@ test("一覧にサイズが無い場合はダウンロード後にサイズ超�
   expect(calls.create.length).toBe(0);
 });
 
-test("processInbox は取得・文字起こし・Craft保存をログに記録する", async () => {
+test("processInbox は取得・文字起こし・Obsidian保存をログに記録する", async () => {
   const lines: unknown[] = [];
   const { run } = pipeline({
     log: {
@@ -145,8 +144,8 @@ test("processInbox は取得・文字起こし・Craft保存をログに記録�
     "画像ファイル取得成功 note.png",
     "文字起こし start note.png",
     "文字起こし end note.png",
-    "craft保存 start note.png",
-    "craft保存 end note.png",
+    "obsidian保存 start note.png",
+    "obsidian保存 end note.png",
   ]);
 });
 
@@ -183,10 +182,10 @@ test("文字起こし失敗時は付随テキストを残す", async () => {
   expect(calls.removed.length).toBe(0);
 });
 
-test("Craft作成失敗時は画像を移動しない", async () => {
+test("Obsidian保存失敗時は画像を移動しない", async () => {
   const { calls, run } = pipeline({
-    createDocument: async () => {
-      throw new Error("craft failed");
+    saveNote: async () => {
+      throw new Error("s3 failed");
     },
   });
   const summary = await run();
