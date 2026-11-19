@@ -8,6 +8,7 @@ export const DEFAULT_OBSIDIAN_VAULT_NAME = "ks-vault";
 export const DEFAULT_OBSIDIAN_DAILY_FOLDER = "00_daily_notes";
 export const DEFAULT_OBSIDIAN_SUMMARY_FOLDER = "daily_note_summaries";
 export const DEFAULT_OBSIDIAN_KINDLE_FOLDER = "kindle";
+export const DEFAULT_OBSIDIAN_HOUSEHOLD_BUDGET_FOLDER = "household_budget";
 
 export const DEFAULT_KINDLE_DRIVE_PARENT = "kindle";
 export const DEFAULT_KINDLE_BOOK_PREFIX = "kindle_";
@@ -15,7 +16,6 @@ export const DEFAULT_KINDLE_PROCESSED_FOLDER = "processed";
 
 export const DEFAULT_CSV_INBOX_FOLDER = "csv_inbox";
 export const DEFAULT_CSV_PROCESSED_FOLDER = "csv_processed";
-export const DEFAULT_CSV_SPREADSHEET_ID = "1nKB9S7EHVue05Kcwb3F_VGVOHHuYBJ1F84-pUwQCHNU";
 
 export const ALL_NOTES_SINCE = "1970-01-01";
 export const MIN_REMAINING_MS = 60_000;

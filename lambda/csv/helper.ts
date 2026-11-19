@@ -1,9 +1,10 @@
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
 import { createDriveClient } from "../drive/drive.ts";
 import { csvImportFailedMessage } from "../line/helper.ts";
+import { obsidianAppNoteLink } from "../obsidian/helper.ts";
+import { createObsidianClient } from "../obsidian/obsidian.ts";
 import { createLinePush } from "../shared/job.ts";
 import { loadCredentials } from "../shared/settings.ts";
-import { createSheetsClient } from "../sheets/sheets.ts";
 import {
   AMOUNT_PATTERN,
   CASH_AMOUNT_COLUMN_INDEX,
@@ -19,20 +20,11 @@ import {
   appendCumulativeRows,
   cumulativeMonth,
   earlierSheetTitles,
+  parseMarkdownTable,
   sheetHasCumulativeMonth,
-  spreadsheetAppLink,
 } from "./csv.ts";
 import { csvImportSettingsFromEnv, importCsvFiles } from "./csv-import.ts";
 import type { CsvImportResult, MonthSums } from "./types.ts";
-
-/**
- * Google Sheets の範囲表記向けにシート名内のシングルクォートを二重化してエスケープする。
- * @param title シート名
- * @returns エスケープ済みのシート名文字列
- */
-export function quotedSheetTitle(title: unknown): string {
-  return String(title).replaceAll("'", "''");
-}
 
 /**
  * セル値から通貨記号・カンマ・空白を除去して数値にパースする。空文字の場合は `null` を返す。
@@ -186,7 +178,7 @@ export async function rowsWithCumulative(
 }
 
 /**
- * 環境変数・認証情報を読み込み、Google Drive 上の CSV ファイルをスプレッドシートへ取り込む一連の処理を実行する。
+ * 環境変数・認証情報を読み込み、Google Drive 上の CSV ファイルを Obsidian S3 バケットへ取り込む一連の処理を実行する。
  * @returns 取り込み件数・失敗件数・失敗詳細を含む実行結果
  */
 export async function runCsvImport(): Promise<CsvImportResult> {
@@ -194,14 +186,10 @@ export async function runCsvImport(): Promise<CsvImportResult> {
   const credentials = await loadCredentials(settings, new SecretsManagerClient({ region: settings.bedrockRegion }));
   const pushLine = createLinePush(credentials);
   const drive = createDriveClient({ serviceAccount: credentials.serviceAccount });
-  const sheets = createSheetsClient({ serviceAccount: credentials.serviceAccount });
-
-  if (!settings.spreadsheetId) {
-    const reason = "CSV_SPREADSHEET_ID is required";
-    console.error(reason);
-    await pushLine(csvImportFailedMessage(reason));
-    throw new Error(reason);
-  }
+  const obsidian = createObsidianClient({
+    bucketName: settings.notesBucketName,
+    region: settings.bedrockRegion,
+  });
 
   const inbox = await drive.findUniqueFolder(settings.inboxFolderName);
   const processed = await drive.findUniqueFolder(settings.processedFolderName);
@@ -215,17 +203,24 @@ export async function runCsvImport(): Promise<CsvImportResult> {
   }
 
   const files = await drive.listCsvFiles(inbox.id);
-  const existingSheetTitles = files.length === 0 ? [] : await sheets.listSheetTitles(settings.spreadsheetId);
+  const existingNotes = files.length === 0 ? [] : await obsidian.listNotes({ folder: settings.householdBudgetFolder });
+  const keyByTitle = new Map(existingNotes.map((note) => [note.title, note.key]));
   return importCsvFiles({
     files,
     download: (file) => drive.download(file.id),
-    existingSheetTitles,
-    readSheet: (title) => sheets.getSheetValues(settings.spreadsheetId, title),
-    writeSheet: ({ title, rows }) =>
-      sheets.addSheetWithValues({
-        spreadsheetId: settings.spreadsheetId,
+    existingNoteTitles: existingNotes.map((note) => note.title),
+    readNoteRows: async (title) => {
+      const key = keyByTitle.get(title);
+      if (!key) return [];
+      return parseMarkdownTable(await obsidian.readMarkdown(key));
+    },
+    writeNote: ({ title, date, markdown }) =>
+      obsidian.createNote({
+        folder: settings.householdBudgetFolder,
         title,
-        rows,
+        date,
+        markdown,
+        tags: ["household-budget"],
       }),
     moveToProcessed: (file) =>
       drive.moveFile({
@@ -234,6 +229,6 @@ export async function runCsvImport(): Promise<CsvImportResult> {
         removeParentId: inbox.id,
       }),
     pushLine,
-    spreadsheetUrl: spreadsheetAppLink(settings.spreadsheetId),
+    buildNoteLink: (noteKey) => obsidianAppNoteLink(settings.obsidianVaultName, noteKey),
   });
 }

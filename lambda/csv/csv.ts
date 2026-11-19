@@ -23,7 +23,6 @@ import {
   formatTotal,
   monthSums,
   parseAmount,
-  quotedSheetTitle,
   rowDate,
 } from "./helper.ts";
 import type { FileLike } from "./types.ts";
@@ -129,40 +128,70 @@ export function sheetTitle({ date, fileName }: { date: string; fileName?: string
   return `${date}_${cleaned || "csv"}`.slice(0, SHEET_TITLE_MAX);
 }
 
-/**
- * スプレッドシート ID から Google Sheets の編集画面 URL を生成する。
- * @param spreadsheetId スプレッドシート ID
- * @returns 編集画面の HTTPS URL
- */
-export function spreadsheetUrl(spreadsheetId: string): string {
-  return `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit`;
+function escapeMarkdownCell(value: unknown): string {
+  return String(value ?? "")
+    .replace(/\r?\n/g, " ")
+    .replace(/\|/g, "\\|")
+    .trim();
+}
+
+function splitMarkdownTableRow(line: string): string[] {
+  const trimmed = line.trim().replace(/^\|/, "").replace(/\|$/, "");
+  const cells: string[] = [];
+  let current = "";
+  for (let i = 0; i < trimmed.length; i += 1) {
+    if (trimmed[i] === "\\" && trimmed[i + 1] === "|") {
+      current += "|";
+      i += 1;
+    } else if (trimmed[i] === "|") {
+      cells.push(current.trim());
+      current = "";
+    } else {
+      current += trimmed[i];
+    }
+  }
+  cells.push(current.trim());
+  return cells;
 }
 
 /**
- * スプレッドシート ID から Google Sheets アプリ用のディープリンク URL (`googlesheets://...`) を生成する。
- * @param spreadsheetId スプレッドシート ID
- * @returns Google Sheets アプリ用 URL
+ * 2 次元配列の行データを GFM / Obsidian Markdown テーブル文字列へ変換する。
+ * @param rows 1 行目をヘッダーとする 2 次元配列
+ * @returns Markdown テーブル文字列
  */
-export function spreadsheetAppLink(spreadsheetId: string): string {
-  return `googlesheets://${spreadsheetUrl(spreadsheetId)}`;
+export function rowsToMarkdownTable(rows: ReadonlyArray<ReadonlyArray<unknown>>): string {
+  if (rows.length === 0) return "";
+  const width = rows.reduce((max, row) => Math.max(max, row.length), 0);
+  if (width === 0) return "";
+  const formatRow = (row: ReadonlyArray<unknown>): string => {
+    const padded = Array.from({ length: width }, (_, index) => escapeMarkdownCell(row[index] ?? ""));
+    return `| ${padded.join(" | ")} |`;
+  };
+  const header = formatRow(rows[0]);
+  const separator = `| ${Array.from({ length: width }, () => "---").join(" | ")} |`;
+  const body = rows.slice(1).map(formatRow);
+  return [header, separator, ...body].join("\n");
 }
 
 /**
- * シートタイトルから `'<title>'!A1` 形式の書き込み開始レンジ文字列を生成する。
- * @param title シートタイトル
- * @returns A1 表記の範囲文字列
+ * Markdown テーブル文字列を 2 次元配列（`string[][]`）へパースする。
+ * 区切り行（`| --- | ... |`）はスキップする。
+ * @param markdown Markdown テキスト
+ * @returns パースされた 2 次元配列
  */
-export function valuesRange(title: unknown): string {
-  return `'${quotedSheetTitle(title)}'!A1`;
-}
-
-/**
- * シートタイトルから `'<title>'` 形式のシート全体レンジ文字列を生成する。
- * @param title シートタイトル
- * @returns クォート済みシート名
- */
-export function sheetValuesRange(title: unknown): string {
-  return `'${quotedSheetTitle(title)}'`;
+export function parseMarkdownTable(markdown: string): string[][] {
+  const lines = String(markdown ?? "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith("|") && line.endsWith("|"));
+  if (lines.length === 0) return [];
+  return lines
+    .filter((line, index) => {
+      if (index !== 1) return true;
+      const cells = splitMarkdownTableRow(line);
+      return !cells.every((cell) => /^:?-{3,}:?$/.test(cell));
+    })
+    .map(splitMarkdownTableRow);
 }
 
 /**
@@ -195,19 +224,6 @@ export function earlierSheetTitles(titles: ReadonlyArray<string>, currentTitle: 
     })
     .sort((left, right) => (left.date < right.date ? 1 : left.date > right.date ? -1 : 0))
     .map((item) => item.title);
-}
-
-/**
- * 2 次元配列の行数・列数から Google Sheets 作成時に必要な最小グリッドサイズを返す。
- * @param rows シートの行データ
- * @returns 行数と最大列数（最小 1）
- */
-export function gridSize(rows: ReadonlyArray<ReadonlyArray<unknown>>): {
-  rowCount: number;
-  columnCount: number;
-} {
-  const columnCount = rows.reduce((max, row) => Math.max(max, row.length), 1);
-  return { rowCount: Math.max(rows.length, 1), columnCount };
 }
 
 /**

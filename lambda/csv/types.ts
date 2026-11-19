@@ -10,7 +10,7 @@ export interface FileLike {
 export interface CsvImportSettings extends BaseSettings {
   inboxFolderName: string;
   processedFolderName: string;
-  spreadsheetId: string;
+  householdBudgetFolder: string;
 }
 
 export interface CsvImportResult {
@@ -29,11 +29,11 @@ export interface MonthSums {
 export interface ImportCsvFilesOptions {
   files: ReadonlyArray<DriveFile>;
   download: (file: DriveFile) => Promise<Uint8Array | Buffer>;
-  existingSheetTitles: ReadonlyArray<string>;
-  readSheet?: (title: string) => Promise<ReadonlyArray<ReadonlyArray<string>>>;
-  writeSheet: (input: { title: string; rows: string[][] }) => Promise<void>;
+  existingNoteTitles: ReadonlyArray<string>;
+  readNoteRows?: (title: string) => Promise<ReadonlyArray<ReadonlyArray<string>>>;
+  writeNote: (input: { title: string; date: string; markdown: string }) => Promise<string>;
   moveToProcessed: (file: DriveFile) => Promise<void>;
   pushLine: (text: string) => Promise<void>;
-  spreadsheetUrl?: string;
+  buildNoteLink?: (noteKey: string) => string;
   now?: Date;
 }

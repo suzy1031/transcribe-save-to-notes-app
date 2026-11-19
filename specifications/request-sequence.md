@@ -235,9 +235,9 @@ sequenceDiagram
 
 ---
 
-## CsvImport — CSV をスプレッドシートへ取り込む (`lambda/csv/csv-import.ts`)
+## CsvImport — 家計簿 CSV を Obsidian Markdown テーブルへ取り込む (`lambda/csv/csv-import.ts`)
 
-Drive の `csv_inbox` にある CSV を読み、`CSV_SPREADSHEET_ID` のスプレッドシートへ実行日（JST）とファイル名の新しいシートとして書く。成功したファイルだけ `csv_processed` へ移動する。0件は LINE に「今週対象のCSVはありませんでした」。1件以上は成功件数、失敗件数、Sheets アプリで開くリンク（`googlesheets://`）、失敗ファイルを1通で通知する。同名シートがあるファイルは上書きしない。
+Drive の `csv_inbox` にある CSV を読み、合計・デビット・現金・月次累計行を付与した Markdown テーブルとして S3 の `household_budget/{YYYY-MM-DD}_{stem}.md` に保存する。成功したファイルだけ `csv_processed` へ移動する。0件は LINE に「今週対象のCSVはありませんでした」。1件以上は成功件数、失敗件数、Obsidian アプリリンク（`obsidian://open?...`）、失敗ファイルを1通で通知する。同名ノートがあるファイルは上書きしない。
 
 ```mermaid
 sequenceDiagram
@@ -247,7 +247,7 @@ sequenceDiagram
     participant SM as Secrets Manager
     participant Drive as Google Drive<br/>(drive/drive.ts)
     participant Parse as csv/csv.ts
-    participant Sheets as Google Sheets<br/>(sheets/sheets.ts)
+    participant Obsidian as Obsidian S3<br/>(obsidian/obsidian.ts)
     participant Line as LINE Push<br/>(line/line.ts)
 
     Scheduler->>Csv: handler
@@ -261,14 +261,14 @@ sequenceDiagram
         alt CSVが0件
             Csv->>Line: 今週対象のCSVはありませんでした
         else 1件以上
-            Csv->>Sheets: listSheetTitles
+            Csv->>Obsidian: listNotes(household_budget)
             loop 各CSV
-                alt 同名シートあり
+                alt 同名ノートあり
                     Csv->>Csv: 失敗として残す
                 else 新規
                     Csv->>Drive: download
-                    Csv->>Parse: parseCsv
-                    Csv->>Sheets: addSheet + values.update RAW
+                    Csv->>Parse: parseCsv + 集計 + rowsToMarkdownTable
+                    Csv->>Obsidian: createNote(household_budget/{date}_{stem}.md)
                     Csv->>Drive: moveFile → csv_processed
                 end
             end
@@ -285,11 +285,11 @@ sequenceDiagram
 | モジュール | Handler | Weekly | Reminder | Kindle | Csv |
 |------------|:-------:|:------:|:--------:|:------:|:---:|
 | `drive/drive.ts` + `drive/helper.ts` | ○ | — | — | ○ | ○ |
-| `obsidian/obsidian.ts` + `obsidian/helper.ts` | ○ | ○ | ○ | ○ | — |
+| `obsidian/obsidian.ts` + `obsidian/helper.ts` | ○ | ○ | ○ | ○ | ○ |
 | `line/line.ts` + `line/helper.ts` | ○ | ○ | ○ | ○ | ○ |
 | `claude/claude-usage.ts` + `claude/fx-rate.ts` | ○ | ○ | — | ○ | — |
 | `transcribe/*` | ○ | — | — | ○ | — |
 | `summarize/summarize.ts` + `summarize/summary-prompt.ts` | — | ○ | — | — | — |
 | `kindle/kindle-summarize.ts` + `kindle/kindle-prompt.ts` | — | — | — | ○ | — |
-| `csv/csv.ts` + `csv/helper.ts` + `sheets/sheets.ts` | — | — | — | — | ○ |
+| `csv/csv.ts` + `csv/helper.ts` | — | — | — | — | ○ |
 | `shared/*` | ○ | ○ | ○ | ○ | ○ |
