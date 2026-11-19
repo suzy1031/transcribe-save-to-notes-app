@@ -1,19 +1,17 @@
 import { expect, test } from "vitest";
 import { csvImportSummaryMessage, EMPTY_CSV_MESSAGE } from "../line/helper.ts";
-import { createSheetsClient } from "../sheets/sheets.ts";
+import { obsidianAppNoteLink } from "../obsidian/helper.ts";
 import {
   appendCashTotalRow,
   appendCumulativeRows,
   appendDebitTotalRow,
   appendTotalRow,
   earlierSheetTitles,
-  gridSize,
   isCsvFile,
   parseCsv,
+  parseMarkdownTable,
+  rowsToMarkdownTable,
   sheetTitle,
-  sheetValuesRange,
-  spreadsheetAppLink,
-  valuesRange,
 } from "./csv.ts";
 import { importCsvFiles } from "./csv-import.ts";
 
@@ -316,8 +314,22 @@ test("earlierSheetTitles は同じファイル名で今回より前のシート�
   ).toEqual(["2026-11-22_household", "2026-11-15_Household"]);
 });
 
-test("spreadsheetAppLink はSheetsアプリで開くURLを返す", () => {
-  expect(spreadsheetAppLink("sheet-1")).toBe("googlesheets://https://docs.google.com/spreadsheets/d/sheet-1/edit");
+test("rowsToMarkdownTable と parseMarkdownTable は2次元配列とMarkdownテーブルを相互変換する", () => {
+  const rows = [
+    ["金額", "日付", "内容", "カテゴリー"],
+    ["1200", "2026-11-15", "カフェ | ランチ", "デビット支払い"],
+    ["1200", "", "", "合計"],
+  ];
+  const markdown = rowsToMarkdownTable(rows);
+  expect(markdown).toBe(
+    [
+      "| 金額 | 日付 | 内容 | カテゴリー |",
+      "| --- | --- | --- | --- |",
+      "| 1200 | 2026-11-15 | カフェ \\| ランチ | デビット支払い |",
+      "| 1200 |  |  | 合計 |",
+    ].join("\n"),
+  );
+  expect(parseMarkdownTable(markdown)).toEqual(rows);
 });
 
 test("isCsvFile はcsv拡張子かtext/csvを受け、Googleスプレッドシートは除く", () => {
@@ -328,15 +340,15 @@ test("isCsvFile はcsv拡張子かtext/csvを受け、Googleスプレッドシ�
   expect(isCsvFile({ name: "week.png", mimeType: "image/png" })).toBe(false);
 });
 
-test("CSVが0件ならシートを作らず対象なしを通知する", async () => {
+test("CSVが0件ならノートを作らず対象なしを通知する", async () => {
   const messages: string[] = [];
   const result = await importCsvFiles({
     files: [],
     download: async () => {
       throw new Error("download");
     },
-    existingSheetTitles: [],
-    writeSheet: async () => {
+    existingNoteTitles: [],
+    writeNote: async () => {
       throw new Error("write");
     },
     moveToProcessed: async () => {
@@ -345,28 +357,29 @@ test("CSVが0件ならシートを作らず対象なしを通知する", async (
     pushLine: async (text) => {
       messages.push(text);
     },
-    spreadsheetUrl: "googlesheets://https://docs.google.com/spreadsheets/d/sheet/edit",
   });
   expect(result).toEqual({ imported: 0, failed: 0, failures: [] });
   expect(messages).toEqual([EMPTY_CSV_MESSAGE]);
 });
 
-test("CSVを新しいシートへ書き、成功後に移動してLINEする", async () => {
+test("CSVをMarkdownテーブルとしてS3へ保存し、成功後に移動してLINEする", async () => {
   const order: string[] = [];
   const result = await importCsvFiles({
     files: [{ id: "file-1", name: "sales.csv" }],
     download: async () => Buffer.from("name,qty\npen,2\n"),
-    existingSheetTitles: [],
-    writeSheet: async ({ title, rows }) => {
+    existingNoteTitles: [],
+    writeNote: async ({ title, date, markdown }) => {
       order.push("write");
       expect(title).toBe("2026-11-15_sales");
-      expect(rows).toEqual([
-        ["name", "qty"],
-        ["pen", "2"],
-        ["合計", "2"],
+      expect(date).toBe("2026-11-15");
+      expect(parseMarkdownTable(markdown)).toEqual([
+        ["name", "qty", "", ""],
+        ["pen", "2", "", ""],
+        ["合計", "2", "", ""],
         ["0", "", "", "デビット支払い合計"],
         ["0", "", "", "現金支払い"],
       ]);
+      return "household_budget/2026-11-15_sales.md";
     },
     moveToProcessed: async (file) => {
       order.push(`move:${file.id}`);
@@ -374,7 +387,7 @@ test("CSVを新しいシートへ書き、成功後に移動してLINEする", a
     pushLine: async (text) => {
       order.push(text);
     },
-    spreadsheetUrl: "googlesheets://https://docs.google.com/spreadsheets/d/sheet/edit",
+    buildNoteLink: (key) => obsidianAppNoteLink("ks-vault", key),
     now: new Date("2026-11-15T01:00:00.000Z"),
   });
   expect(result.imported).toBe(1);
@@ -385,20 +398,20 @@ test("CSVを新しいシートへ書き、成功後に移動してLINEする", a
     csvImportSummaryMessage({
       imported: 1,
       failed: 0,
-      spreadsheetUrl: "googlesheets://https://docs.google.com/spreadsheets/d/sheet/edit",
+      noteLinks: [obsidianAppNoteLink("ks-vault", "household_budget/2026-11-15_sales.md")],
       failures: [],
     }),
   ]);
 });
 
-test("日付があるCSVは同じ月の前週シートだけを読んで累計行を足す", async () => {
+test("日付があるCSVは同じ月の前週ノートだけを読んで累計行を足す", async () => {
   const reads: string[] = [];
-  let written: string[][] = [];
+  let writtenRows: string[][] = [];
   const result = await importCsvFiles({
     files: [{ id: "file-1", name: "household.csv" }],
     download: async () => Buffer.from("金額,日付,内容,カテゴリー\n100,2026-11-15,現金,食費\n"),
-    existingSheetTitles: ["2026-11-08_household", "2026-10-25_household", "2026-10-18_household"],
-    readSheet: async (title) => {
+    existingNoteTitles: ["2026-11-08_household", "2026-10-25_household", "2026-10-18_household"],
+    readNoteRows: async (title) => {
       reads.push(title);
       if (title === "2026-11-08_household") {
         return [
@@ -411,23 +424,23 @@ test("日付があるCSVは同じ月の前週シートだけを読んで累計�
         ["9", "2026-10-25", "ランチ", "デビット支払い"],
       ];
     },
-    writeSheet: async ({ title, rows }) => {
+    writeNote: async ({ title, markdown }) => {
       expect(title).toBe("2026-11-15_household");
-      written = rows;
+      writtenRows = parseMarkdownTable(markdown);
+      return "household_budget/2026-11-15_household.md";
     },
     moveToProcessed: async () => {},
     pushLine: async () => {},
-    spreadsheetUrl: "googlesheets://https://docs.google.com/spreadsheets/d/sheet/edit",
     now: new Date("2026-11-15T01:00:00.000Z"),
   });
   expect(result.imported).toBe(1);
   expect(reads).toEqual(["2026-11-08_household", "2026-10-25_household"]);
-  expect(written.at(-3)).toEqual(["140", "", "", "累計 合計"]);
-  expect(written.at(-2)).toEqual(["40", "", "", "デビット 合計"]);
-  expect(written.at(-1)).toEqual(["100", "", "", "現金 合計"]);
+  expect(writtenRows.at(-3)).toEqual(["140", "", "", "累計 合計"]);
+  expect(writtenRows.at(-2)).toEqual(["40", "", "", "デビット 合計"]);
+  expect(writtenRows.at(-1)).toEqual(["100", "", "", "現金 合計"]);
 });
 
-test("同名シートがあるファイルは上書きも移動もしない", async () => {
+test("同名ノートがあるファイルは上書きも移動もしない", async () => {
   let downloaded = false;
   let moved = false;
   const result = await importCsvFiles({
@@ -436,15 +449,14 @@ test("同名シートがあるファイルは上書きも移動もしない", as
       downloaded = true;
       return Buffer.from("a\n");
     },
-    existingSheetTitles: ["2026-11-15_Sales"],
-    writeSheet: async () => {
+    existingNoteTitles: ["2026-11-15_Sales"],
+    writeNote: async () => {
       throw new Error("write");
     },
     moveToProcessed: async () => {
       moved = true;
     },
     pushLine: async () => {},
-    spreadsheetUrl: "googlesheets://https://docs.google.com/spreadsheets/d/sheet/edit",
     now: new Date("2026-11-15T01:00:00.000Z"),
   });
   expect(downloaded).toBe(false);
@@ -459,68 +471,17 @@ test("書き込みに失敗したファイルは移動しない", async () => {
   const result = await importCsvFiles({
     files: [{ id: "file-1", name: "sales.csv" }],
     download: async () => Buffer.from("name,qty\npen,2\n"),
-    existingSheetTitles: [],
-    writeSheet: async () => {
-      throw new Error("sheets down");
+    existingNoteTitles: [],
+    writeNote: async () => {
+      throw new Error("s3 down");
     },
     moveToProcessed: async () => {
       moved = true;
     },
     pushLine: async () => {},
-    spreadsheetUrl: "googlesheets://https://docs.google.com/spreadsheets/d/sheet/edit",
     now: new Date("2026-11-15T01:00:00.000Z"),
   });
   expect(moved).toBe(false);
   expect(result.failed).toBe(1);
-  expect(result.failures[0].reason).toBe("sheets down");
-});
-
-test("addSheetWithValues はシートを追加してRAWで書き込む", async () => {
-  const calls: Array<{ url: string; body: { values?: string[][] } | null }> = [];
-  const fetchImpl: typeof fetch = async (url, options = {}) => {
-    calls.push({ url: String(url), body: options.body ? JSON.parse(String(options.body)) : null });
-    if (String(url).includes(":batchUpdate")) {
-      return new Response(
-        JSON.stringify({ replies: [{ addSheet: { properties: { sheetId: 7, title: "2026-11-15_sales" } } }] }),
-        { status: 200 },
-      );
-    }
-    return new Response(JSON.stringify({ updatedCells: 2 }), { status: 200 });
-  };
-  const sheets = createSheetsClient({
-    authClient: { getAccessToken: async () => "token" },
-    fetchImpl,
-  });
-  await sheets.addSheetWithValues({
-    spreadsheetId: "sheet-id",
-    title: "2026-11-15_sales",
-    rows: [["name"], ["pen"]],
-  });
-  expect(calls[1].url.includes("valueInputOption=RAW")).toBe(true);
-  expect(calls[1].body?.values).toEqual([["name"], ["pen"]]);
-  expect(gridSize([["name"], ["pen"]])).toEqual({ rowCount: 2, columnCount: 1 });
-  expect(valuesRange("it's")).toBe("'it''s'!A1");
-});
-
-test("getSheetValues はシート全体の値を文字列で返す", async () => {
-  const fetchImpl: typeof fetch = async (url) => {
-    expect(String(url).includes(`/values/${encodeURIComponent(sheetValuesRange("it's"))}`)).toBe(true);
-    return new Response(
-      JSON.stringify({
-        values: [
-          ["金額", "日付"],
-          [1200, "2026-11-01"],
-        ],
-      }),
-      { status: 200 },
-    );
-  };
-  const sheets = createSheetsClient({
-    authClient: { getAccessToken: async () => "token" },
-    fetchImpl,
-  });
-  expect(await sheets.getSheetValues("sheet-id", "it's")).toEqual([
-    ["金額", "日付"],
-    ["1200", "2026-11-01"],
-  ]);
+  expect(result.failures[0].reason).toBe("s3 down");
 });

@@ -54,16 +54,18 @@ export function csvImportFailedMessage(reason: unknown): string {
 export function csvImportSummaryMessage({
   imported,
   failed,
-  spreadsheetUrl,
+  noteLinks = [],
   failures = [],
 }: {
   imported: number;
   failed: number;
-  spreadsheetUrl?: string;
+  noteLinks?: ReadonlyArray<string>;
   failures?: ReadonlyArray<CsvImportFailure>;
 }): string {
   const lines = ["CSV取り込み完了", `成功: ${imported}件 / 失敗: ${failed}件`];
-  if (spreadsheetUrl) lines.push(spreadsheetUrl);
+  for (const link of noteLinks) {
+    if (link) lines.push(link);
+  }
   for (const failure of failures) {
     lines.push(`${failure.fileName}: ${sanitizeErrorMessage(failure.reason)}`);
   }
