@@ -1,14 +1,14 @@
-# 週次Craftノート要約＆LINE通知システム 仕様書
+# 週次Obsidianノート要約＆LINE通知システム 仕様書
 
-Craft APIから指定フォルダ内の過去1週間分のノートを取得し、AIで統合要約の上、LINE Messaging API経由で通知したのち、処理済みノートを別フォルダへ自動移動するバッチシステムの仕様書です。
+Obsidian Vault 用 S3 バケットから指定フォルダ（`00_daily_notes`）内の過去1週間分のノートを取得し、AIで統合要約の上、LINE Messaging API経由で通知し、`daily_note_summaries` フォルダへ週次まとめノートを保存するバッチシステムの仕様書です。
 
 ---
 
 ## 1. システム概要
 
-* **目的**: 1週間に作成されたCraft内のノート（指定フォルダ内）を自動回収・統合要約し、LINEへ通知。完了後にノートを処理済みフォルダへ移動して整理を自動化する。
+* **目的**: 1週間に作成された `00_daily_notes` 内のノートを自動回収・統合要約し、LINEへ通知および `daily_note_summaries` に保存する。
 * **実行頻度**: 毎週日曜日 JST 09:00（バッチ処理）
-* **主要インフラ**: AWS (EventBridge, Lambda), LINE Messaging API
+* **主要インフラ**: AWS (EventBridge, Lambda, S3), LINE Messaging API
 
 ---
 

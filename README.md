@@ -3,7 +3,7 @@
 ## 構成
 
 ```
-infra/app.js                 CDK（Lambda、Scheduler、Secrets Manager）
+infra/app.js                 CDK（Lambda、Scheduler、S3、Secrets Manager）
 lambda/inbox/                朝のパイプライン
 lambda/weekly/               週次要約
 lambda/reminder/             週次リマインド
@@ -11,7 +11,7 @@ lambda/kindle/               Kindle 画像要約
 lambda/csv/                  CSV のパースとスプレッドシート取り込み
 lambda/sheets/               Google Sheets
 lambda/drive/                Google Drive
-lambda/craft/                Craft
+lambda/obsidian/             Obsidian Vault（S3 バックエンド）
 lambda/line/                 LINE
 lambda/claude/               Claude の料金と週次利用量
 lambda/summarize/            週次要約（claude / bedrock）
