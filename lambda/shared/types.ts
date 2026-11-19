@@ -18,9 +18,9 @@ export interface BaseSettings {
   secretId: string;
   bedrockModelId: string;
   bedrockRegion: string;
-  craftFolderName: string;
-  craftApiBaseUrl: string;
-  craftApiKey: string;
+  notesBucketName: string;
+  obsidianVaultName: string;
+  obsidianDailyFolder: string;
   anthropicApiKey: string;
   claudeModelId: string;
   transcriptionProvider: string;
@@ -31,8 +31,6 @@ export interface BaseSettings {
 
 export interface Credentials {
   serviceAccount?: GoogleServiceAccount;
-  craftApiBaseUrl: string;
-  craftApiKey: string;
   anthropicApiKey?: string;
   lineChannelAccessToken: string;
   lineUserId: string;

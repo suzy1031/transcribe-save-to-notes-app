@@ -6,20 +6,14 @@ export interface KindleSettings extends BaseSettings {
   driveParentFolderName: string;
   bookFolderPrefix: string;
   processedFolderName: string;
-  summaryDocTitle: string;
+  obsidianKindleFolder: string;
   kindleClaudeModelId: string;
 }
-
-export type SummaryDocumentState =
-  | { action: "create" }
-  | { action: "append"; documentId: string }
-  | { action: "error"; reason: string };
 
 export interface ProcessKindleResult {
   foldersScanned: number;
   imagesSummarized: number;
   imagesFailed: number;
-  foldersSkippedNoCraft?: number;
   deferred?: number;
   errors?: string[];
   links?: Array<{ folderName: string; documentId: string }>;

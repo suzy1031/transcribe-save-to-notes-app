@@ -8,7 +8,7 @@ test("summaryPrompt に週次見出しと結合ノートが含まれる", () => 
     { title: "火曜", markdown: "決定事項" },
   ]);
   const prompt = summaryPrompt(notes);
-  expect(prompt).toMatch(/【週次Craftノートまとめ】/);
+  expect(prompt).toMatch(/【週次ノートまとめ】/);
   expect(prompt).toMatch(/📌 今週のハイライト/);
   expect(prompt).toMatch(/📝 主なトピック/);
   expect(prompt).toMatch(/🚀 来週への持ち越し・アクションアイテム/);

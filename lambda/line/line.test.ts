@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { craftAppDocumentLink } from "../craft/helper.ts";
+import { obsidianAppNoteLink } from "../obsidian/helper.ts";
 import {
   fitLineText,
   LINE_TEXT_LIMIT,
@@ -18,7 +18,7 @@ test("fitLineText は短いメッセージをそのまま返し5000文字で切�
 });
 
 test("文字起こし用LINEメッセージに保存タイトルと失敗ファイル名が含まれる", () => {
-  const link = craftAppDocumentLink("space-1", "doc-1");
+  const link = obsidianAppNoteLink("ks-vault", "00_daily_notes/2026-11-02.md");
   expect(transcriptionSavedMessage("2026/11/02", link)).toBe(`2026/11/02\n${link}`);
   expect(transcriptionSavedMessage("2026/11/02", "")).toBe("2026/11/02");
   expect(reminderDeliveredMessage("週次まとめ 2026-11-01", link)).toBe(
@@ -27,8 +27,8 @@ test("文字起こし用LINEメッセージに保存タイトルと失敗ファ�
   expect(transcriptionFailedMessage("note.png", "model failed")).toBe(
     "文字起こしに失敗しました\nnote.png\nmodel failed",
   );
-  expect(reminderFailedMessage("Craft folder was not found")).toBe(
-    "週次リマインドに失敗しました\nCraft folder was not found",
+  expect(reminderFailedMessage("Summary folder was not found")).toBe(
+    "週次リマインドに失敗しました\nSummary folder was not found",
   );
 });
 

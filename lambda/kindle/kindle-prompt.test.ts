@@ -8,10 +8,10 @@ test("Kindleプロンプトはハイライトがある場合ハイライトの�
   expect(KINDLE_SYSTEM_PROMPT).toMatch(/ハイライトがある画像/);
 });
 
-test("KindleプロンプトはKindleマークアップにCraft赤ハイライトタグを使う", () => {
-  expect(KINDLE_USER_PROMPT).toMatch(/<highlight color="red">/);
-  expect(KINDLE_SYSTEM_PROMPT).toMatch(/<highlight color="red">/);
-  expect(KINDLE_USER_PROMPT).toMatch(/タグは使わない/);
+test("KindleプロンプトはKindleハイライトにObsidianの==記法を使う", () => {
+  expect(KINDLE_USER_PROMPT).toMatch(/==\.\.\.==/);
+  expect(KINDLE_SYSTEM_PROMPT).toMatch(/==大文字のハイライトテキスト==/);
+  expect(KINDLE_USER_PROMPT).toMatch(/ハイライト記法は使わない/);
 });
 
 test("Kindleプロンプトは大文字ハイライトを箇条書き補足の上に置く", () => {

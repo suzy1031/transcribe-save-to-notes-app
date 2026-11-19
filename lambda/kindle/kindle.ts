@@ -1,18 +1,16 @@
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import { createCraftClient } from "../craft/craft.ts";
-import { connectionSpaceId, craftAppDocumentLink } from "../craft/helper.ts";
-import type { CraftListedDocument } from "../craft/types.ts";
 import { createDriveClient } from "../drive/drive.ts";
 import type { DriveFile } from "../drive/types.ts";
 import { kindleFailedMessage, kindleRunSummaryMessage } from "../line/helper.ts";
+import { obsidianAppNoteLink } from "../obsidian/helper.ts";
+import { createObsidianClient } from "../obsidian/obsidian.ts";
 import { bunLambdaHandler } from "../shared/bun-handler.ts";
 import {
-  ALL_CRAFT_DOCUMENTS_SINCE,
   DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
   DEFAULT_KINDLE_BOOK_PREFIX,
   DEFAULT_KINDLE_DRIVE_PARENT,
   DEFAULT_KINDLE_PROCESSED_FOLDER,
-  DEFAULT_KINDLE_SUMMARY_DOC_TITLE,
+  DEFAULT_OBSIDIAN_KINDLE_FOLDER,
   MIN_REMAINING_MS,
 } from "../shared/const.ts";
 import { createLinePush, runLogged } from "../shared/job.ts";
@@ -21,7 +19,7 @@ import { loadCredentials, settingsFromEnv } from "../shared/settings.ts";
 import type { LambdaContextLike, LoggerLike } from "../shared/types.ts";
 import type { TranscribeInput } from "../transcribe/types.ts";
 import { createKindleSummarizer } from "./kindle-summarize.ts";
-import type { KindleSettings, ProcessKindleResult, SummaryDocumentState } from "./types.ts";
+import type { KindleSettings, ProcessKindleResult } from "./types.ts";
 
 export function kindleSettingsFromEnv(env: NodeJS.ProcessEnv = process.env): KindleSettings {
   return {
@@ -29,19 +27,8 @@ export function kindleSettingsFromEnv(env: NodeJS.ProcessEnv = process.env): Kin
     driveParentFolderName: env.KINDLE_DRIVE_PARENT_FOLDER_NAME || DEFAULT_KINDLE_DRIVE_PARENT,
     bookFolderPrefix: env.KINDLE_BOOK_FOLDER_PREFIX || DEFAULT_KINDLE_BOOK_PREFIX,
     processedFolderName: env.KINDLE_PROCESSED_FOLDER_NAME || DEFAULT_KINDLE_PROCESSED_FOLDER,
-    summaryDocTitle: env.KINDLE_SUMMARY_DOC_TITLE || DEFAULT_KINDLE_SUMMARY_DOC_TITLE,
+    obsidianKindleFolder: env.OBSIDIAN_KINDLE_FOLDER || DEFAULT_OBSIDIAN_KINDLE_FOLDER,
     kindleClaudeModelId: env.KINDLE_CLAUDE_MODEL_ID || env.CLAUDE_MODEL_ID || DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
-  };
-}
-
-export function summaryDocumentState(documents: ReadonlyArray<{ id: string }>): SummaryDocumentState {
-  if (documents.length === 0) return { action: "create" };
-  if (documents.length === 1) {
-    return { action: "append", documentId: documents[0].id };
-  }
-  return {
-    action: "error",
-    reason: `Craft folder had ${documents.length} documents; expected 0 or 1`,
   };
 }
 
@@ -49,10 +36,7 @@ export async function processKindleBooks({
   bookFolders,
   listImages,
   download,
-  findCraftFolderId,
-  listCraftDocuments,
-  createSummaryDocument,
-  appendSummary,
+  saveOrAppendBookNote,
   summarizeImage,
   ensureProcessedFolder,
   moveImageToProcessed,
@@ -62,10 +46,7 @@ export async function processKindleBooks({
   bookFolders: ReadonlyArray<DriveFile>;
   listImages: (folderId: string) => Promise<DriveFile[]>;
   download: (file: DriveFile) => Promise<Uint8Array | Buffer>;
-  findCraftFolderId: (name: string) => Promise<string | null>;
-  listCraftDocuments: (folderId: string) => Promise<CraftListedDocument[]>;
-  createSummaryDocument: (input: { folderId: string; markdown: string }) => Promise<string>;
-  appendSummary: (input: { documentId: string; markdown: string }) => Promise<void>;
+  saveOrAppendBookNote: (input: { bookTitle: string; markdown: string }) => Promise<string>;
   summarizeImage: (input: TranscribeInput) => Promise<string>;
   ensureProcessedFolder: (bookFolderId: string) => Promise<string>;
   moveImageToProcessed: (input: { file: DriveFile; bookFolderId: string; processedFolderId: string }) => Promise<void>;
@@ -76,7 +57,6 @@ export async function processKindleBooks({
     foldersScanned: bookFolders.length,
     imagesSummarized: 0,
     imagesFailed: 0,
-    foldersSkippedNoCraft: 0,
     deferred: 0,
     errors: [] as string[],
     links: [] as Array<{ folderName: string; documentId: string }>,
@@ -93,22 +73,7 @@ export async function processKindleBooks({
     const images = await listImages(bookFolder.id);
     if (images.length === 0) continue;
 
-    const craftFolderId = await findCraftFolderId(bookFolder.name);
-    if (!craftFolderId) {
-      result.foldersSkippedNoCraft += 1;
-      log.info(`Craft folder not found for ${bookFolder.name}; skipping ${images.length} image(s)`);
-      continue;
-    }
-
-    const documents = await listCraftDocuments(craftFolderId);
-    const docState = summaryDocumentState(documents);
-    if (docState.action === "error") {
-      result.errors.push(`${bookFolder.name}: ${docState.reason}`);
-      log.error(`${bookFolder.name}: ${docState.reason}`);
-      continue;
-    }
-
-    let documentId: string | null = docState.action === "append" ? docState.documentId : null;
+    let documentId: string | null = null;
     let folderSaved = false;
     const processedFolderId = await ensureProcessedFolder(bookFolder.id);
 
@@ -124,14 +89,10 @@ export async function processKindleBooks({
         log.info(`Kindle要約 start ${bookFolder.name}/${file.name}`);
         const bytes = await download(file);
         const markdown = await summarizeImage({ bytes, mimeType: file.mimeType });
-        if (documentId === null) {
-          documentId = await createSummaryDocument({
-            folderId: craftFolderId,
-            markdown,
-          });
-        } else {
-          await appendSummary({ documentId, markdown });
-        }
+        documentId = await saveOrAppendBookNote({
+          bookTitle: bookFolder.name,
+          markdown,
+        });
         await moveImageToProcessed({
           file,
           bookFolderId: bookFolder.id,
@@ -164,18 +125,11 @@ async function runKindle(context: LambdaContextLike): Promise<ProcessKindleResul
   const settings = kindleSettingsFromEnv();
   const credentials = await loadCredentials(settings, new SecretsManagerClient({ region: settings.bedrockRegion }));
   const drive = createDriveClient({ serviceAccount: credentials.serviceAccount });
-  const craft = createCraftClient({
-    baseUrl: credentials.craftApiBaseUrl,
-    apiKey: credentials.craftApiKey,
+  const obsidian = createObsidianClient({
+    bucketName: settings.notesBucketName,
+    region: settings.bedrockRegion,
   });
   const pushLine = createLinePush(credentials);
-
-  let craftSpaceId = "";
-  try {
-    craftSpaceId = connectionSpaceId(await craft.getConnection());
-  } catch (error) {
-    console.error(`Craft connection lookup failed: ${sanitizeErrorMessage((error as Error).message)}`);
-  }
 
   const parent = await drive.findUniqueFolder(settings.driveParentFolderName);
   if (!parent.ok) {
@@ -202,15 +156,13 @@ async function runKindle(context: LambdaContextLike): Promise<ProcessKindleResul
     bookFolders,
     listImages: (folderId) => drive.listImages(folderId),
     download: (file) => drive.download(file.id),
-    findCraftFolderId: (name) => craft.findFolder(name),
-    listCraftDocuments: (folderId) => craft.listDocuments({ folderId, createdDateGte: ALL_CRAFT_DOCUMENTS_SINCE }),
-    createSummaryDocument: ({ folderId, markdown }) =>
-      craft.createDocument({
-        title: settings.summaryDocTitle,
+    saveOrAppendBookNote: ({ bookTitle, markdown }) =>
+      obsidian.saveOrAppendNote({
+        folder: settings.obsidianKindleFolder,
+        title: bookTitle,
         markdown,
-        folderId,
+        tags: ["kindle"],
       }),
-    appendSummary: ({ documentId, markdown }) => craft.appendMarkdown({ pageId: documentId, markdown }),
     summarizeImage,
     ensureProcessedFolder: (bookFolderId) => drive.ensureChildFolder(bookFolderId, settings.processedFolderName),
     moveImageToProcessed: ({ file, bookFolderId, processedFolderId }) =>
@@ -225,7 +177,8 @@ async function runKindle(context: LambdaContextLike): Promise<ProcessKindleResul
   if (summary.imagesSummarized > 0 || summary.imagesFailed > 0) {
     const links = summary.links.map(({ folderName, documentId }) => ({
       folderName,
-      appLink: craftSpaceId && documentId ? craftAppDocumentLink(craftSpaceId, documentId) : "",
+      appLink:
+        settings.obsidianVaultName && documentId ? obsidianAppNoteLink(settings.obsidianVaultName, documentId) : "",
     }));
     await pushLine(
       kindleRunSummaryMessage({
@@ -236,9 +189,7 @@ async function runKindle(context: LambdaContextLike): Promise<ProcessKindleResul
     );
   }
 
-  console.log(
-    `Kindle要約 ${summary.imagesSummarized}枚 失敗 ${summary.imagesFailed}枚 Craft未設定 ${summary.foldersSkippedNoCraft}件`,
-  );
+  console.log(`Kindle要約 ${summary.imagesSummarized}枚 失敗 ${summary.imagesFailed}枚`);
   return summary;
 }
 

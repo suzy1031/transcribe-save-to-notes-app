@@ -1,10 +1,10 @@
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import { createCraftClient } from "../craft/craft.ts";
-import { connectionSpaceId, craftAppDocumentLink } from "../craft/helper.ts";
 import { createDriveClient } from "../drive/drive.ts";
 import { fileStem, orphanTextFiles } from "../drive/helper.ts";
 import type { DriveClient, DriveFile } from "../drive/types.ts";
 import { transcriptionFailedMessage, transcriptionSavedMessage } from "../line/helper.ts";
+import { obsidianAppNoteLink } from "../obsidian/helper.ts";
+import { createObsidianClient } from "../obsidian/obsidian.ts";
 import { bunLambdaHandler } from "../shared/bun-handler.ts";
 import { INBOX_FOLDER_NAME, MIN_REMAINING_MS, PROCESSED_DRIVE_FOLDER_NAME } from "../shared/const.ts";
 import { createLinePush, runLogged } from "../shared/job.ts";
@@ -19,8 +19,7 @@ export async function processInbox({
   files,
   download,
   transcribe,
-  ensureFolder,
-  createDocument,
+  saveNote,
   moveToProcessed,
   removeTextFiles = async () => {},
   notifySaved = async () => {},
@@ -32,8 +31,7 @@ export async function processInbox({
   files: ReadonlyArray<DriveFile>;
   download: (file: DriveFile) => Promise<Uint8Array | Buffer>;
   transcribe: (input: TranscribeInput) => Promise<ParsedTranscription>;
-  ensureFolder: () => Promise<string>;
-  createDocument: (input: { title: string; markdown: string; folderId: string }) => Promise<string>;
+  saveNote: (input: { title: string; markdown: string }) => Promise<string>;
   moveToProcessed: (input: { file: DriveFile; craftDocumentId: string }) => Promise<void>;
   removeTextFiles?: (file: DriveFile) => Promise<void>;
   notifySaved?: (input: { title: string; documentId: string }) => Promise<void>;
@@ -47,8 +45,6 @@ export async function processInbox({
     log.info("画像ファイル取得なし");
     return summary;
   }
-
-  const folderId = await ensureFolder();
 
   for (let index = 0; index < files.length; index += 1) {
     const file = files[index];
@@ -86,19 +82,18 @@ export async function processInbox({
       log.info(`文字起こし start ${file.name}`);
       const note = await transcribe({ bytes, mimeType: file.mimeType });
       log.info(`文字起こし end ${file.name}`);
-      stage = "craft保存";
-      log.info(`craft保存 start ${file.name}`);
-      const craftDocumentId = await createDocument({
+      stage = "obsidian保存";
+      log.info(`obsidian保存 start ${file.name}`);
+      const noteKey = await saveNote({
         title: note.title,
         markdown: note.markdown,
-        folderId,
       });
-      log.info(`craft保存 end ${file.name}`);
+      log.info(`obsidian保存 end ${file.name}`);
       stage = "移動";
-      await moveToProcessed({ file, craftDocumentId });
+      await moveToProcessed({ file, craftDocumentId: noteKey });
       await removeTextFiles(file);
       summary.processed += 1;
-      await notifySaved({ title: note.title, documentId: craftDocumentId });
+      await notifySaved({ title: note.title, documentId: noteKey });
     } catch (error) {
       summary.failed += 1;
       const err = error as Error;
@@ -148,16 +143,10 @@ async function runPipeline(context: LambdaContextLike): Promise<ProcessInboxSumm
       processedFolderId: processed.id,
       removedTextIds,
     });
-  const craft = createCraftClient({
-    baseUrl: credentials.craftApiBaseUrl,
-    apiKey: credentials.craftApiKey,
+  const obsidian = createObsidianClient({
+    bucketName: settings.notesBucketName,
+    region: settings.bedrockRegion,
   });
-  let craftSpaceId = "";
-  try {
-    craftSpaceId = connectionSpaceId(await craft.getConnection());
-  } catch (error) {
-    console.error(`Craft connection lookup failed: ${sanitizeErrorMessage((error as Error).message)}`);
-  }
   const transcription = createTranscription({
     provider: settings.transcriptionProvider,
     claude: {
@@ -175,8 +164,13 @@ async function runPipeline(context: LambdaContextLike): Promise<ProcessInboxSumm
     download: (file) => drive.download(file.id),
     transcribe: transcription.transcribe,
     maxImageBytes: transcription.maxImageBytes,
-    ensureFolder: () => craft.ensureFolder(settings.craftFolderName),
-    createDocument: (input) => craft.createDocument(input),
+    saveNote: ({ title, markdown }) =>
+      obsidian.saveOrAppendNote({
+        folder: settings.obsidianDailyFolder,
+        title,
+        markdown,
+        tags: ["daily"],
+      }),
     moveToProcessed: ({ file, craftDocumentId }) =>
       drive.moveToProcessed({
         fileId: file.id,
@@ -190,7 +184,7 @@ async function runPipeline(context: LambdaContextLike): Promise<ProcessInboxSumm
         if (fileStem(textFile.name) === stem) await discardText(textFile);
       }
     },
-    notifySaved: (input) => notify.saved({ ...input, spaceId: craftSpaceId }),
+    notifySaved: (input) => notify.saved({ ...input, vaultName: settings.obsidianVaultName }),
     notifyFailed: (input) => notify.failed(input),
     getRemainingTimeMs: () => context.getRemainingTimeInMillis(),
   });
@@ -204,8 +198,8 @@ async function runPipeline(context: LambdaContextLike): Promise<ProcessInboxSumm
 
 function createLineNotifier(pushLine: (text: string) => Promise<void>) {
   return {
-    async saved({ title, documentId, spaceId }: { title: string; documentId: string; spaceId: string }) {
-      const appLink = spaceId && documentId ? craftAppDocumentLink(spaceId, documentId) : "";
+    async saved({ title, documentId, vaultName }: { title: string; documentId: string; vaultName: string }) {
+      const appLink = vaultName && documentId ? obsidianAppNoteLink(vaultName, documentId) : "";
       await pushLine(transcriptionSavedMessage(title, appLink));
     },
     async failed({ fileName, reason }: { fileName: string; reason: string }) {

@@ -1,6 +1,6 @@
 import { expect, test, vi } from "vitest";
-import { craftAppDocumentLink } from "../craft/helper.ts";
 import { EMPTY_REMINDER_MESSAGE, reminderDeliveredMessage, reminderFailedMessage } from "../line/helper.ts";
+import { obsidianAppNoteLink } from "../obsidian/helper.ts";
 import { tokyoDate } from "../shared/tokyo-date.ts";
 import {
   filterDocumentsByReminderTitle,
@@ -18,11 +18,11 @@ type ProcessReminderArgs = Parameters<typeof processReminder>[0];
 function reminder(overrides: Partial<ProcessReminderArgs> = {}) {
   const calls: { push: string[] } = { push: [] };
   const deps: ProcessReminderArgs = {
-    documents: [{ id: "doc-1", title: "週次まとめ 2026-11-01" }],
+    documents: [{ id: "daily_note_summaries/週次まとめ 2026-11-01.md", title: "週次まとめ 2026-11-01" }],
     pushLine: async (text) => {
       calls.push.push(text);
     },
-    spaceId: "space-1",
+    vaultName: "ks-vault",
     targetDate: "2026-11-01",
     ...overrides,
   };
@@ -50,21 +50,31 @@ test("filterDocumentsByReminderTitle は対象日の週次まとめタイトル�
 });
 
 test("listReminderDocuments は作成日0件のときタイトルでフォルダ内を探す", async () => {
-  const calls: Array<{ folderId: string; createdDateGte: string; createdDateLte?: string }> = [];
-  const craft = {
-    listDocuments: async (query: { folderId: string; createdDateGte: string; createdDateLte?: string }) => {
+  const calls: Array<{ folder: string; createdDateGte?: string; createdDateLte?: string }> = [];
+  const obsidian = {
+    listNotes: async (query: { folder: string; createdDateGte?: string; createdDateLte?: string }) => {
       calls.push(query);
       if (query.createdDateLte === "2026-11-01") return [];
       return [
-        { id: "doc-1", title: "週次まとめ 2026-11-01" },
-        { id: "doc-2", title: "週次まとめ 2026-10-25" },
+        {
+          id: "daily_note_summaries/週次まとめ 2026-11-01.md",
+          key: "daily_note_summaries/週次まとめ 2026-11-01.md",
+          title: "週次まとめ 2026-11-01",
+          createdDate: "2026-10-31",
+        },
+        {
+          id: "daily_note_summaries/週次まとめ 2026-10-25.md",
+          key: "daily_note_summaries/週次まとめ 2026-10-25.md",
+          title: "週次まとめ 2026-10-25",
+          createdDate: "2026-10-25",
+        },
       ];
     },
   };
-  const result = await listReminderDocuments(craft, "folder-1", "2026-11-01");
+  const result = await listReminderDocuments(obsidian, "daily_note_summaries", "2026-11-01");
   expect(result.matchedBy).toBe("title");
   expect(result.documents.length).toBe(1);
-  expect(result.documents[0].id).toBe("doc-1");
+  expect(result.documents[0].id).toBe("daily_note_summaries/週次まとめ 2026-11-01.md");
   expect(calls.length).toBe(2);
 });
 
@@ -75,12 +85,15 @@ test("一致するノートがない場合は固定のLINEメッセージを送�
   expect(calls.push).toEqual([EMPTY_REMINDER_MESSAGE]);
 });
 
-test("一致するノートが1件の場合はタイトルとCraftアプリリンクを送る", async () => {
+test("一致するノートが1件の場合はタイトルとObsidianアプリリンクを送る", async () => {
   const { calls, run } = reminder();
   const result = await run();
-  expect(result).toEqual({ reminded: 1, documentId: "doc-1" });
+  expect(result).toEqual({ reminded: 1, documentId: "daily_note_summaries/週次まとめ 2026-11-01.md" });
   expect(calls.push).toEqual([
-    reminderDeliveredMessage("週次まとめ 2026-11-01", craftAppDocumentLink("space-1", "doc-1")),
+    reminderDeliveredMessage(
+      "週次まとめ 2026-11-01",
+      obsidianAppNoteLink("ks-vault", "daily_note_summaries/週次まとめ 2026-11-01.md"),
+    ),
   ]);
 });
 
@@ -119,7 +132,7 @@ test("notifyReminderLineError はLINE認証情報がない場合にログを出�
     await notifyReminderLineError({
       line: null,
       credentials: {},
-      error: new Error("craft failed"),
+      error: new Error("s3 failed"),
     });
   } finally {
     spy.mockRestore();

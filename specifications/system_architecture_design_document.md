@@ -1,6 +1,6 @@
-# 手書きノート自動認識・Craft連携システム システム詳細設計書
+# 手書きノート自動認識・Obsidian(S3)連携システム システム詳細設計書
 
-本設計書は、iPad（GoodNotes等）で書き出した手書きノート画像を、Google Drive経由でVision LLM（GPT-4o mini等）に渡し、文字認識・誤字校正を行ったうえで Craft に自動登録するパイプラインの仕様を定義するものです。
+本設計書は、iPad（GoodNotes等）で書き出した手書きノート画像を、Google Drive経由でVision LLM（Claude / Bedrock）に渡し、文字認識・誤字校正を行ったうえで Obsidian Vault 用 S3 バケットに自動登録するパイプラインの仕様を定義するものです。
 
 ---
 
@@ -21,12 +21,15 @@
    ▼
 [AWS Lambda]
    │ 1. Google Drive API で画像ファイル (.png/.jpg) のみを取得
-   │ 2. Vision LLM (GPT-4o mini等) に画像を Base64 送信
+   │ 2. Vision LLM (Claude / Bedrock) に画像を Base64 送信
    │    └ 1リクエストで「文字読み取り・誤字校正・Markdown化」を完結
-   │ 3. Craft API を呼び出し、Markdownテキストとして新規ドキュメント登録
+   │ 3. AWS S3 バケットに Obsidian Flavored Markdown (.md) として保存・追記
    │ 4. 処理済み画像を Google Drive 内の `/01_processed` フォルダへ移動
    ▼
-[Craft]
+[AWS S3 (Obsidian Vault Bucket)]
+   │ Remotely Save プラグインで自動同期
+   ▼
+[Obsidian Vault (iCloud: Mac / iOS)]
 ```
 
 ---
@@ -38,9 +41,9 @@
 | **クライアント** | iPad (GoodNotes, 純正メモ等) | 手書きノートを作成し、PNG または JPEG 画像として書き出し |
 | **ストレージ** | Google Drive | 受信フォルダ (`/00_notes_inbox`) および処理済みフォルダ (`/01_processed`) を管理 |
 | **スケジューラ** | AWS EventBridge | 毎朝の指定時間帯のみ10分間隔でLambdaを呼び出す定期実行トリガー |
-| **バックエンド** | AWS Lambda (Node.js / Python) | Google Driveからの取得、LLM解析、Craft API連携、ファイル移動 |
-| **解析エンジン** | Vision LLM (GPT-4o mini / Claude 3.5) | 画像データから手書き文字を直接認識・校正し、Markdown形式で出力 |
-| **登録先** | Craft (Craft Connect API) | 生成されたタイトルおよびMarkdownテキストを受け取りドキュメントを新規作成 |
+| **バックエンド** | AWS Lambda (Bun / provided.al2023) | Google Driveからの取得、LLM解析、S3へのMarkdown保存、ファイル移動 |
+| **解析エンジン** | Vision LLM (Claude / Bedrock) | 画像データから手書き文字を直接認識・校正し、Markdown形式で出力 |
+| **登録先** | AWS S3 + Obsidian (Remotely Save) | YAML frontmatter 付き Markdown ファイルとして S3 に保存し、Obsidian 側へ自動同期 |
 
 ---
 

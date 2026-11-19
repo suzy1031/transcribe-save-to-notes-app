@@ -18,7 +18,7 @@
 
 ## Handler — 朝の文字起こしパイプライン (`lambda/inbox/index.ts`)
 
-Google Drive の `00_notes_inbox` 内画像を文字起こしし Craft の `daily_note_transcribe` に保存。処理済みは `01_processed` へ移動。成功・失敗を LINE に通知（資格情報が無い場合はログのみ）。
+Google Drive の `00_notes_inbox` 内画像を文字起こしし、Obsidian Vault 用 S3 バケットの `00_daily_notes` に保存（既存があれば追記）。処理済みは `01_processed` へ移動。成功・失敗を LINE に通知（資格情報が無い場合はログのみ）。
 
 ```mermaid
 sequenceDiagram
@@ -29,12 +29,12 @@ sequenceDiagram
     participant Drive as Google Drive<br/>(drive/drive.ts)
     participant Transcribe as transcribe/<br/>(claude or bedrock)
     participant Parse as transcribe/parse.ts
-    participant Craft as Craft API<br/>(craft/craft.ts)
+    participant Obsidian as Obsidian S3<br/>(obsidian/obsidian.ts)
     participant Line as LINE Push<br/>(line/line.ts)
 
     Scheduler->>Handler: Invoke handler
     Handler->>SM: GetSecretValue (SECRET_ID)
-    SM-->>Handler: googleServiceAccount, craft, line, anthropicApiKey
+    SM-->>Handler: googleServiceAccount, line, anthropicApiKey
 
     Handler->>Drive: findUniqueFolder(00_notes_inbox, 01_processed)
     alt フォルダ解決失敗
@@ -43,7 +43,6 @@ sequenceDiagram
     end
 
     Handler->>Drive: listImages(inbox), listTextFiles(inbox)
-    Handler->>Craft: getConnection (spaceId 取得)
 
     loop processInbox — 各画像（残り60秒未満で打切り）
         alt appProperties.craftDocumentId あり
@@ -63,11 +62,10 @@ sequenceDiagram
                 Transcribe->>Parse: parseTranscription(JSON)
                 Parse-->>Transcribe: { title, markdown }
                 Transcribe-->>Handler: note
-                Handler->>Craft: ensureFolder(daily_note_transcribe)
-                Handler->>Craft: createDocument(title, markdown)
-                Handler->>Drive: moveToProcessed(craftDocumentId)
+                Handler->>Obsidian: saveOrAppendNote(00_daily_notes, title, markdown)
+                Handler->>Drive: moveToProcessed(noteKey)
                 Handler->>Drive: 同名 stem の txt 削除/移動
-                Handler->>Line: transcriptionSavedMessage + Craft アプリリンク
+                Handler->>Line: transcriptionSavedMessage + Obsidian アプリリンク
             end
         end
         opt 処理失敗
@@ -83,7 +81,7 @@ sequenceDiagram
 
 ## WeeklySummarizer — 週次要約 (`lambda/weekly/weekly.ts`)
 
-Craft `daily_note_transcribe` 内の直近7日分ドキュメントを要約し LINE に送信。同内容を `daily_note_summaries` に保存後、元ドキュメントを Craft `processed` へ移動。さらに DynamoDB（`ClaudeUsage`）から当週の Claude 利用量を取得し、為替レート（`claude/fx-rate.ts`）で円換算して LINE に通知。
+Obsidian S3 バケットの `00_daily_notes` 内の直近7日分ノートを要約し LINE に送信。同内容を `daily_note_summaries` に保存する（`00_daily_notes` の元ノートは移動しない）。さらに DynamoDB（`ClaudeUsage`）から当週の Claude 利用量を取得し、為替レート（`claude/fx-rate.ts`）で円換算して LINE に通知。
 
 ```mermaid
 sequenceDiagram
@@ -91,7 +89,7 @@ sequenceDiagram
     actor Scheduler as EventBridge Scheduler<br/>(日曜 9:00 JST)
     participant Weekly as lambda/weekly/weekly.ts
     participant SM as Secrets Manager
-    participant Craft as Craft API<br/>(craft/craft.ts)
+    participant Obsidian as Obsidian S3<br/>(obsidian/obsidian.ts)
     participant Prompt as summarize/summary-prompt.ts<br/>(combineNotes)
     participant Summarize as summarize/summarize.ts<br/>(claude or bedrock)
     participant Usage as DynamoDB ClaudeUsage<br/>(claude/claude-usage.ts)
@@ -100,16 +98,15 @@ sequenceDiagram
 
     Scheduler->>Weekly: Invoke handler
     Weekly->>SM: GetSecretValue (SECRET_ID)
-    SM-->>Weekly: craft, line, anthropicApiKey
+    SM-->>Weekly: line, anthropicApiKey
 
-    Weekly->>Craft: findFolder(daily_note_transcribe)
-    Weekly->>Craft: listDocuments(createdDateGte = 7日前)
+    Weekly->>Obsidian: listNotes(00_daily_notes, createdDateGte = 7日前)
 
     alt ドキュメント 0 件
         Weekly->>Line: EMPTY_WEEK_MESSAGE
     else 1 件以上
         loop 各ドキュメント
-            Weekly->>Craft: readMarkdown(documentId)
+            Weekly->>Obsidian: readMarkdown(key)
         end
         Weekly->>Prompt: combineNotes(notes)
         Prompt-->>Weekly: 結合テキスト
@@ -121,10 +118,7 @@ sequenceDiagram
         end
         Summarize-->>Weekly: 週次要約テキスト
         Weekly->>Line: push(fitLineText(summary))
-        Weekly->>Craft: ensureFolder(daily_note_summaries)
-        Weekly->>Craft: createDocument(週次まとめ YYYY-MM-DD)
-        Weekly->>Craft: ensureFolder(processed)
-        Weekly->>Craft: moveDocuments → processed
+        Weekly->>Obsidian: createNote(daily_note_summaries, 週次まとめ YYYY-MM-DD)
     end
 
     Weekly->>Usage: getWeeklyUsage(now)
@@ -135,14 +129,14 @@ sequenceDiagram
         Weekly->>Usage: formatWeeklyUsage(item, usdJpyRate)
         Weekly->>Line: push(Claude利用量サマリー)
     end
-    Weekly-->>Scheduler: { summarized, moved }
+    Weekly-->>Scheduler: { summarized }
 ```
 
 ---
 
 ## WeeklyReminder — 週次リマインド (`lambda/reminder/reminder.ts`)
 
-`daily_note_summaries` 内で「実行日の7日前」に作成されたノートを1件だけ LINE で再通知（タイトル + Craft アプリリンク）。
+`daily_note_summaries` 内で「実行日の7日前」に作成されたノートを1件だけ LINE で再通知（タイトル + Obsidian アプリリンク）。
 
 ```mermaid
 sequenceDiagram
@@ -150,19 +144,17 @@ sequenceDiagram
     actor Scheduler as EventBridge Scheduler<br/>(日曜 9:00 JST)
     participant Reminder as lambda/reminder/reminder.ts
     participant SM as Secrets Manager
-    participant Craft as Craft API<br/>(craft/craft.ts)
+    participant Obsidian as Obsidian S3<br/>(obsidian/obsidian.ts)
     participant Line as LINE Push<br/>(line/line.ts)
 
     Scheduler->>Reminder: Invoke handler
     Reminder->>SM: GetSecretValue (SECRET_ID)
-    SM-->>Reminder: craft, line
+    SM-->>Reminder: line
 
-    Reminder->>Craft: findFolder(daily_note_summaries)
-    Reminder->>Craft: getConnection (spaceId)
     Note over Reminder: targetDate = 今日(JST) − 7日
-    Reminder->>Craft: listDocuments(createdDateGte/Lte = targetDate)
+    Reminder->>Obsidian: listNotes(daily_note_summaries, createdDateGte/Lte = targetDate)
     opt 作成日0件
-        Reminder->>Craft: listDocuments(folder, createdDateGte=全期間)
+        Reminder->>Obsidian: listNotes(daily_note_summaries, createdDateGte=全期間)
         Note over Reminder: タイトル「週次まとめ {targetDate}」で絞り込み
     end
 
@@ -187,7 +179,7 @@ sequenceDiagram
 
 ## KindleSummarizer — Kindle スクリーンショット要約 (`lambda/kindle/kindle.ts`)
 
-Drive `kindle` 配下の `kindle_*` フォルダ内画像を Vision 要約し、Craft に同名フォルダがあれば「要約」ドキュメントへ追記（無ければ新規、2件以上あればその書籍フォルダはスキップ）。成功した画像は各 `kindle_*/processed` へ移動。
+Drive `kindle` 配下の `kindle_*` フォルダ内画像を Vision 要約し、S3 の `kindle/{書籍フォルダ名}.md` へ新規作成または末尾追記する。成功した画像は各 `kindle_*/processed` へ移動。
 
 ```mermaid
 sequenceDiagram
@@ -198,13 +190,12 @@ sequenceDiagram
     participant Drive as Google Drive<br/>(drive/drive.ts)
     participant Summarize as kindle/kindle-summarize.ts<br/>(claude or bedrock)
     participant Prompt as kindle/kindle-prompt.ts
-    participant Craft as Craft API<br/>(craft/craft.ts)
+    participant Obsidian as Obsidian S3<br/>(obsidian/obsidian.ts)
     participant Line as LINE Push<br/>(line/line.ts)
 
     Scheduler->>Kindle: Invoke handler
     Kindle->>SM: GetSecretValue (SECRET_ID)
-    SM-->>Kindle: googleServiceAccount, craft, line, anthropicApiKey
-    Kindle->>Craft: getConnection (spaceId)
+    SM-->>Kindle: googleServiceAccount, line, anthropicApiKey
 
     Kindle->>Drive: findUniqueFolder(kindle)
     alt 親フォルダ解決失敗
@@ -218,39 +209,26 @@ sequenceDiagram
         Kindle->>Drive: listImages(bookFolder)
         alt 画像なし
             Kindle->>Kindle: continue
-        end
-        Kindle->>Craft: findFolder(書籍フォルダ名)
-        alt Craft フォルダなし
-            Kindle->>Kindle: foldersSkippedNoCraft++
-        else Craft あり
-            Kindle->>Craft: listDocuments(要約 0/1 件判定)
-            alt 要約ドキュメント 2 件以上
-                Kindle->>Kindle: errors に記録して skip
-            else 0 または 1 件
-                Kindle->>Drive: ensureChildFolder(processed)
-                loop 各画像
-                    Kindle->>Drive: download
-                    Kindle->>Summarize: summarizeImage(bytes, mimeType)
-                    Summarize->>Prompt: KINDLE_SYSTEM / USER
-                    alt provider=claude
-                        Summarize->>Summarize: Anthropic Messages (Vision)
-                    else provider=bedrock
-                        Summarize->>Summarize: Bedrock Converse (Vision)
-                    end
-                    Summarize-->>Kindle: markdown
-                    alt 要約ドキュメント未作成
-                        Kindle->>Craft: createDocument(要約)
-                    else 既存あり
-                        Kindle->>Craft: appendMarkdown
-                    end
-                    Kindle->>Drive: moveFile → processed
+        else 画像あり
+            Kindle->>Drive: ensureChildFolder(processed)
+            loop 各画像
+                Kindle->>Drive: download
+                Kindle->>Summarize: summarizeImage(bytes, mimeType)
+                Summarize->>Prompt: KINDLE_SYSTEM / USER
+                alt provider=claude
+                    Summarize->>Summarize: Anthropic Messages (Vision)
+                else provider=bedrock
+                    Summarize->>Summarize: Bedrock Converse (Vision)
                 end
+                Summarize-->>Kindle: markdown
+                Kindle->>Obsidian: saveOrAppendNote(kindle, bookFolder.name, markdown)
+                Kindle->>Drive: moveFile → processed
             end
         end
     end
 
     opt 要約または失敗が1枚以上
-        Kindle->>Line: kindleRunSummaryMessage(件数 + Craft リンク)
+        Kindle->>Line: kindleRunSummaryMessage(件数 + Obsidian リンク)
     end
     Kindle-->>Scheduler: summary オブジェクト
 ```
@@ -307,7 +285,7 @@ sequenceDiagram
 | モジュール | Handler | Weekly | Reminder | Kindle | Csv |
 |------------|:-------:|:------:|:--------:|:------:|:---:|
 | `drive/drive.ts` + `drive/helper.ts` | ○ | — | — | ○ | ○ |
-| `craft/craft.ts` + `craft/helper.ts` | ○ | ○ | ○ | ○ | — |
+| `obsidian/obsidian.ts` + `obsidian/helper.ts` | ○ | ○ | ○ | ○ | — |
 | `line/line.ts` + `line/helper.ts` | ○ | ○ | ○ | ○ | ○ |
 | `claude/claude-usage.ts` + `claude/fx-rate.ts` | ○ | ○ | — | ○ | — |
 | `transcribe/*` | ○ | — | — | ○ | — |
