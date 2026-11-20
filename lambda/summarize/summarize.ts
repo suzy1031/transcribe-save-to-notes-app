@@ -1,34 +1,14 @@
-import { BedrockRuntimeClient, ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
+import { BedrockRuntimeClient } from "@aws-sdk/client-bedrock-runtime";
 import { recordWeeklyUsage } from "../claude/claude-usage.ts";
 import {
-  ANTHROPIC_API_VERSION,
-  CLAUDE_API_URL,
   DEFAULT_BEDROCK_MODEL_ID,
   DEFAULT_CLAUDE_WEEKLY_MODEL_ID,
   DEFAULT_TRANSCRIPTION_PROVIDER,
-  JSON_CONTENT_TYPE,
   MAX_SUMMARY_TOKENS,
 } from "../shared/const.ts";
-import { withFetchTimeout } from "../shared/fetch-with-timeout.ts";
-import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
+import { callClaudeMessages, converseBedrock, requireAnthropicApiKey, requireNonEmptyText } from "../shared/llm.ts";
 import { SUMMARY_SYSTEM_PROMPT, wrapSummaryNotes } from "./summary-prompt.ts";
 import type { BedrockSummarizerOptions, ClaudeSummarizerOptions } from "./types.ts";
-
-function textFromClaude(payload: any): string {
-  return (payload.content ?? [])
-    .filter((block: any) => block.type === "text")
-    .map((block: any) => block.text ?? "")
-    .join("");
-}
-
-function textFromBedrock(response: any): string {
-  return (response.output?.message?.content ?? []).map((block: any) => block.text ?? "").join("");
-}
-
-function requireSummary(text: string): string {
-  if (String(text).trim() === "") throw new Error("Summary was empty");
-  return text;
-}
 
 export function createClaudeSummarizer({
   apiKey,
@@ -36,37 +16,20 @@ export function createClaudeSummarizer({
   fetchImpl = fetch,
   recordUsage = recordWeeklyUsage,
 }: ClaudeSummarizerOptions = {}): (notesText: string) => Promise<string> {
-  if (!apiKey) throw new Error("Anthropic API key is required");
+  const verifiedApiKey = requireAnthropicApiKey(apiKey);
   return async function summarize(notesText: string): Promise<string> {
-    const userContent = wrapSummaryNotes(notesText);
-    const response = await fetchImpl(
-      CLAUDE_API_URL,
-      withFetchTimeout({
-        method: "POST",
-        headers: {
-          "content-type": JSON_CONTENT_TYPE,
-          "x-api-key": apiKey,
-          "anthropic-version": ANTHROPIC_API_VERSION,
-        },
-        body: JSON.stringify({
-          model: modelId,
-          max_tokens: MAX_SUMMARY_TOKENS,
-          system: SUMMARY_SYSTEM_PROMPT,
-          messages: [{ role: "user", content: userContent }],
-        }),
-      }),
-    );
-    const payload = (await response.json()) as any;
-    if (!response.ok) {
-      const detail = sanitizeErrorMessage(payload.error?.message ?? response.statusText);
-      throw new Error(`Claude summary failed: ${response.status} ${detail}`);
-    }
-    await recordUsage({
+    const text = await callClaudeMessages({
+      apiKey: verifiedApiKey,
+      modelId,
+      maxTokens: MAX_SUMMARY_TOKENS,
+      system: SUMMARY_SYSTEM_PROMPT,
+      messages: [{ role: "user", content: wrapSummaryNotes(notesText) }],
       functionName: "weekly",
-      modelId: payload.model || modelId,
-      usage: payload.usage ?? {},
+      errorPrefix: "Claude summary failed",
+      fetchImpl,
+      recordUsage,
     });
-    return requireSummary(textFromClaude(payload));
+    return requireNonEmptyText(text, "Summary was empty");
   };
 }
 
@@ -76,15 +39,14 @@ export function createBedrockSummarizer({
   client = new BedrockRuntimeClient({ region }),
 }: BedrockSummarizerOptions = {}): (notesText: string) => Promise<string> {
   return async function summarize(notesText: string): Promise<string> {
-    const response = await client.send(
-      new ConverseCommand({
-        modelId,
-        system: [{ text: SUMMARY_SYSTEM_PROMPT }],
-        messages: [{ role: "user", content: [{ text: wrapSummaryNotes(notesText) }] }],
-        inferenceConfig: { maxTokens: MAX_SUMMARY_TOKENS, temperature: 0 },
-      }),
-    );
-    return requireSummary(textFromBedrock(response));
+    const text = await converseBedrock({
+      client,
+      modelId,
+      maxTokens: MAX_SUMMARY_TOKENS,
+      system: SUMMARY_SYSTEM_PROMPT,
+      messages: [{ role: "user", content: [{ text: wrapSummaryNotes(notesText) }] }],
+    });
+    return requireNonEmptyText(text, "Summary was empty");
   };
 }
 

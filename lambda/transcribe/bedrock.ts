@@ -1,23 +1,16 @@
-import { BedrockRuntimeClient, ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
+import { BedrockRuntimeClient } from "@aws-sdk/client-bedrock-runtime";
 import {
   DEFAULT_BEDROCK_MODEL_ID,
-  IMAGE_MIME_JPEG,
-  IMAGE_MIME_PNG,
   MAX_IMAGE_BYTES,
   MAX_TRANSCRIPTION_TOKENS,
   TRANSCRIBE_USER_PROMPT,
 } from "../shared/const.ts";
+import { bedrockImageFormat, converseBedrock } from "../shared/llm.ts";
 import { assertImageSize, parseTranscription } from "./parse.ts";
 import { SYSTEM_PROMPT } from "./prompt.ts";
 import type { BedrockTranscriberOptions, ParsedTranscription, TranscribeInput } from "./types.ts";
 
 export { MAX_IMAGE_BYTES as maxImageBytes };
-
-function imageFormat(mimeType?: string): "png" | "jpeg" {
-  if (mimeType === IMAGE_MIME_PNG) return "png";
-  if (mimeType === IMAGE_MIME_JPEG) return "jpeg";
-  throw new Error(`Unsupported image type: ${mimeType}`);
-}
 
 export function createTranscriber({
   region,
@@ -26,28 +19,26 @@ export function createTranscriber({
 }: BedrockTranscriberOptions = {}): (input: TranscribeInput) => Promise<ParsedTranscription> {
   return async function transcribe({ bytes, mimeType }: TranscribeInput): Promise<ParsedTranscription> {
     assertImageSize(bytes, MAX_IMAGE_BYTES);
-    const response = await client.send(
-      new ConverseCommand({
-        modelId,
-        system: [{ text: SYSTEM_PROMPT }],
-        messages: [
-          {
-            role: "user",
-            content: [
-              { text: TRANSCRIBE_USER_PROMPT },
-              {
-                image: {
-                  format: imageFormat(mimeType),
-                  source: { bytes: Buffer.from(bytes) },
-                },
+    const text = await converseBedrock({
+      client,
+      modelId,
+      maxTokens: MAX_TRANSCRIPTION_TOKENS,
+      system: SYSTEM_PROMPT,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { text: TRANSCRIBE_USER_PROMPT },
+            {
+              image: {
+                format: bedrockImageFormat(mimeType),
+                source: { bytes: Buffer.from(bytes) },
               },
-            ],
-          },
-        ],
-        inferenceConfig: { maxTokens: MAX_TRANSCRIPTION_TOKENS, temperature: 0 },
-      }),
-    );
-    const text = (response.output?.message?.content ?? []).map((block: any) => block.text ?? "").join("");
+            },
+          ],
+        },
+      ],
+    });
     return parseTranscription(text);
   };
 }
