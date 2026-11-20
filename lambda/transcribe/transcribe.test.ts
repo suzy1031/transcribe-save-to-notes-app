@@ -23,6 +23,7 @@ test("createClaudeTranscriber は画像をSonnetに送りJSONテキストを読�
         headers: Headers;
         body: {
           model: string;
+          system: string;
           messages: Array<{ content: Array<{ type: string; source: { media_type: string } }> }>;
         };
       }
@@ -49,6 +50,8 @@ test("createClaudeTranscriber は画像をSonnetに送りJSONテキストを読�
   expect(request?.url).toBe("https://api.anthropic.com/v1/messages");
   expect(request?.headers.get("x-api-key")).toBe("test-key");
   expect(request?.body.model).toBe("claude-sonnet-5-5");
+  expect(request?.body.system).toContain("Obsidian Flavored Markdown");
+  expect(request?.body.system).toContain("YAML frontmatter");
   expect(request?.body.messages[0].content[0].type).toBe("image");
   expect(request?.body.messages[0].content[0].source.media_type).toBe("image/png");
 });
