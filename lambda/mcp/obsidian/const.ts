@@ -1,15 +1,8 @@
-import type { McpResourceTemplate, McpToolDefinition } from "./types.ts";
+import type { McpResourceTemplate, McpToolDefinition } from "../types.ts";
 
 export const MCP_PROTOCOL_VERSION = "2025-03-26";
 export const MCP_SERVER_NAME = "obsidian-s3-mcp";
 export const MCP_SERVER_VERSION = "1.0.0";
-export const JSONRPC_VERSION = "2.0";
-
-export const JSONRPC_PARSE_ERROR = -32700;
-export const JSONRPC_INVALID_REQUEST = -32600;
-export const JSONRPC_METHOD_NOT_FOUND = -32601;
-export const JSONRPC_INVALID_PARAMS = -32602;
-export const JSONRPC_INTERNAL_ERROR = -32603;
 
 export const OBSIDIAN_NOTE_URI_PREFIX = "obsidian://note/";
 

@@ -1,9 +1,9 @@
 import { expect, test } from "vitest";
-import type { ObsidianClient, ObsidianListedNote, SaveNoteInput } from "../obsidian/types.ts";
-import { unwrapLambdaMcpEvent } from "./index.ts";
+import type { ObsidianClient, ObsidianListedNote, SaveNoteInput } from "../../obsidian/types.ts";
+import { unwrapLambdaMcpEvent } from "../index.ts";
+import { processStdioLine } from "../stdio.ts";
+import type { JsonRpcErrorResponse, JsonRpcSuccessResponse, McpToolCallResult } from "../types.ts";
 import { createObsidianMcpServer } from "./server.ts";
-import { processStdioLine } from "./stdio.ts";
-import type { JsonRpcErrorResponse, JsonRpcSuccessResponse, McpToolCallResult } from "./types.ts";
 
 function createFakeObsidianClient() {
   const notes = new Map<string, string>();

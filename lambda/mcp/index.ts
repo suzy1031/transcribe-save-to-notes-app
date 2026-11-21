@@ -1,7 +1,7 @@
 import { createObsidianClient } from "../obsidian/obsidian.ts";
 import { settingsFromEnv } from "../shared/settings.ts";
-import { isRecord } from "./helper.ts";
-import { createObsidianMcpServer } from "./server.ts";
+import { isRecord } from "./jsonrpc.ts";
+import { createObsidianMcpServer } from "./obsidian/server.ts";
 import type { ObsidianMcpServer } from "./types.ts";
 
 /**
