@@ -1,51 +1,24 @@
-import { BedrockRuntimeClient, ConverseCommand } from "@aws-sdk/client-bedrock-runtime";
+import { BedrockRuntimeClient } from "@aws-sdk/client-bedrock-runtime";
 import { recordWeeklyUsage } from "../claude/claude-usage.ts";
 import {
-  ANTHROPIC_API_VERSION,
-  CLAUDE_API_URL,
   DEFAULT_BEDROCK_MODEL_ID,
   DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
   DEFAULT_TRANSCRIPTION_PROVIDER,
-  IMAGE_MIME_JPEG,
-  IMAGE_MIME_PNG,
-  JSON_CONTENT_TYPE,
   MAX_SUMMARY_TOKENS,
 } from "../shared/const.ts";
-import { withFetchTimeout } from "../shared/fetch-with-timeout.ts";
-import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
+import {
+  bedrockImageFormat,
+  callClaudeMessages,
+  converseBedrock,
+  imageMediaType,
+  requireAnthropicApiKey,
+  requireNonEmptyText,
+} from "../shared/llm.ts";
 import { maxImageBytes } from "../transcribe/claude.ts";
 import { assertImageSize } from "../transcribe/parse.ts";
 import type { TranscribeInput } from "../transcribe/types.ts";
 import { KINDLE_SYSTEM_PROMPT, KINDLE_USER_PROMPT } from "./kindle-prompt.ts";
 import type { BedrockKindleSummarizerOptions, ClaudeKindleSummarizerOptions } from "./types.ts";
-
-function mediaType(mimeType?: string): typeof IMAGE_MIME_PNG | typeof IMAGE_MIME_JPEG {
-  if (mimeType === IMAGE_MIME_PNG) return IMAGE_MIME_PNG;
-  if (mimeType === IMAGE_MIME_JPEG) return IMAGE_MIME_JPEG;
-  throw new Error(`Unsupported image type: ${mimeType}`);
-}
-
-function imageFormat(mimeType?: string): "png" | "jpeg" {
-  if (mimeType === IMAGE_MIME_PNG) return "png";
-  if (mimeType === IMAGE_MIME_JPEG) return "jpeg";
-  throw new Error(`Unsupported image type: ${mimeType}`);
-}
-
-function requireSummary(text: string): string {
-  if (String(text).trim() === "") throw new Error("Kindle summary was empty");
-  return text;
-}
-
-function textFromClaude(payload: any): string {
-  return (payload.content ?? [])
-    .filter((block: any) => block.type === "text")
-    .map((block: any) => block.text ?? "")
-    .join("");
-}
-
-function textFromBedrock(response: any): string {
-  return (response.output?.message?.content ?? []).map((block: any) => block.text ?? "").join("");
-}
 
 export function createClaudeKindleSummarizer({
   apiKey,
@@ -53,53 +26,37 @@ export function createClaudeKindleSummarizer({
   fetchImpl = fetch,
   recordUsage = recordWeeklyUsage,
 }: ClaudeKindleSummarizerOptions = {}): (input: TranscribeInput) => Promise<string> {
-  if (!apiKey) throw new Error("Anthropic API key is required");
+  const verifiedApiKey = requireAnthropicApiKey(apiKey);
   return async function summarizeImage({ bytes, mimeType }: TranscribeInput): Promise<string> {
     assertImageSize(bytes, maxImageBytes);
-    const response = await fetchImpl(
-      CLAUDE_API_URL,
-      withFetchTimeout({
-        method: "POST",
-        headers: {
-          "content-type": JSON_CONTENT_TYPE,
-          "x-api-key": apiKey,
-          "anthropic-version": ANTHROPIC_API_VERSION,
-        },
-        body: JSON.stringify({
-          model: modelId,
-          max_tokens: MAX_SUMMARY_TOKENS,
-          thinking: { type: "between_tools" },
-          system: KINDLE_SYSTEM_PROMPT,
-          messages: [
+    const text = await callClaudeMessages({
+      apiKey: verifiedApiKey,
+      modelId,
+      maxTokens: MAX_SUMMARY_TOKENS,
+      thinking: { type: "between_tools" },
+      system: KINDLE_SYSTEM_PROMPT,
+      messages: [
+        {
+          role: "user",
+          content: [
             {
-              role: "user",
-              content: [
-                {
-                  type: "image",
-                  source: {
-                    type: "base64",
-                    media_type: mediaType(mimeType),
-                    data: Buffer.from(bytes).toString("base64"),
-                  },
-                },
-                { type: "text", text: KINDLE_USER_PROMPT },
-              ],
+              type: "image",
+              source: {
+                type: "base64",
+                media_type: imageMediaType(mimeType),
+                data: Buffer.from(bytes).toString("base64"),
+              },
             },
+            { type: "text", text: KINDLE_USER_PROMPT },
           ],
-        }),
-      }),
-    );
-    const payload = (await response.json()) as any;
-    if (!response.ok) {
-      const detail = sanitizeErrorMessage(payload.error?.message ?? response.statusText);
-      throw new Error(`Claude kindle summary failed: ${response.status} ${detail}`);
-    }
-    await recordUsage({
+        },
+      ],
       functionName: "kindle",
-      modelId: payload.model || modelId,
-      usage: payload.usage ?? {},
+      errorPrefix: "Claude kindle summary failed",
+      fetchImpl,
+      recordUsage,
     });
-    return requireSummary(textFromClaude(payload));
+    return requireNonEmptyText(text, "Kindle summary was empty");
   };
 }
 
@@ -110,28 +67,27 @@ export function createBedrockKindleSummarizer({
 }: BedrockKindleSummarizerOptions = {}): (input: TranscribeInput) => Promise<string> {
   return async function summarizeImage({ bytes, mimeType }: TranscribeInput): Promise<string> {
     assertImageSize(bytes, maxImageBytes);
-    const response = await client.send(
-      new ConverseCommand({
-        modelId,
-        system: [{ text: KINDLE_SYSTEM_PROMPT }],
-        messages: [
-          {
-            role: "user",
-            content: [
-              { text: KINDLE_USER_PROMPT },
-              {
-                image: {
-                  format: imageFormat(mimeType),
-                  source: { bytes: Buffer.from(bytes) },
-                },
+    const text = await converseBedrock({
+      client,
+      modelId,
+      maxTokens: MAX_SUMMARY_TOKENS,
+      system: KINDLE_SYSTEM_PROMPT,
+      messages: [
+        {
+          role: "user",
+          content: [
+            { text: KINDLE_USER_PROMPT },
+            {
+              image: {
+                format: bedrockImageFormat(mimeType),
+                source: { bytes: Buffer.from(bytes) },
               },
-            ],
-          },
-        ],
-        inferenceConfig: { maxTokens: MAX_SUMMARY_TOKENS, temperature: 0 },
-      }),
-    );
-    return requireSummary(textFromBedrock(response));
+            },
+          ],
+        },
+      ],
+    });
+    return requireNonEmptyText(text, "Kindle summary was empty");
   };
 }
 
