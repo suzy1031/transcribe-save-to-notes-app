@@ -8,7 +8,6 @@ import {
   Architecture,
   Code,
   FunctionUrlAuthType,
-  HttpMethod,
   Function as LambdaFunction,
   LayerVersion,
   Runtime,
@@ -268,11 +267,6 @@ class NotesPipelineStack extends Stack {
 
     const obsidianMcpUrl = obsidianMcp.addFunctionUrl({
       authType: FunctionUrlAuthType.NONE,
-      cors: {
-        allowedOrigins: ["*"],
-        allowedMethods: [HttpMethod.POST],
-        allowedHeaders: ["content-type", "authorization", "mcp-session-id", "mcp-protocol-version"],
-      },
     });
 
     new CfnOutput(this, "ObsidianMcpFunctionUrl", {
