@@ -1,4 +1,5 @@
 import type { ObsidianClient } from "../obsidian/types.ts";
+import type { SecretsClientLike } from "../shared/types.ts";
 
 export type JsonRpcId = string | number | null;
 
@@ -67,4 +68,11 @@ export interface ObsidianMcpServer {
   handleMessage(message: unknown): Promise<JsonRpcResponse | null>;
   handlePayload(payload: unknown): Promise<JsonRpcResponse | JsonRpcResponse[] | null>;
   handleHttpRequest(request: Request): Promise<Response>;
+}
+
+export interface CreateMcpFetchHandlerOptions {
+  server?: ObsidianMcpServer;
+  resolveAuthToken?: () => Promise<string>;
+  env?: NodeJS.ProcessEnv;
+  secretsClient?: SecretsClientLike;
 }

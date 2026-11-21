@@ -4,7 +4,15 @@ import { fileURLToPath } from "node:url";
 import { App, CfnOutput, Duration, RemovalPolicy, Stack, TimeZone } from "aws-cdk-lib";
 import { AttributeType, BillingMode, Table } from "aws-cdk-lib/aws-dynamodb";
 import { OpenIdConnectProvider, PolicyStatement, Role, User, WebIdentityPrincipal } from "aws-cdk-lib/aws-iam";
-import { Architecture, Code, Function as LambdaFunction, LayerVersion, Runtime } from "aws-cdk-lib/aws-lambda";
+import {
+  Architecture,
+  Code,
+  FunctionUrlAuthType,
+  HttpMethod,
+  Function as LambdaFunction,
+  LayerVersion,
+  Runtime,
+} from "aws-cdk-lib/aws-lambda";
 import { RetentionDays } from "aws-cdk-lib/aws-logs";
 import { BlockPublicAccess, Bucket, BucketEncryption, HttpMethods } from "aws-cdk-lib/aws-s3";
 import { Schedule, ScheduleExpression } from "aws-cdk-lib/aws-scheduler";
@@ -71,13 +79,14 @@ class NotesPipelineStack extends Stack {
     const secret = new Secret(this, "Credentials", {
       secretName: "notes-pipeline/credentials",
       description:
-        "JSON with googleServiceAccount, anthropicApiKey, lineChannelAccessToken, and lineUserId. Replace the generated value before the first run.",
+        "JSON with googleServiceAccount, anthropicApiKey, lineChannelAccessToken, lineUserId, and mcpAuthToken. Replace the generated value before the first run.",
       removalPolicy: RemovalPolicy.RETAIN,
       generateSecretString: {
         secretStringTemplate: JSON.stringify({
           googleServiceAccount: { client_email: "", private_key: "" },
           lineChannelAccessToken: "",
           lineUserId: "",
+          mcpAuthToken: "",
         }),
         generateStringKey: "generated",
       },
@@ -239,6 +248,37 @@ class NotesPipelineStack extends Stack {
     claudeUsage.grantWriteData(fn);
     claudeUsage.grantReadWriteData(weekly);
     claudeUsage.grantWriteData(kindle);
+
+    const obsidianMcp = createBunFunction("ObsidianMcp", {
+      functionName: "obsidian-s3-mcp",
+      entry: path.join(lambdaDir, "mcp/index.ts"),
+      memorySize: 256,
+      timeout: Duration.seconds(30),
+      reservedConcurrentExecutions: 1,
+      environment: {
+        SECRET_ID: secret.secretArn,
+        BEDROCK_REGION: this.region,
+        NOTES_BUCKET_NAME: notesBucket.bucketName,
+        OBSIDIAN_VAULT_NAME: DEFAULT_OBSIDIAN_VAULT_NAME,
+      },
+    });
+
+    secret.grantRead(obsidianMcp);
+    notesBucket.grantReadWrite(obsidianMcp);
+
+    const obsidianMcpUrl = obsidianMcp.addFunctionUrl({
+      authType: FunctionUrlAuthType.NONE,
+      cors: {
+        allowedOrigins: ["*"],
+        allowedMethods: [HttpMethod.POST],
+        allowedHeaders: ["content-type", "authorization", "mcp-session-id", "mcp-protocol-version"],
+      },
+    });
+
+    new CfnOutput(this, "ObsidianMcpFunctionUrl", {
+      value: obsidianMcpUrl.url,
+      description: "Remote MCP endpoint URL for Obsidian S3 Vault (requires Bearer token)",
+    });
 
     const githubOidc = new OpenIdConnectProvider(this, "GitHubOidc", {
       url: "https://token.actions.githubusercontent.com",

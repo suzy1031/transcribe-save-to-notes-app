@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import type { ObsidianClient, ObsidianListedNote, SaveNoteInput } from "../../obsidian/types.ts";
-import { unwrapLambdaMcpEvent } from "../index.ts";
+import { createMcpFetchHandler, loadMcpAuthToken, unwrapLambdaMcpEvent } from "../index.ts";
+import { verifyBearerToken } from "../jsonrpc.ts";
 import { processStdioLine } from "../stdio.ts";
 import type { JsonRpcErrorResponse, JsonRpcSuccessResponse, McpToolCallResult } from "../types.ts";
 import { createObsidianMcpServer } from "./server.ts";
@@ -244,4 +245,73 @@ test("handleHttpRequest と processStdioLine と unwrapLambdaMcpEvent が正し�
     isBase64Encoded: false,
   });
   expect(unwrapped).toEqual({ jsonrpc: "2.0", id: 12, method: "ping" });
+});
+
+test("createMcpFetchHandler は Bearer トークン認証を検証し不正なリクエストを 401 で拒否する", async () => {
+  const { client } = createFakeObsidianClient();
+  const server = createObsidianMcpServer({ obsidian: client });
+  const handler = createMcpFetchHandler({
+    server,
+    resolveAuthToken: async () => "secret-mcp-token",
+  });
+
+  // 1. Authorization ヘッダなし -> 401
+  const noAuthRes = await handler.fetch(
+    new Request("http://localhost/mcp", {
+      method: "POST",
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }),
+    }),
+  );
+  expect(noAuthRes.status).toBe(401);
+
+  // 2. 誤ったトークン -> 401
+  const wrongAuthRes = await handler.fetch(
+    new Request("http://localhost/mcp", {
+      method: "POST",
+      headers: { authorization: "Bearer wrong-token" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }),
+    }),
+  );
+  expect(wrongAuthRes.status).toBe(401);
+
+  // 3. 正しい Bearer トークン（HTTP ヘッダ） -> 200
+  const okRes = await handler.fetch(
+    new Request("http://localhost/mcp", {
+      method: "POST",
+      headers: { authorization: "Bearer secret-mcp-token" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "ping" }),
+    }),
+  );
+  expect(okRes.status).toBe(200);
+  expect(await okRes.json()).toEqual({ jsonrpc: "2.0", id: 1, result: {} });
+
+  // 4. Function URL ラッパーイベント内の headers.authorization -> 200
+  const wrappedRes = await handler.fetch(
+    new Request("http://localhost/mcp", {
+      method: "POST",
+      body: JSON.stringify({
+        headers: { Authorization: "Bearer secret-mcp-token" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 2, method: "ping" }),
+        isBase64Encoded: false,
+      }),
+    }),
+  );
+  expect(wrappedRes.status).toBe(200);
+  expect(await wrappedRes.json()).toEqual({ jsonrpc: "2.0", id: 2, result: {} });
+});
+
+test("verifyBearerToken と loadMcpAuthToken は未設定トークンを拒否し Secrets Manager から読み取れる", async () => {
+  expect(verifyBearerToken("Bearer token", "")).toBe(false);
+  expect(verifyBearerToken("Basic token", "token")).toBe(false);
+  expect(verifyBearerToken("Bearer token", "token")).toBe(true);
+
+  const token = await loadMcpAuthToken({
+    env: { SECRET_ID: "arn:aws:secretsmanager:ap-northeast-1:123:secret:test" },
+    secretsClient: {
+      async send() {
+        return { SecretString: JSON.stringify({ mcpAuthToken: "from-secrets-manager" }) };
+      },
+    },
+  });
+  expect(token).toBe("from-secrets-manager");
 });

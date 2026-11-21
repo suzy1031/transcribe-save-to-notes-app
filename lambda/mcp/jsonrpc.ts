@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import type {
   JsonRpcErrorResponse,
   JsonRpcId,
@@ -13,6 +14,7 @@ export const JSONRPC_INVALID_REQUEST = -32600;
 export const JSONRPC_METHOD_NOT_FOUND = -32601;
 export const JSONRPC_INVALID_PARAMS = -32602;
 export const JSONRPC_INTERNAL_ERROR = -32603;
+export const JSONRPC_UNAUTHORIZED = -32001;
 
 /**
  * JSON-RPC のエラーコードを持つ例外を生成する。
@@ -101,4 +103,27 @@ export function parseJsonRpcRequest(value: unknown): JsonRpcRequest | null {
     method: value.method,
     ...(params !== undefined ? { params } : {}),
   };
+}
+
+/**
+ * `Authorization: Bearer <token>` ヘッダを期待されるトークンと定数時間比較で検証する。
+ * 期待トークンが未設定（空文字）の場合は常に `false` を返す。
+ * @param authorizationHeader リクエストの Authorization ヘッダ値
+ * @param expectedToken サーバー側で設定された正しい Bearer トークン
+ * @returns トークンが一致した場合は `true`
+ */
+export function verifyBearerToken(
+  authorizationHeader: string | null | undefined,
+  expectedToken: string | null | undefined,
+): boolean {
+  const expected = String(expectedToken ?? "").trim();
+  if (!expected) return false;
+  const header = String(authorizationHeader ?? "").trim();
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  if (!match) return false;
+  const provided = match[1].trim();
+  const expectedBuf = Buffer.from(expected, "utf8");
+  const providedBuf = Buffer.from(provided, "utf8");
+  if (expectedBuf.byteLength !== providedBuf.byteLength) return false;
+  return timingSafeEqual(expectedBuf, providedBuf);
 }
