@@ -1,7 +1,6 @@
 import { createInterface } from "node:readline";
-import { JSONRPC_PARSE_ERROR } from "./const.ts";
-import { jsonRpcError } from "./helper.ts";
 import { createObsidianMcpServerFromEnv } from "./index.ts";
+import { JSONRPC_PARSE_ERROR, jsonRpcError } from "./jsonrpc.ts";
 import type { ObsidianMcpServer } from "./types.ts";
 
 /**
