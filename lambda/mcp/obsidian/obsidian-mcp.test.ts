@@ -315,3 +315,80 @@ test("verifyBearerToken と loadMcpAuthToken は未設定トークンを拒否�
   });
   expect(token).toBe("from-secrets-manager");
 });
+
+test("API Gateway HTTP API v2 形式のイベントペイロードで認証失敗(401)と正常応答(200)を処理する", async () => {
+  const { client } = createFakeObsidianClient();
+  const server = createObsidianMcpServer({ obsidian: client });
+  const handler = createMcpFetchHandler({
+    server,
+    resolveAuthToken: async () => "secret-mcp-token",
+  });
+
+  const rpcPayload = JSON.stringify({ jsonrpc: "2.0", id: 20, method: "ping" });
+
+  // 1. 認証ヘッダなし (HTTP API v2 イベント形式) -> 401
+  const unauthorizedRes = await handler.fetch(
+    new Request("https://obsidian.infra-practice.jp/", {
+      method: "POST",
+      body: JSON.stringify({
+        version: "2.0",
+        routeKey: "POST /",
+        rawPath: "/",
+        headers: { "content-type": "application/json" },
+        body: rpcPayload,
+        isBase64Encoded: false,
+      }),
+    }),
+  );
+  expect(unauthorizedRes.status).toBe(401);
+
+  // 2. 不正な Bearer トークン (HTTP API v2 イベント形式) -> 401
+  const wrongTokenRes = await handler.fetch(
+    new Request("https://obsidian.infra-practice.jp/", {
+      method: "POST",
+      body: JSON.stringify({
+        version: "2.0",
+        routeKey: "POST /",
+        rawPath: "/",
+        headers: { authorization: "Bearer wrong-token" },
+        body: rpcPayload,
+        isBase64Encoded: false,
+      }),
+    }),
+  );
+  expect(wrongTokenRes.status).toBe(401);
+
+  // 3. 正しい Bearer トークン + Base64 エンコード済み body (HTTP API v2 イベント形式) -> 200
+  const okBase64Res = await handler.fetch(
+    new Request("https://obsidian.infra-practice.jp/", {
+      method: "POST",
+      body: JSON.stringify({
+        version: "2.0",
+        routeKey: "POST /",
+        rawPath: "/",
+        headers: {
+          "content-type": "application/json",
+          authorization: "Bearer secret-mcp-token",
+        },
+        body: Buffer.from(rpcPayload, "utf8").toString("base64"),
+        isBase64Encoded: true,
+      }),
+    }),
+  );
+  expect(okBase64Res.status).toBe(200);
+  expect(await okBase64Res.json()).toEqual({ jsonrpc: "2.0", id: 20, result: {} });
+
+  // 4. Bun Lambda アダプタ経由の直接 HTTP Request (小文字 authorization ヘッダ) -> 200
+  const directHttpRes = await handler.fetch(
+    new Request("https://obsidian.infra-practice.jp/", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: "Bearer secret-mcp-token",
+      },
+      body: rpcPayload,
+    }),
+  );
+  expect(directHttpRes.status).toBe(200);
+  expect(await directHttpRes.json()).toEqual({ jsonrpc: "2.0", id: 20, result: {} });
+});
