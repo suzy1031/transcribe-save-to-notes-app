@@ -20,6 +20,7 @@ import { daysBeforeTokyoDate, tokyoDate } from "../shared/tokyo-date.ts";
 import type { Credentials, SecretsClientLike } from "../shared/types.ts";
 import { createSummarizer } from "../summarize/summarize.ts";
 import { combineNotes } from "../summarize/summary-prompt.ts";
+import type { WeeklySummaryOutput } from "../summarize/types.ts";
 import type { WeeklySettings } from "./types.ts";
 
 export function createdSinceDate(now: Date = new Date(), timeZone: string = TOKYO_TIME_ZONE): string {
@@ -83,7 +84,7 @@ export async function processWeekly({
 }: {
   documents: ReadonlyArray<Pick<ObsidianListedNote, "id" | "title">>;
   readMarkdown: (id: string) => Promise<string>;
-  summarize: (notesText: string) => Promise<string>;
+  summarize: (notesText: string) => Promise<WeeklySummaryOutput>;
   pushLine: (text: string) => Promise<void>;
   saveSummaryNote: (input: { title: string; markdown: string; date: string }) => Promise<string>;
   now?: Date;
@@ -98,11 +99,11 @@ export async function processWeekly({
     notes.push({ title: document.title, markdown: await readMarkdown(document.id) });
   }
   const summary = await summarize(combineNotes(notes));
-  await pushLine(fitLineText(summary));
+  await pushLine(fitLineText(summary.lineSummary));
   const today = tokyoDate(now);
   await saveSummaryNote({
     title: `週次まとめ ${today}`,
-    markdown: summary,
+    markdown: summary.obsidianMarkdown,
     date: today,
   });
   return { summarized: documents.length };

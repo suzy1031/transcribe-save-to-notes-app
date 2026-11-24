@@ -25,7 +25,10 @@ function weekly(overrides: Partial<ProcessWeeklyArgs> = {}) {
     },
     summarize: async (notesText) => {
       calls.notesText = notesText;
-      return "あ".repeat(5001);
+      return {
+        lineSummary: "あ".repeat(5001),
+        obsidianMarkdown: "> [!summary]\n> 保存用Obsidian Markdown",
+      };
     },
     pushLine: async (text) => {
       calls.push.push(text);
@@ -61,9 +64,10 @@ test("ノートがある週はLINE通知し週次まとめノートを保存す�
   expect(calls.notesText?.includes("# 月曜")).toBe(true);
   expect(calls.notesText?.includes("00_daily_notes/2026-10-26.mdの本文")).toBe(true);
   expect(calls.push[0].length).toBe(5000);
+  expect(calls.push[0]).toBe("あ".repeat(5000));
   expect(calls.create[0].title).toBe("週次まとめ 2026-11-01");
   expect(calls.create[0].date).toBe("2026-11-01");
-  expect(calls.create[0].markdown.length).toBe(5001);
+  expect(calls.create[0].markdown).toBe("> [!summary]\n> 保存用Obsidian Markdown");
 });
 
 test("要約失敗時はLINE送信と要約保存をしない", async () => {

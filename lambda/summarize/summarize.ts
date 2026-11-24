@@ -7,17 +7,17 @@ import {
   MAX_SUMMARY_TOKENS,
 } from "../shared/const.ts";
 import { callClaudeMessages, converseBedrock, requireAnthropicApiKey, requireNonEmptyText } from "../shared/llm.ts";
-import { SUMMARY_SYSTEM_PROMPT, wrapSummaryNotes } from "./summary-prompt.ts";
-import type { BedrockSummarizerOptions, ClaudeSummarizerOptions } from "./types.ts";
+import { parseWeeklySummary, SUMMARY_SYSTEM_PROMPT, wrapSummaryNotes } from "./summary-prompt.ts";
+import type { BedrockSummarizerOptions, ClaudeSummarizerOptions, WeeklySummaryOutput } from "./types.ts";
 
 export function createClaudeSummarizer({
   apiKey,
   modelId = DEFAULT_CLAUDE_WEEKLY_MODEL_ID,
   fetchImpl = fetch,
   recordUsage = recordWeeklyUsage,
-}: ClaudeSummarizerOptions = {}): (notesText: string) => Promise<string> {
+}: ClaudeSummarizerOptions = {}): (notesText: string) => Promise<WeeklySummaryOutput> {
   const verifiedApiKey = requireAnthropicApiKey(apiKey);
-  return async function summarize(notesText: string): Promise<string> {
+  return async function summarize(notesText: string): Promise<WeeklySummaryOutput> {
     const text = await callClaudeMessages({
       apiKey: verifiedApiKey,
       modelId,
@@ -29,7 +29,7 @@ export function createClaudeSummarizer({
       fetchImpl,
       recordUsage,
     });
-    return requireNonEmptyText(text, "Summary was empty");
+    return parseWeeklySummary(requireNonEmptyText(text, "Summary was empty"));
   };
 }
 
@@ -37,8 +37,8 @@ export function createBedrockSummarizer({
   region,
   modelId = DEFAULT_BEDROCK_MODEL_ID,
   client = new BedrockRuntimeClient({ region }),
-}: BedrockSummarizerOptions = {}): (notesText: string) => Promise<string> {
-  return async function summarize(notesText: string): Promise<string> {
+}: BedrockSummarizerOptions = {}): (notesText: string) => Promise<WeeklySummaryOutput> {
+  return async function summarize(notesText: string): Promise<WeeklySummaryOutput> {
     const text = await converseBedrock({
       client,
       modelId,
@@ -46,7 +46,7 @@ export function createBedrockSummarizer({
       system: SUMMARY_SYSTEM_PROMPT,
       messages: [{ role: "user", content: [{ text: wrapSummaryNotes(notesText) }] }],
     });
-    return requireNonEmptyText(text, "Summary was empty");
+    return parseWeeklySummary(requireNonEmptyText(text, "Summary was empty"));
   };
 }
 
@@ -58,7 +58,7 @@ export function createSummarizer({
   provider?: string;
   claude?: ClaudeSummarizerOptions;
   bedrock?: BedrockSummarizerOptions;
-}): (notesText: string) => Promise<string> {
+}): (notesText: string) => Promise<WeeklySummaryOutput> {
   if (provider === "bedrock") return createBedrockSummarizer(bedrockOptions);
   if (provider === "claude") return createClaudeSummarizer(claudeOptions);
   throw new Error(`Unknown transcription provider: ${provider}`);

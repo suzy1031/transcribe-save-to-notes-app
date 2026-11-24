@@ -6,6 +6,11 @@ export interface NoteInput {
   markdown: string;
 }
 
+export interface WeeklySummaryOutput {
+  lineSummary: string;
+  obsidianMarkdown: string;
+}
+
 export interface ClaudeSummarizerOptions {
   apiKey?: string;
   modelId?: string;
