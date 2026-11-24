@@ -279,7 +279,12 @@ test("週次要約と Kindle 要約は成功時だけ利用量を記録する", 
         JSON.stringify({
           model: "claude-haiku-5-5",
           usage: { input_tokens: 8 },
-          content: [{ type: "text", text: "まとめ" }],
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify({ lineSummary: "LINEまとめ", obsidianMarkdown: "保存まとめ" }),
+            },
+          ],
         }),
         {
           status: 200,
@@ -287,7 +292,7 @@ test("週次要約と Kindle 要約は成功時だけ利用量を記録する", 
       ),
     recordUsage: async (input) => calls.push(input),
   });
-  expect(await summarize("ノート")).toBe("まとめ");
+  expect(await summarize("ノート")).toEqual({ lineSummary: "LINEまとめ", obsidianMarkdown: "保存まとめ" });
 
   const kindle = createClaudeKindleSummarizer({
     apiKey: "key",
