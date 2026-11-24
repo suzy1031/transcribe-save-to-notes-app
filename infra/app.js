@@ -2,17 +2,15 @@ import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { App, CfnOutput, Duration, RemovalPolicy, Stack, TimeZone } from "aws-cdk-lib";
+import { DomainName, HttpApi, HttpMethod } from "aws-cdk-lib/aws-apigatewayv2";
+import { HttpLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
+import { Certificate } from "aws-cdk-lib/aws-certificatemanager";
 import { AttributeType, BillingMode, Table } from "aws-cdk-lib/aws-dynamodb";
 import { OpenIdConnectProvider, PolicyStatement, Role, User, WebIdentityPrincipal } from "aws-cdk-lib/aws-iam";
-import {
-  Architecture,
-  Code,
-  FunctionUrlAuthType,
-  Function as LambdaFunction,
-  LayerVersion,
-  Runtime,
-} from "aws-cdk-lib/aws-lambda";
+import { Architecture, Code, Function as LambdaFunction, LayerVersion, Runtime } from "aws-cdk-lib/aws-lambda";
 import { RetentionDays } from "aws-cdk-lib/aws-logs";
+import { ARecord, HostedZone, RecordTarget } from "aws-cdk-lib/aws-route53";
+import { ApiGatewayv2DomainProperties } from "aws-cdk-lib/aws-route53-targets";
 import { BlockPublicAccess, Bucket, BucketEncryption, HttpMethods } from "aws-cdk-lib/aws-s3";
 import { Schedule, ScheduleExpression } from "aws-cdk-lib/aws-scheduler";
 import { LambdaInvoke } from "aws-cdk-lib/aws-scheduler-targets";
@@ -265,14 +263,59 @@ class NotesPipelineStack extends Stack {
     secret.grantRead(obsidianMcp);
     notesBucket.grantReadWrite(obsidianMcp);
 
-    const obsidianMcpUrl = obsidianMcp.addFunctionUrl({
-      authType: FunctionUrlAuthType.NONE,
-    });
+    const mcpRootDomain = process.env.MCP_DOMAIN_NAME || this.node.tryGetContext("mcpDomainName") || "";
+    const mcpHostedZoneId = process.env.MCP_HOSTED_ZONE_ID || this.node.tryGetContext("mcpHostedZoneId") || "";
+    const mcpCertificateArn = process.env.MCP_CERTIFICATE_ARN || this.node.tryGetContext("mcpCertificateArn") || "";
 
-    new CfnOutput(this, "ObsidianMcpFunctionUrl", {
-      value: obsidianMcpUrl.url,
-      description: "Remote MCP endpoint URL for Obsidian S3 Vault (requires Bearer token)",
-    });
+    if (mcpRootDomain && mcpHostedZoneId && mcpCertificateArn) {
+      const mcpHostedZone = HostedZone.fromHostedZoneAttributes(this, "McpHostedZone", {
+        hostedZoneId: mcpHostedZoneId,
+        zoneName: mcpRootDomain,
+      });
+      const mcpCertificate = Certificate.fromCertificateArn(this, "McpCertificate", mcpCertificateArn);
+      const mcpSubdomain = `obsidian.${mcpRootDomain}`;
+
+      const mcpDomain = new DomainName(this, "ObsidianMcpDomain", {
+        domainName: mcpSubdomain,
+        certificate: mcpCertificate,
+      });
+
+      const mcpApi = new HttpApi(this, "ObsidianMcpApi", {
+        apiName: "obsidian-s3-mcp-api",
+        createDefaultStage: true,
+        defaultDomainMapping: {
+          domainName: mcpDomain,
+        },
+      });
+
+      // デフォルトステージにレート制限を設定（ブルートフォース・過剰課金防止）
+      const defaultStage = mcpApi.defaultStage?.node.defaultChild;
+      if (defaultStage) {
+        defaultStage.defaultRouteSettings = {
+          throttlingRateLimit: 5,
+          throttlingBurstLimit: 10,
+        };
+      }
+
+      mcpApi.addRoutes({
+        path: "/",
+        methods: [HttpMethod.POST],
+        integration: new HttpLambdaIntegration("ObsidianMcpIntegration", obsidianMcp),
+      });
+
+      new ARecord(this, "ObsidianMcpAliasRecord", {
+        zone: mcpHostedZone,
+        recordName: "obsidian",
+        target: RecordTarget.fromAlias(
+          new ApiGatewayv2DomainProperties(mcpDomain.regionalDomainName, mcpDomain.regionalHostedZoneId),
+        ),
+      });
+
+      new CfnOutput(this, "ObsidianMcpEndpointUrl", {
+        value: `https://${mcpSubdomain}/`,
+        description: "Remote MCP endpoint URL for Obsidian S3 Vault (requires Bearer token)",
+      });
+    }
 
     const githubOidc = new OpenIdConnectProvider(this, "GitHubOidc", {
       url: "https://token.actions.githubusercontent.com",

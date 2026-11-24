@@ -49,3 +49,6 @@ jobs:
       - run: bunx cdk deploy --require-approval never
         env:
           BUN_LAYER_ARN: ${{ vars.BUN_LAYER_ARN }}
+          MCP_DOMAIN_NAME: ${{ vars.MCP_DOMAIN_NAME }}
+          MCP_HOSTED_ZONE_ID: ${{ vars.MCP_HOSTED_ZONE_ID }}
+          MCP_CERTIFICATE_ARN: ${{ vars.MCP_CERTIFICATE_ARN }}
