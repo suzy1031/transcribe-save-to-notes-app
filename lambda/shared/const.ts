@@ -29,6 +29,8 @@ export const DEFAULT_CLAUDE_WEEKLY_MODEL_ID = "claude-haiku-5-5";
 
 export const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
 export const ANTHROPIC_API_VERSION = "2023-06-01";
+export const ANTHROPIC_MCP_BETA_HEADER = "mcp-client-2025-11-20";
+export const DEFAULT_MCP_DOMAIN_NAME = "infra-practice.jp";
 export const JSON_CONTENT_TYPE = "application/json";
 export const IMAGE_MIME_JPEG = "image/jpeg";
 export const IMAGE_MIME_PNG = "image/png";
@@ -39,5 +41,6 @@ export const MAX_IMAGE_BYTES = 7 * 1024 * 1024;
 
 /** Per-request timeout for Craft, LINE, Anthropic, and Google Drive HTTP calls. */
 export const EXTERNAL_API_FETCH_TIMEOUT_MS = 30_000;
+export const CLAUDE_MCP_FETCH_TIMEOUT_MS = 120_000;
 
 export const TRANSCRIBE_USER_PROMPT = "この手書きノート画像を読み取ってください。";

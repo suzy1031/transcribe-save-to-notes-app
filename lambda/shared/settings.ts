@@ -36,12 +36,14 @@ export async function loadCredentials(settings: BaseSettings, secretsClient: Sec
       anthropicApiKey?: string;
       lineChannelAccessToken?: string;
       lineUserId?: string;
+      mcpAuthToken?: string;
     };
     return {
       serviceAccount: parsed.googleServiceAccount,
       anthropicApiKey: parsed.anthropicApiKey,
       lineChannelAccessToken: parsed.lineChannelAccessToken ?? "",
       lineUserId: parsed.lineUserId ?? "",
+      mcpAuthToken: parsed.mcpAuthToken ?? "",
     };
   }
   if (!settings.googleServiceAccountJson) {
@@ -55,5 +57,6 @@ export async function loadCredentials(settings: BaseSettings, secretsClient: Sec
     anthropicApiKey: settings.anthropicApiKey,
     lineChannelAccessToken: settings.lineChannelAccessToken ?? "",
     lineUserId: settings.lineUserId ?? "",
+    mcpAuthToken: process.env.MCP_AUTH_TOKEN ?? "",
   };
 }
