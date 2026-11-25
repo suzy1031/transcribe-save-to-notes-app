@@ -1,6 +1,8 @@
 import { expect, test } from "vitest";
+import type { DriveClient } from "../drive/types.ts";
+import { settingsFromEnv } from "../shared/settings.ts";
 import { MAX_IMAGE_BYTES } from "../transcribe/index.ts";
-import { processInbox } from "./index.ts";
+import { processInbox, runInboxWithMcp } from "./index.ts";
 
 const image = {
   id: "file-1",
@@ -191,4 +193,73 @@ test("Obsidian保存失敗時は画像を移動しない", async () => {
   const summary = await run();
   expect(summary.failed).toBe(1);
   expect(calls.move.length).toBe(0);
+});
+
+test("runInboxWithMcp は obsidian / drive / line の mcp_servers を指定して画像を処理する", async () => {
+  const requests: Array<{ headers: Headers; body: Record<string, unknown> }> = [];
+  const fakeDrive = {
+    async findUniqueFolder(name: string) {
+      return { ok: true as const, id: name === "00_notes_inbox" ? "inbox-1" : "processed-1" };
+    },
+    async listImages() {
+      return [image];
+    },
+    async download() {
+      return Buffer.from("png-bytes");
+    },
+  } as unknown as DriveClient;
+
+  const summary = await runInboxWithMcp({
+    context: { getRemainingTimeInMillis: () => 300_000 },
+    settings: settingsFromEnv({
+      CLAUDE_MODEL_ID: "claude-sonnet-5-5",
+      OBSIDIAN_DAILY_FOLDER: "00_daily_notes",
+    }),
+    credentials: {
+      anthropicApiKey: "sk-ant-test",
+      lineChannelAccessToken: "",
+      lineUserId: "",
+      mcpAuthToken: "mcp-inbox-token",
+    },
+    drive: fakeDrive,
+    fetchImpl: async (_url, options) => {
+      requests.push({
+        headers: new Headers(options?.headers),
+        body: JSON.parse(String(options?.body ?? "{}")),
+      });
+      return new Response(
+        JSON.stringify({
+          model: "claude-sonnet-5-5",
+          usage: { input_tokens: 50, output_tokens: 20 },
+          content: [{ type: "text", text: "完了" }],
+        }),
+        { status: 200 },
+      );
+    },
+    recordUsage: async () => {},
+  });
+
+  expect(summary).toEqual({ processed: 1, failed: 0, skipped: 0, deferred: 0 });
+  expect(requests).toHaveLength(1);
+  expect(requests[0].headers.get("anthropic-beta")).toBe("mcp-client-2025-11-20");
+  expect(requests[0].body.mcp_servers).toEqual([
+    {
+      type: "url",
+      url: "https://obsidian.infra-practice.jp/",
+      name: "obsidian-s3",
+      authorization_token: "mcp-inbox-token",
+    },
+    {
+      type: "url",
+      url: "https://drive.infra-practice.jp/",
+      name: "google-drive",
+      authorization_token: "mcp-inbox-token",
+    },
+    {
+      type: "url",
+      url: "https://line.infra-practice.jp/",
+      name: "line-notification",
+      authorization_token: "mcp-inbox-token",
+    },
+  ]);
 });
