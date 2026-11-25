@@ -1,4 +1,6 @@
+import type { GetWeeklyUsageOptions, RecordWeeklyUsageOptions, WeeklyUsageItem } from "../claude/types.ts";
 import type { DriveClient } from "../drive/types.ts";
+import type { LineClient } from "../line/types.ts";
 import type { ObsidianClient } from "../obsidian/types.ts";
 import type { SecretsClientLike } from "../shared/types.ts";
 
@@ -90,6 +92,18 @@ export interface CreateObsidianMcpServerOptions {
 export interface CreateDriveMcpServerOptions {
   drive?: DriveClient;
   resolveDrive?: () => Promise<DriveClient>;
+}
+
+export interface CreateLineMcpServerOptions {
+  line?: LineClient;
+  resolveLine?: () => Promise<LineClient>;
+}
+
+export interface CreateUsageMcpServerOptions {
+  getWeeklyUsage?: (options?: GetWeeklyUsageOptions) => Promise<WeeklyUsageItem | null>;
+  recordWeeklyUsage?: (options?: RecordWeeklyUsageOptions) => Promise<unknown>;
+  fetchUsdJpyRate?: () => Promise<number | null>;
+  tableName?: string;
 }
 
 export interface McpServer {
