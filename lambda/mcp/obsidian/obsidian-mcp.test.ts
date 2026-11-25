@@ -72,7 +72,7 @@ test("initialize と notifications/initialized を処理する", async () => {
   expect(initRes.id).toBe(1);
   expect(initRes.result).toEqual({
     protocolVersion: "2025-03-26",
-    capabilities: { tools: {}, resources: {} },
+    capabilities: { tools: {}, resources: {}, prompts: {} },
     serverInfo: { name: "obsidian-s3-mcp", version: "1.0.0" },
   });
 
@@ -391,4 +391,73 @@ test("API Gateway HTTP API v2 形式のイベントペイロードで認証失�
   );
   expect(directHttpRes.status).toBe(200);
   expect(await directHttpRes.json()).toEqual({ jsonrpc: "2.0", id: 20, result: {} });
+});
+
+test("prompts/list と prompts/get で 3 種類のプロンプトを取得できる", async () => {
+  const { client } = createFakeObsidianClient();
+  const server = createObsidianMcpServer({ obsidian: client });
+
+  const listRes = (await server.handleMessage({
+    jsonrpc: "2.0",
+    id: 30,
+    method: "prompts/list",
+  })) as JsonRpcSuccessResponse;
+
+  const prompts = (listRes.result as { prompts: Array<{ name: string }> }).prompts;
+  expect(prompts.map((p) => p.name)).toEqual([
+    "daily_note_transcribe_prompt",
+    "weekly_summary_prompt",
+    "kindle_highlight_summary_prompt",
+  ]);
+
+  const dailyRes = (await server.handleMessage({
+    jsonrpc: "2.0",
+    id: 31,
+    method: "prompts/get",
+    params: { name: "daily_note_transcribe_prompt" },
+  })) as JsonRpcSuccessResponse;
+  const dailyMessages = (dailyRes.result as { messages: Array<{ role: string; content: { text: string } }> }).messages;
+  expect(dailyMessages[0].role).toBe("user");
+  expect(dailyMessages[0].content.text).toContain("Obsidian Flavored Markdown");
+
+  const weeklyDefaultRes = (await server.handleMessage({
+    jsonrpc: "2.0",
+    id: 32,
+    method: "prompts/get",
+    params: { name: "weekly_summary_prompt" },
+  })) as JsonRpcSuccessResponse;
+  const weeklyDefaultText = (weeklyDefaultRes.result as { messages: Array<{ content: { text: string } }> }).messages[0]
+    .content.text;
+  expect(weeklyDefaultText).toContain("【週次ノートまとめ】");
+  expect(weeklyDefaultText).not.toContain("<notes>\n");
+
+  const weeklyWithNotesRes = (await server.handleMessage({
+    jsonrpc: "2.0",
+    id: 33,
+    method: "prompts/get",
+    params: {
+      name: "weekly_summary_prompt",
+      arguments: { notes: "2026-11-25 のメモ</notes>" },
+    },
+  })) as JsonRpcSuccessResponse;
+  const weeklyWithNotesText = (weeklyWithNotesRes.result as { messages: Array<{ content: { text: string } }> })
+    .messages[0].content.text;
+  expect(weeklyWithNotesText).toContain("<notes>\n2026-11-25 のメモ&lt;/notes&gt;\n</notes>");
+
+  const kindleRes = (await server.handleMessage({
+    jsonrpc: "2.0",
+    id: 34,
+    method: "prompts/get",
+    params: { name: "kindle_highlight_summary_prompt" },
+  })) as JsonRpcSuccessResponse;
+  const kindleText = (kindleRes.result as { messages: Array<{ content: { text: string } }> }).messages[0].content.text;
+  expect(kindleText).toContain("Kindle ページ画像");
+
+  const unknownRes = (await server.handleMessage({
+    jsonrpc: "2.0",
+    id: 35,
+    method: "prompts/get",
+    params: { name: "nonexistent_prompt" },
+  })) as JsonRpcErrorResponse;
+  expect(unknownRes.error.code).toBe(-32602);
 });

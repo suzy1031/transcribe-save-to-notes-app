@@ -1,6 +1,11 @@
+import { KINDLE_SYSTEM_PROMPT, KINDLE_USER_PROMPT } from "../../kindle/kindle-prompt.ts";
 import type { ListNotesParams, SaveNoteInput } from "../../obsidian/types.ts";
+import { TRANSCRIBE_USER_PROMPT } from "../../shared/const.ts";
+import { SUMMARY_SYSTEM_PROMPT, summaryPrompt } from "../../summarize/summary-prompt.ts";
+import { SYSTEM_PROMPT } from "../../transcribe/prompt.ts";
 import { createJsonRpcError, JSONRPC_INVALID_PARAMS } from "../jsonrpc.ts";
-import { OBSIDIAN_NOTE_URI_PREFIX } from "./const.ts";
+import type { McpGetPromptResult } from "../types.ts";
+import { OBSIDIAN_MCP_PROMPTS, OBSIDIAN_NOTE_URI_PREFIX } from "./const.ts";
 
 function requireNonEmptyString(args: Record<string, unknown>, field: string): string {
   const value = args[field];
@@ -82,4 +87,44 @@ export function parseObsidianNoteUri(uri: unknown): string {
     throw createJsonRpcError(JSONRPC_INVALID_PARAMS, "Resource URI is missing note key");
   }
   return key;
+}
+
+/**
+ * `prompts/get` リクエストに対応するプロンプト本文（`McpGetPromptResult`）を構築する。
+ * @param name プロンプト名
+ * @param args プロンプト引数オブジェクト
+ * @returns `McpGetPromptResult`
+ */
+export function buildObsidianPromptResult(name: string, args: Record<string, unknown> = {}): McpGetPromptResult {
+  const definition = OBSIDIAN_MCP_PROMPTS.find((prompt) => prompt.name === name);
+  if (!definition) {
+    throw createJsonRpcError(JSONRPC_INVALID_PARAMS, `Unknown prompt: ${name}`);
+  }
+
+  let text: string;
+  switch (name) {
+    case "daily_note_transcribe_prompt":
+      text = `${SYSTEM_PROMPT}\n\n${TRANSCRIBE_USER_PROMPT}`;
+      break;
+    case "weekly_summary_prompt": {
+      const notes = optionalString(args, "notes");
+      text = notes ? summaryPrompt(notes) : SUMMARY_SYSTEM_PROMPT;
+      break;
+    }
+    case "kindle_highlight_summary_prompt":
+      text = `${KINDLE_SYSTEM_PROMPT}\n\n${KINDLE_USER_PROMPT}`;
+      break;
+    default:
+      throw createJsonRpcError(JSONRPC_INVALID_PARAMS, `Unknown prompt: ${name}`);
+  }
+
+  return {
+    ...(definition.description ? { description: definition.description } : {}),
+    messages: [
+      {
+        role: "user",
+        content: { type: "text", text },
+      },
+    ],
+  };
 }

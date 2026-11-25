@@ -1,4 +1,4 @@
-import type { McpResourceTemplate, McpToolDefinition } from "../types.ts";
+import type { McpPromptDefinition, McpResourceTemplate, McpToolDefinition } from "../types.ts";
 
 export const MCP_PROTOCOL_VERSION = "2025-03-26";
 export const MCP_SERVER_NAME = "obsidian-s3-mcp";
@@ -100,5 +100,29 @@ export const OBSIDIAN_MCP_TOOLS: ReadonlyArray<McpToolDefinition> = [
       },
       required: ["key"],
     },
+  },
+];
+
+export const OBSIDIAN_MCP_PROMPTS: ReadonlyArray<McpPromptDefinition> = [
+  {
+    name: "daily_note_transcribe_prompt",
+    description: "手書きノート文字起こしおよび Obsidian Flavored Markdown 整形ルール",
+    arguments: [],
+  },
+  {
+    name: "weekly_summary_prompt",
+    description: "1 週間分のデイリーノートから週次サマリーを作成するプロンプト",
+    arguments: [
+      {
+        name: "notes",
+        description: "要約対象のデイリーノート本文（省略時はシステムプロンプトのみ返却）",
+        required: false,
+      },
+    ],
+  },
+  {
+    name: "kindle_highlight_summary_prompt",
+    description: "Kindle スクリーンショットのハイライト判定・大文字抜粋および箇条書き補足ルール",
+    arguments: [],
   },
 ];

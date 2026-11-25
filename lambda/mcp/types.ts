@@ -59,6 +59,28 @@ export interface McpToolCallResult {
   isError?: boolean;
 }
 
+export interface McpPromptArgument {
+  name: string;
+  description?: string;
+  required?: boolean;
+}
+
+export interface McpPromptDefinition {
+  name: string;
+  description?: string;
+  arguments?: ReadonlyArray<McpPromptArgument>;
+}
+
+export interface McpPromptMessage {
+  role: "user" | "assistant";
+  content: McpTextContent;
+}
+
+export interface McpGetPromptResult {
+  description?: string;
+  messages: McpPromptMessage[];
+}
+
 export interface CreateObsidianMcpServerOptions {
   obsidian: ObsidianClient;
   vaultName?: string;
