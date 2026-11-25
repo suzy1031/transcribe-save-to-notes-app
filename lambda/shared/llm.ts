@@ -2,7 +2,17 @@ import { ConverseCommand, type ConverseCommandInput } from "@aws-sdk/client-bedr
 import { recordWeeklyUsage } from "../claude/claude-usage.ts";
 import type { RawClaudeUsage, RecordWeeklyUsageOptions } from "../claude/types.ts";
 import type { BedrockClientLike } from "../transcribe/types.ts";
-import { ANTHROPIC_API_VERSION, CLAUDE_API_URL, IMAGE_MIME_JPEG, IMAGE_MIME_PNG, JSON_CONTENT_TYPE } from "./const.ts";
+import {
+  ANTHROPIC_API_VERSION,
+  ANTHROPIC_MCP_BETA_HEADER,
+  CLAUDE_API_URL,
+  CLAUDE_MCP_FETCH_TIMEOUT_MS,
+  DEFAULT_MCP_DOMAIN_NAME,
+  EXTERNAL_API_FETCH_TIMEOUT_MS,
+  IMAGE_MIME_JPEG,
+  IMAGE_MIME_PNG,
+  JSON_CONTENT_TYPE,
+} from "./const.ts";
 import { withFetchTimeout } from "./fetch-with-timeout.ts";
 import { sanitizeErrorMessage } from "./sanitize-error.ts";
 
@@ -23,6 +33,56 @@ export interface ClaudeMessagesResponse {
   };
 }
 
+export interface ClaudeMcpServerDefinition {
+  type: "url";
+  url: string;
+  name: string;
+  authorization_token?: string;
+}
+
+export interface ClaudeMcpToolset {
+  type: "mcp_toolset";
+  mcp_server_name: string;
+  default_config?: {
+    enabled?: boolean;
+    defer_loading?: boolean;
+  };
+  configs?: Record<string, { enabled?: boolean; defer_loading?: boolean }>;
+}
+
+export type McpDomainName = "obsidian" | "drive" | "csv" | "line" | "usage";
+
+const MCP_SERVER_NAMES: Record<McpDomainName, string> = {
+  obsidian: "obsidian-s3",
+  drive: "google-drive",
+  csv: "household-csv",
+  line: "line-notification",
+  usage: "claude-usage",
+};
+
+/**
+ * ドメイン名と Bearer トークンから Claude Messages API `mcp_servers` 定義配列を生成する。
+ * @param options 対象ドメイン一覧・ルートドメイン・認証トークン
+ * @returns `ClaudeMcpServerDefinition` の配列
+ */
+export function buildMcpServerDefinitions({
+  domains,
+  authToken,
+  rootDomain = DEFAULT_MCP_DOMAIN_NAME,
+}: {
+  domains: ReadonlyArray<McpDomainName>;
+  authToken?: string;
+  rootDomain?: string;
+}): ClaudeMcpServerDefinition[] {
+  const token = (authToken ?? "").trim();
+  return domains.map((domain) => ({
+    type: "url",
+    url: `https://${domain}.${rootDomain}/`,
+    name: MCP_SERVER_NAMES[domain],
+    ...(token ? { authorization_token: token } : {}),
+  }));
+}
+
 export interface ClaudeMessagesRequest {
   apiKey: string;
   modelId: string;
@@ -30,6 +90,10 @@ export interface ClaudeMessagesRequest {
   system: string;
   messages: Array<{ role: "user" | "assistant"; content: unknown }>;
   thinking?: { type: string };
+  mcpServers?: ReadonlyArray<ClaudeMcpServerDefinition>;
+  tools?: ReadonlyArray<ClaudeMcpToolset>;
+  mcpBetas?: ReadonlyArray<string>;
+  timeoutMs?: number;
   functionName: string;
   errorPrefix: string;
   fetchImpl?: typeof fetch;
@@ -98,29 +162,45 @@ export async function callClaudeMessages({
   system,
   messages,
   thinking,
+  mcpServers,
+  tools,
+  mcpBetas,
+  timeoutMs,
   functionName,
   errorPrefix,
   fetchImpl = fetch,
   recordUsage = recordWeeklyUsage,
 }: ClaudeMessagesRequest): Promise<string> {
+  const hasMcp = Array.isArray(mcpServers) && mcpServers.length > 0;
+  const resolvedTools = hasMcp
+    ? (tools ?? mcpServers.map((server) => ({ type: "mcp_toolset" as const, mcp_server_name: server.name })))
+    : tools;
   const body: Record<string, unknown> = {
     model: modelId,
     max_tokens: maxTokens,
     ...(thinking ? { thinking } : {}),
+    ...(hasMcp ? { mcp_servers: mcpServers } : {}),
+    ...(resolvedTools && resolvedTools.length > 0 ? { tools: resolvedTools } : {}),
     system,
     messages,
   };
+  const headers: Record<string, string> = {
+    "content-type": JSON_CONTENT_TYPE,
+    "x-api-key": apiKey,
+    "anthropic-version": ANTHROPIC_API_VERSION,
+    ...(hasMcp ? { "anthropic-beta": (mcpBetas ?? [ANTHROPIC_MCP_BETA_HEADER]).join(",") } : {}),
+  };
+  const requestTimeoutMs = timeoutMs ?? (hasMcp ? CLAUDE_MCP_FETCH_TIMEOUT_MS : EXTERNAL_API_FETCH_TIMEOUT_MS);
   const response = await fetchImpl(
     CLAUDE_API_URL,
-    withFetchTimeout({
-      method: "POST",
-      headers: {
-        "content-type": JSON_CONTENT_TYPE,
-        "x-api-key": apiKey,
-        "anthropic-version": ANTHROPIC_API_VERSION,
+    withFetchTimeout(
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify(body),
       },
-      body: JSON.stringify(body),
-    }),
+      requestTimeoutMs,
+    ),
   );
   const payload = (await response.json()) as ClaudeMessagesResponse;
   if (!response.ok) {

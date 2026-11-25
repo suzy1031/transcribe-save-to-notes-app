@@ -1,6 +1,7 @@
 import { expect, test } from "vitest";
 import {
   bedrockImageFormat,
+  buildMcpServerDefinitions,
   callClaudeMessages,
   converseBedrock,
   extractBedrockText,
@@ -141,4 +142,51 @@ test("converseBedrock は ConverseCommand を送信しテキストを返す", as
   expect(sent?.input.modelId).toBe("amazon.nova-lite-v1:0");
   expect(sent?.input.system).toEqual([{ text: "sys" }]);
   expect(sent?.input.inferenceConfig).toEqual({ maxTokens: 1024, temperature: 0 });
+});
+
+test("callClaudeMessages は mcpServers 指定時に anthropic-beta と mcp_servers / mcp_toolset を送信する", async () => {
+  const requests: Array<{ headers: Headers; body: Record<string, unknown> }> = [];
+  const mcpServers = buildMcpServerDefinitions({
+    domains: ["obsidian", "drive"],
+    authToken: "mcp-secret",
+  });
+
+  expect(mcpServers).toEqual([
+    { type: "url", url: "https://obsidian.infra-practice.jp/", name: "obsidian-s3", authorization_token: "mcp-secret" },
+    { type: "url", url: "https://drive.infra-practice.jp/", name: "google-drive", authorization_token: "mcp-secret" },
+  ]);
+
+  const text = await callClaudeMessages({
+    apiKey: "test-key",
+    modelId: "claude-haiku-5-5",
+    maxTokens: 2048,
+    system: "sys",
+    messages: [{ role: "user", content: "MCPで実行して" }],
+    mcpServers,
+    functionName: "weekly",
+    errorPrefix: "Claude MCP failed",
+    fetchImpl: async (_url, options) => {
+      requests.push({
+        headers: new Headers(options?.headers),
+        body: JSON.parse(String(options?.body ?? "{}")),
+      });
+      return new Response(
+        JSON.stringify({
+          model: "claude-haiku-5-5",
+          usage: { input_tokens: 15, output_tokens: 8 },
+          content: [{ type: "text", text: "完了" }],
+        }),
+        { status: 200 },
+      );
+    },
+    recordUsage: async () => {},
+  });
+
+  expect(text).toBe("完了");
+  expect(requests[0].headers.get("anthropic-beta")).toBe("mcp-client-2025-11-20");
+  expect(requests[0].body.mcp_servers).toEqual(mcpServers);
+  expect(requests[0].body.tools).toEqual([
+    { type: "mcp_toolset", mcp_server_name: "obsidian-s3" },
+    { type: "mcp_toolset", mcp_server_name: "google-drive" },
+  ]);
 });

@@ -34,4 +34,5 @@ export interface Credentials {
   anthropicApiKey?: string;
   lineChannelAccessToken: string;
   lineUserId: string;
+  mcpAuthToken?: string;
 }
