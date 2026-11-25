@@ -27,11 +27,11 @@ flowchart LR
     subgraph External["外部 API / AWS インフラ"]
         SM[("AWS Secrets Manager<br/>mcpAuthToken / anthropicApiKey")]
         CLAUDE["Anthropic Messages API<br/>https://api.anthropic.com/v1/messages"]
-        APIGW["Route 53 + API Gateway (HttpApi)<br/>infra/app.js: mountMcpApi()<br/>https://&lt;domain&gt;.&lt;rootDomain&gt;/"]
+        APIGW["Route 53 + API Gateway (HttpApi)<br/>infra/app.js: mountMcpApi()<br/>https://{domain}.{rootDomain}/"]
 
-        ST -. "SECRET_ID 参照" .-> SM
+        ST -.->|"SECRET_ID 参照"| SM
         LLM -- "1. mcp_servers +<br/>authorization_token を送信" --> CLAUDE
-        CLAUDE -- "2. JSON-RPC over HTTP (POST)<br/>Authorization: Bearer &lt;token&gt;" --> APIGW
+        CLAUDE -- "2. JSON-RPC over HTTP (POST)<br/>Authorization: Bearer {token}" --> APIGW
     end
 
     subgraph McpLambdas["MCP サーバー Lambda 群 (lambda/mcp/)"]
@@ -48,7 +48,7 @@ flowchart LR
 
         APIGW --> IDX_O & IDX_L & IDX_U & IDX_D & IDX_C
         IDX_O & IDX_L & IDX_U & IDX_D & IDX_C --> HTTP
-        HTTP -. "token 検証" .-> SM
+        HTTP -.->|"token 検証"| SM
         HTTP --> RPC
         RPC --> SRV
         SRV --> DOM
@@ -78,7 +78,7 @@ sequenceDiagram
     L->>C: POST /v1/messages<br/>header: anthropic-beta: mcp-client-2025-11-20<br/>body: mcp_servers, tools(mcp_toolset)
 
     loop Claude がツール実行を必要とする間
-        C->>A: POST https://&lt;domain&gt;.&lt;rootDomain&gt;/<br/>Authorization: Bearer &lt;mcpAuthToken&gt;<br/>JSON-RPC (initialize / tools/list / tools/call)
+        C->>A: POST https://{domain}.{rootDomain}/<br/>Authorization: Bearer {mcpAuthToken}<br/>JSON-RPC (initialize / tools/list / tools/call)
         A->>H: MCP Lambda (index.fetch) を起動
         H->>S: loadMcpAuthToken() で期待トークンを取得
         H->>H: verifyBearerToken() で定数時間比較
