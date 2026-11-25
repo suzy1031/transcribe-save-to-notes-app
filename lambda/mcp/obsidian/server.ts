@@ -23,10 +23,11 @@ import {
   MCP_PROTOCOL_VERSION,
   MCP_SERVER_NAME,
   MCP_SERVER_VERSION,
+  OBSIDIAN_MCP_PROMPTS,
   OBSIDIAN_MCP_TOOLS,
   OBSIDIAN_RESOURCE_TEMPLATES,
 } from "./const.ts";
-import { parseListNotesArgs, parseObsidianNoteUri, parseSaveNoteArgs } from "./helper.ts";
+import { buildObsidianPromptResult, parseListNotesArgs, parseObsidianNoteUri, parseSaveNoteArgs } from "./helper.ts";
 
 /**
  * Obsidian (S3 Vault) ドメインの操作を MCP (Model Context Protocol) として公開するサーバーを生成する。
@@ -94,6 +95,7 @@ export function createObsidianMcpServer({
           capabilities: {
             tools: {},
             resources: {},
+            prompts: {},
           },
           serverInfo: {
             name: MCP_SERVER_NAME,
@@ -139,6 +141,19 @@ export function createObsidianMcpServer({
             },
           ],
         };
+      }
+      case "prompts/list":
+        return { prompts: OBSIDIAN_MCP_PROMPTS };
+      case "prompts/get": {
+        const name = typeof params.name === "string" ? params.name.trim() : "";
+        if (!name) {
+          throw createJsonRpcError(JSONRPC_INVALID_PARAMS, "Missing prompt name");
+        }
+        const rawArgs = params.arguments ?? {};
+        if (!isRecord(rawArgs)) {
+          throw createJsonRpcError(JSONRPC_INVALID_PARAMS, "Invalid prompt arguments: expected an object");
+        }
+        return buildObsidianPromptResult(name, rawArgs);
       }
       default:
         throw createJsonRpcError(JSONRPC_METHOD_NOT_FOUND, `Method not found: ${method}`);
