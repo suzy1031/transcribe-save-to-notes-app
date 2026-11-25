@@ -277,6 +277,50 @@ class NotesPipelineStack extends Stack {
 
     secret.grantRead(driveMcp);
 
+    const csvMcp = createBunFunction("CsvMcp", {
+      functionName: "household-csv-mcp",
+      entry: path.join(lambdaDir, "mcp/csv/index.ts"),
+      memorySize: 256,
+      timeout: Duration.seconds(30),
+      reservedConcurrentExecutions: 1,
+      environment: {
+        SECRET_ID: secret.secretArn,
+        BEDROCK_REGION: this.region,
+      },
+    });
+
+    secret.grantRead(csvMcp);
+
+    const lineMcp = createBunFunction("LineMcp", {
+      functionName: "line-notification-mcp",
+      entry: path.join(lambdaDir, "mcp/line/index.ts"),
+      memorySize: 256,
+      timeout: Duration.seconds(30),
+      reservedConcurrentExecutions: 1,
+      environment: {
+        SECRET_ID: secret.secretArn,
+        BEDROCK_REGION: this.region,
+      },
+    });
+
+    secret.grantRead(lineMcp);
+
+    const usageMcp = createBunFunction("UsageMcp", {
+      functionName: "claude-usage-mcp",
+      entry: path.join(lambdaDir, "mcp/usage/index.ts"),
+      memorySize: 256,
+      timeout: Duration.seconds(30),
+      reservedConcurrentExecutions: 1,
+      environment: {
+        SECRET_ID: secret.secretArn,
+        BEDROCK_REGION: this.region,
+        CLAUDE_USAGE_TABLE_NAME: claudeUsage.tableName,
+      },
+    });
+
+    secret.grantRead(usageMcp);
+    claudeUsage.grantReadWriteData(usageMcp);
+
     const mcpRootDomain = process.env.MCP_DOMAIN_NAME || this.node.tryGetContext("mcpDomainName") || "";
     const mcpHostedZoneId = process.env.MCP_HOSTED_ZONE_ID || this.node.tryGetContext("mcpHostedZoneId") || "";
     const mcpCertificateArn = process.env.MCP_CERTIFICATE_ARN || this.node.tryGetContext("mcpCertificateArn") || "";
@@ -347,6 +391,30 @@ class NotesPipelineStack extends Stack {
         subdomainPrefix: "drive",
         fn: driveMcp,
         description: "Remote MCP endpoint URL for Google Drive (requires Bearer token)",
+      });
+
+      mountMcpApi({
+        idPrefix: "CsvMcp",
+        apiName: "household-csv-mcp-api",
+        subdomainPrefix: "csv",
+        fn: csvMcp,
+        description: "Remote MCP endpoint URL for Household CSV formatting (requires Bearer token)",
+      });
+
+      mountMcpApi({
+        idPrefix: "LineMcp",
+        apiName: "line-notification-mcp-api",
+        subdomainPrefix: "line",
+        fn: lineMcp,
+        description: "Remote MCP endpoint URL for LINE notifications (requires Bearer token)",
+      });
+
+      mountMcpApi({
+        idPrefix: "UsageMcp",
+        apiName: "claude-usage-mcp-api",
+        subdomainPrefix: "usage",
+        fn: usageMcp,
+        description: "Remote MCP endpoint URL for Claude weekly usage reports (requires Bearer token)",
       });
     }
 
