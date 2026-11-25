@@ -1,3 +1,4 @@
+import type { DriveClient } from "../drive/types.ts";
 import type { ObsidianClient } from "../obsidian/types.ts";
 import type { SecretsClientLike } from "../shared/types.ts";
 
@@ -86,14 +87,22 @@ export interface CreateObsidianMcpServerOptions {
   vaultName?: string;
 }
 
-export interface ObsidianMcpServer {
+export interface CreateDriveMcpServerOptions {
+  drive?: DriveClient;
+  resolveDrive?: () => Promise<DriveClient>;
+}
+
+export interface McpServer {
   handleMessage(message: unknown): Promise<JsonRpcResponse | null>;
   handlePayload(payload: unknown): Promise<JsonRpcResponse | JsonRpcResponse[] | null>;
   handleHttpRequest(request: Request): Promise<Response>;
 }
 
+export type ObsidianMcpServer = McpServer;
+
 export interface CreateMcpFetchHandlerOptions {
-  server?: ObsidianMcpServer;
+  server?: McpServer;
+  createServer?: () => McpServer;
   resolveAuthToken?: () => Promise<string>;
   env?: NodeJS.ProcessEnv;
   secretsClient?: SecretsClientLike;

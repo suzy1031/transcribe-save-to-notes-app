@@ -2,23 +2,13 @@ import { obsidianAppNoteLink } from "../../obsidian/helper.ts";
 import { sanitizeErrorMessage } from "../../shared/sanitize-error.ts";
 import {
   createJsonRpcError,
+  createMcpServerTransport,
   formatToolResult,
   isRecord,
-  JSONRPC_INTERNAL_ERROR,
   JSONRPC_INVALID_PARAMS,
-  JSONRPC_INVALID_REQUEST,
   JSONRPC_METHOD_NOT_FOUND,
-  JSONRPC_PARSE_ERROR,
-  jsonRpcError,
-  jsonRpcSuccess,
-  parseJsonRpcRequest,
 } from "../jsonrpc.ts";
-import type {
-  CreateObsidianMcpServerOptions,
-  JsonRpcResponse,
-  McpToolCallResult,
-  ObsidianMcpServer,
-} from "../types.ts";
+import type { CreateObsidianMcpServerOptions, McpToolCallResult, ObsidianMcpServer } from "../types.ts";
 import {
   MCP_PROTOCOL_VERSION,
   MCP_SERVER_NAME,
@@ -160,74 +150,5 @@ export function createObsidianMcpServer({
     }
   }
 
-  async function handleMessage(message: unknown): Promise<JsonRpcResponse | null> {
-    const rawId =
-      isRecord(message) && (typeof message.id === "string" || typeof message.id === "number") ? message.id : null;
-    let request: ReturnType<typeof parseJsonRpcRequest>;
-    try {
-      request = parseJsonRpcRequest(message);
-    } catch (error) {
-      const err = error as Error & { code?: number };
-      return jsonRpcError(rawId, err.code ?? JSONRPC_INVALID_REQUEST, err.message);
-    }
-    if (!request) {
-      return jsonRpcError(rawId, JSONRPC_INVALID_REQUEST, "Invalid Request");
-    }
-
-    // `id` が指定されていないメッセージは JSON-RPC Notification として扱う
-    if (request.id === undefined) {
-      return null;
-    }
-
-    try {
-      const result = await dispatchMethod(request.method, request.params);
-      return jsonRpcSuccess(request.id, result);
-    } catch (error) {
-      const err = error as Error & { code?: number };
-      const code = typeof err.code === "number" ? err.code : JSONRPC_INTERNAL_ERROR;
-      return jsonRpcError(request.id, code, sanitizeErrorMessage(err.message));
-    }
-  }
-
-  async function handlePayload(payload: unknown): Promise<JsonRpcResponse | JsonRpcResponse[] | null> {
-    if (Array.isArray(payload)) {
-      if (payload.length === 0) {
-        return jsonRpcError(null, JSONRPC_INVALID_REQUEST, "Invalid Request: empty batch");
-      }
-      const responses: JsonRpcResponse[] = [];
-      for (const item of payload) {
-        const res = await handleMessage(item);
-        if (res !== null) responses.push(res);
-      }
-      return responses.length > 0 ? responses : null;
-    }
-    return handleMessage(payload);
-  }
-
-  async function handleHttpRequest(request: Request): Promise<Response> {
-    if (request.method !== "POST") {
-      return Response.json(
-        jsonRpcError(null, JSONRPC_INVALID_REQUEST, "Method Not Allowed: use POST for MCP requests"),
-        { status: 405 },
-      );
-    }
-    const text = await request.text();
-    let payload: unknown;
-    try {
-      payload = JSON.parse(text);
-    } catch {
-      return Response.json(jsonRpcError(null, JSONRPC_PARSE_ERROR, "Parse error"), { status: 400 });
-    }
-    const result = await handlePayload(payload);
-    if (result === null) {
-      return new Response(null, { status: 202 });
-    }
-    return Response.json(result, { status: 200 });
-  }
-
-  return {
-    handleMessage,
-    handlePayload,
-    handleHttpRequest,
-  };
+  return createMcpServerTransport(dispatchMethod);
 }
