@@ -3,12 +3,19 @@ import { EMPTY_REMINDER_MESSAGE, reminderDeliveredMessage, reminderFailedMessage
 import { createLineClient } from "../line/line.ts";
 import type { LineClient } from "../line/types.ts";
 import { obsidianAppNoteLink } from "../obsidian/helper.ts";
-import { createObsidianClient } from "../obsidian/obsidian.ts";
 import type { ObsidianClient, ObsidianListedNote } from "../obsidian/types.ts";
 import { bunLambdaHandler } from "../shared/bun-handler.ts";
-import { ALL_NOTES_SINCE, DEFAULT_OBSIDIAN_SUMMARY_FOLDER, REMINDER_LOOKBACK_DAYS } from "../shared/const.ts";
+import {
+  ALL_NOTES_SINCE,
+  DEFAULT_CLAUDE_WEEKLY_MODEL_ID,
+  DEFAULT_MCP_DOMAIN_NAME,
+  DEFAULT_OBSIDIAN_SUMMARY_FOLDER,
+  MAX_SUMMARY_TOKENS,
+  REMINDER_LOOKBACK_DAYS,
+} from "../shared/const.ts";
 import { pushLineMessage, runLogged } from "../shared/job.ts";
-import { loadCredentials, settingsFromEnv } from "../shared/settings.ts";
+import { buildMcpServerDefinitions, callClaudeMessages, requireAnthropicApiKey } from "../shared/llm.ts";
+import { loadCredentials, requireMcpAuthToken, settingsFromEnv } from "../shared/settings.ts";
 import { daysBeforeTokyoDate } from "../shared/tokyo-date.ts";
 import type { Credentials, SecretsClientLike } from "../shared/types.ts";
 import type { ReminderSettings } from "./types.ts";
@@ -125,43 +132,58 @@ export async function notifyReminderLineError({
   await pushLineMessage(client, message);
 }
 
-export async function handler(): Promise<{ reminded: number; documentId?: string }> {
-  return runLogged(() => runReminder());
+export async function runReminderWithMcp({
+  settings = reminderSettingsFromEnv(),
+  credentials,
+  rootDomain = process.env.MCP_DOMAIN_NAME || DEFAULT_MCP_DOMAIN_NAME,
+  now = new Date(),
+  fetchImpl = fetch,
+  recordUsage,
+}: {
+  settings?: ReminderSettings;
+  credentials?: Credentials;
+  rootDomain?: string;
+  now?: Date;
+  fetchImpl?: typeof fetch;
+  recordUsage?: Parameters<typeof callClaudeMessages>[0]["recordUsage"];
+} = {}): Promise<{ responseText: string }> {
+  const creds =
+    credentials ??
+    (await loadReminderCredentials(settings, new SecretsManagerClient({ region: settings.bedrockRegion })));
+  const mcpAuthToken = requireMcpAuthToken(creds);
+  const targetDate = reminderTargetDate(now);
+  const [paddedTitle, unpaddedTitle] = reminderTitleCandidates(targetDate);
+  const mcpServers = buildMcpServerDefinitions({
+    domains: ["obsidian", "line"],
+    authToken: mcpAuthToken,
+    rootDomain,
+  });
+
+  const userPrompt = [
+    `Obsidian の "${settings.summaryFolderName}" フォルダから ${targetDate} の週次まとめを検索し、LINE でリマインド通知してください。`,
+    `1. まず obsidian_list_notes（folder="${settings.summaryFolderName}", createdDateGte="${targetDate}", createdDateLte="${targetDate}"）で検索してください。`,
+    `2. 0 件だった場合は obsidian_list_notes（folder="${settings.summaryFolderName}", createdDateGte="${ALL_NOTES_SINCE}"）で全件取得し、タイトルが "${paddedTitle}" または "${unpaddedTitle}" に一致するノートを探してください。`,
+    `3. 見つかった場合は obsidian_get_app_link で appLink を取得し、line_send_notification で "【リマインダー】\\n<title>\\n<appLink>" を送信してください。`,
+    `4. 見つからなかった場合は line_send_notification で "${EMPTY_REMINDER_MESSAGE}" を送信してください。`,
+  ].join("\n");
+
+  const responseText = await callClaudeMessages({
+    apiKey: requireAnthropicApiKey(creds.anthropicApiKey),
+    modelId: process.env.CLAUDE_MODEL_ID || DEFAULT_CLAUDE_WEEKLY_MODEL_ID,
+    maxTokens: MAX_SUMMARY_TOKENS,
+    system: "あなたは週次リマインダーの実行担当です。指示された手順どおりに MCP ツールを呼び出して処理してください。",
+    messages: [{ role: "user", content: userPrompt }],
+    mcpServers,
+    functionName: "weekly",
+    errorPrefix: "Claude MCP reminder failed",
+    fetchImpl,
+    ...(recordUsage ? { recordUsage } : {}),
+  });
+  return { responseText };
 }
 
-async function runReminder(): Promise<{ reminded: number; documentId?: string }> {
-  let line: LineClient | null = null;
-  let credentials: Credentials | null = null;
-  try {
-    const settings = reminderSettingsFromEnv();
-    credentials = await loadReminderCredentials(settings, new SecretsManagerClient({ region: settings.bedrockRegion }));
-    line = createLineClient({
-      channelAccessToken: credentials.lineChannelAccessToken,
-      userId: credentials.lineUserId,
-    });
-    const obsidian = createObsidianClient({
-      bucketName: settings.notesBucketName,
-      region: settings.bedrockRegion,
-    });
-
-    const now = new Date();
-    const targetDate = reminderTargetDate(now);
-    const { documents, matchedBy } = await listReminderDocuments(obsidian, settings.summaryFolderName, targetDate);
-    if (matchedBy === "title") {
-      console.log(`週次リマインド: 作成日0件のためタイトルで ${documents.length} 件 (${targetDate})`);
-    }
-    const result = await processReminder({
-      documents,
-      pushLine: (text) => line!.push(text),
-      vaultName: settings.obsidianVaultName,
-      targetDate,
-    });
-    console.log(`週次リマインド ${result.reminded}件 (${targetDate})`);
-    return result;
-  } catch (error) {
-    await notifyReminderLineError({ line, credentials, error: error as Error });
-    throw error;
-  }
+export async function handler(): Promise<{ responseText: string }> {
+  return runLogged(() => runReminderWithMcp());
 }
 
 export default bunLambdaHandler(handler);

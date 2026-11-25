@@ -13,7 +13,7 @@ import {
   rowsToMarkdownTable,
   sheetTitle,
 } from "./csv.ts";
-import { importCsvFiles } from "./csv-import.ts";
+import { csvImportSettingsFromEnv, importCsvFiles, runCsvImportWithMcp } from "./csv-import.ts";
 
 test("parseCsv は引用符、カンマ、セル内改行、BOM、CRLFを読む", () => {
   const text = '\uFEFFname,note\r\n"a,b","line1\nline2"\r\nplain,"say ""hi"""\r\n';
@@ -484,4 +484,62 @@ test("書き込みに失敗したファイルは移動しない", async () => {
   expect(moved).toBe(false);
   expect(result.failed).toBe(1);
   expect(result.failures[0].reason).toBe("s3 down");
+});
+
+test("runCsvImportWithMcp は drive / csv / obsidian / line の mcp_servers を指定して Claude API を呼ぶ", async () => {
+  const payloads: Array<{ headers: Headers; body: Record<string, unknown> }> = [];
+  const res = await runCsvImportWithMcp({
+    settings: csvImportSettingsFromEnv({}),
+    credentials: {
+      anthropicApiKey: "sk-ant-test",
+      lineChannelAccessToken: "",
+      lineUserId: "",
+      mcpAuthToken: "mcp-csv-token",
+    },
+    now: new Date("2026-11-26T00:00:00Z"),
+    fetchImpl: async (_url, options) => {
+      payloads.push({
+        headers: new Headers(options?.headers),
+        body: JSON.parse(String(options?.body ?? "{}")),
+      });
+      return new Response(
+        JSON.stringify({
+          model: "claude-haiku-5-5",
+          usage: { input_tokens: 30, output_tokens: 15 },
+          content: [{ type: "text", text: "CSV取り込み完了" }],
+        }),
+        { status: 200 },
+      );
+    },
+    recordUsage: async () => {},
+  });
+
+  expect(res.responseText).toBe("CSV取り込み完了");
+  expect(payloads[0].headers.get("anthropic-beta")).toBe("mcp-client-2025-11-20");
+  expect(payloads[0].body.mcp_servers).toEqual([
+    {
+      type: "url",
+      url: "https://drive.infra-practice.jp/",
+      name: "google-drive",
+      authorization_token: "mcp-csv-token",
+    },
+    {
+      type: "url",
+      url: "https://csv.infra-practice.jp/",
+      name: "household-csv",
+      authorization_token: "mcp-csv-token",
+    },
+    {
+      type: "url",
+      url: "https://obsidian.infra-practice.jp/",
+      name: "obsidian-s3",
+      authorization_token: "mcp-csv-token",
+    },
+    {
+      type: "url",
+      url: "https://line.infra-practice.jp/",
+      name: "line-notification",
+      authorization_token: "mcp-csv-token",
+    },
+  ]);
 });

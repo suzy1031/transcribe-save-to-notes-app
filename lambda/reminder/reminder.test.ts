@@ -7,8 +7,10 @@ import {
   listReminderDocuments,
   notifyReminderLineError,
   processReminder,
+  reminderSettingsFromEnv,
   reminderTargetDate,
   reminderTitleCandidates,
+  runReminderWithMcp,
 } from "./reminder.ts";
 
 const sundayNov8 = new Date("2026-11-07T15:00:00Z");
@@ -138,4 +140,52 @@ test("notifyReminderLineError はLINE認証情報がない場合にログを出�
     spy.mockRestore();
   }
   expect(errors[0]).toBe("LINE通知失敗: credentials are missing");
+});
+
+test("runReminderWithMcp は obsidian / line の mcp_servers を指定して Claude API を呼ぶ", async () => {
+  const payloads: Array<{ headers: Headers; body: Record<string, unknown> }> = [];
+  const res = await runReminderWithMcp({
+    settings: reminderSettingsFromEnv({
+      OBSIDIAN_SUMMARY_FOLDER: "daily_note_summaries",
+    }),
+    credentials: {
+      anthropicApiKey: "sk-ant-test",
+      lineChannelAccessToken: "",
+      lineUserId: "",
+      mcpAuthToken: "mcp-reminder-token",
+    },
+    now: sundayNov8,
+    fetchImpl: async (_url, options) => {
+      payloads.push({
+        headers: new Headers(options?.headers),
+        body: JSON.parse(String(options?.body ?? "{}")),
+      });
+      return new Response(
+        JSON.stringify({
+          model: "claude-haiku-5-5",
+          usage: { input_tokens: 15, output_tokens: 8 },
+          content: [{ type: "text", text: "リマインダー通知完了" }],
+        }),
+        { status: 200 },
+      );
+    },
+    recordUsage: async () => {},
+  });
+
+  expect(res.responseText).toBe("リマインダー通知完了");
+  expect(payloads[0].headers.get("anthropic-beta")).toBe("mcp-client-2025-11-20");
+  expect(payloads[0].body.mcp_servers).toEqual([
+    {
+      type: "url",
+      url: "https://obsidian.infra-practice.jp/",
+      name: "obsidian-s3",
+      authorization_token: "mcp-reminder-token",
+    },
+    {
+      type: "url",
+      url: "https://line.infra-practice.jp/",
+      name: "line-notification",
+      authorization_token: "mcp-reminder-token",
+    },
+  ]);
 });
