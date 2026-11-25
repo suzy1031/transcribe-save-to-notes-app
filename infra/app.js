@@ -17,7 +17,6 @@ import { LambdaInvoke } from "aws-cdk-lib/aws-scheduler-targets";
 import { Secret } from "aws-cdk-lib/aws-secretsmanager";
 import {
   DEFAULT_AWS_REGION,
-  DEFAULT_BEDROCK_MODEL_ID,
   DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
   DEFAULT_CLAUDE_WEEKLY_MODEL_ID,
   DEFAULT_CSV_INBOX_FOLDER,
@@ -30,7 +29,6 @@ import {
   DEFAULT_OBSIDIAN_KINDLE_FOLDER,
   DEFAULT_OBSIDIAN_SUMMARY_FOLDER,
   DEFAULT_OBSIDIAN_VAULT_NAME,
-  DEFAULT_TRANSCRIPTION_PROVIDER,
 } from "../lambda/shared/const.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -148,48 +146,33 @@ class NotesPipelineStack extends Stack {
       reservedConcurrentExecutions: 1,
       environment: {
         SECRET_ID: secret.secretArn,
-        BEDROCK_MODEL_ID: DEFAULT_BEDROCK_MODEL_ID,
         BEDROCK_REGION: this.region,
-        TRANSCRIPTION_PROVIDER: DEFAULT_TRANSCRIPTION_PROVIDER,
         CLAUDE_MODEL_ID: DEFAULT_CLAUDE_WEEKLY_MODEL_ID,
-        NOTES_BUCKET_NAME: notesBucket.bucketName,
-        OBSIDIAN_VAULT_NAME: DEFAULT_OBSIDIAN_VAULT_NAME,
         OBSIDIAN_DAILY_FOLDER: DEFAULT_OBSIDIAN_DAILY_FOLDER,
         OBSIDIAN_SUMMARY_FOLDER: DEFAULT_OBSIDIAN_SUMMARY_FOLDER,
         CLAUDE_USAGE_TABLE_NAME: claudeUsage.tableName,
       },
     });
 
-    const bedrockAccess = () =>
-      new PolicyStatement({
-        actions: ["bedrock:InvokeModel", "bedrock:Converse"],
-        resources: [
-          `arn:aws:bedrock:${this.region}::foundation-model/${DEFAULT_BEDROCK_MODEL_ID}`,
-          `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/${DEFAULT_BEDROCK_MODEL_ID}`,
-        ],
-      });
-
     secret.grantRead(fn);
     secret.grantRead(weekly);
-    notesBucket.grantReadWrite(weekly);
-    weekly.addToRolePolicy(bedrockAccess());
 
     const reminder = createBunFunction("WeeklyReminder", {
       functionName: "craft-weekly-reminder",
       entry: path.join(lambdaDir, "reminder/reminder.ts"),
       memorySize: 256,
-      timeout: Duration.minutes(1),
+      timeout: Duration.minutes(2),
       reservedConcurrentExecutions: 1,
       environment: {
         SECRET_ID: secret.secretArn,
-        NOTES_BUCKET_NAME: notesBucket.bucketName,
-        OBSIDIAN_VAULT_NAME: DEFAULT_OBSIDIAN_VAULT_NAME,
+        BEDROCK_REGION: this.region,
+        CLAUDE_MODEL_ID: DEFAULT_CLAUDE_WEEKLY_MODEL_ID,
         OBSIDIAN_SUMMARY_FOLDER: DEFAULT_OBSIDIAN_SUMMARY_FOLDER,
+        CLAUDE_USAGE_TABLE_NAME: claudeUsage.tableName,
       },
     });
 
     secret.grantRead(reminder);
-    notesBucket.grantRead(reminder);
 
     const csvImport = createBunFunction("CsvImport", {
       functionName: "csv-spreadsheet-import",
@@ -199,16 +182,16 @@ class NotesPipelineStack extends Stack {
       reservedConcurrentExecutions: 1,
       environment: {
         SECRET_ID: secret.secretArn,
-        NOTES_BUCKET_NAME: notesBucket.bucketName,
-        OBSIDIAN_VAULT_NAME: DEFAULT_OBSIDIAN_VAULT_NAME,
+        BEDROCK_REGION: this.region,
+        CLAUDE_MODEL_ID: DEFAULT_CLAUDE_WEEKLY_MODEL_ID,
         OBSIDIAN_HOUSEHOLD_BUDGET_FOLDER: DEFAULT_OBSIDIAN_HOUSEHOLD_BUDGET_FOLDER,
         CSV_INBOX_FOLDER_NAME: DEFAULT_CSV_INBOX_FOLDER,
         CSV_PROCESSED_FOLDER_NAME: DEFAULT_CSV_PROCESSED_FOLDER,
+        CLAUDE_USAGE_TABLE_NAME: claudeUsage.tableName,
       },
     });
 
     secret.grantRead(csvImport);
-    notesBucket.grantReadWrite(csvImport);
 
     const kindle = createBunFunction("KindleSummarizer", {
       functionName: "craft-kindle-summarizer",
@@ -218,12 +201,8 @@ class NotesPipelineStack extends Stack {
       reservedConcurrentExecutions: 1,
       environment: {
         SECRET_ID: secret.secretArn,
-        BEDROCK_MODEL_ID: DEFAULT_BEDROCK_MODEL_ID,
         BEDROCK_REGION: this.region,
-        TRANSCRIPTION_PROVIDER: DEFAULT_TRANSCRIPTION_PROVIDER,
         CLAUDE_MODEL_ID: DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
-        NOTES_BUCKET_NAME: notesBucket.bucketName,
-        OBSIDIAN_VAULT_NAME: DEFAULT_OBSIDIAN_VAULT_NAME,
         OBSIDIAN_KINDLE_FOLDER: DEFAULT_OBSIDIAN_KINDLE_FOLDER,
         KINDLE_DRIVE_PARENT_FOLDER_NAME: DEFAULT_KINDLE_DRIVE_PARENT,
         KINDLE_BOOK_FOLDER_PREFIX: DEFAULT_KINDLE_BOOK_PREFIX,
@@ -233,10 +212,10 @@ class NotesPipelineStack extends Stack {
     });
 
     secret.grantRead(kindle);
-    notesBucket.grantReadWrite(kindle);
-    kindle.addToRolePolicy(bedrockAccess());
     claudeUsage.grantWriteData(fn);
     claudeUsage.grantReadWriteData(weekly);
+    claudeUsage.grantWriteData(reminder);
+    claudeUsage.grantWriteData(csvImport);
     claudeUsage.grantWriteData(kindle);
 
     const obsidianMcp = createBunFunction("ObsidianMcp", {
