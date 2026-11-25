@@ -429,6 +429,10 @@ test("prompts/list と prompts/get で 3 種類のプロンプトを取得でき
   const weeklyDefaultText = (weeklyDefaultRes.result as { messages: Array<{ content: { text: string } }> }).messages[0]
     .content.text;
   expect(weeklyDefaultText).toContain("【週次ノートまとめ】");
+  expect(weeklyDefaultText).toContain("Obsidian Flavored Markdown");
+  expect(weeklyDefaultText).toContain("==強調テキスト==");
+  expect(weeklyDefaultText).toContain("> [!summary]");
+  expect(weeklyDefaultText).toContain("[[ノート名]]");
   expect(weeklyDefaultText).not.toContain("<notes>\n");
 
   const weeklyWithNotesRes = (await server.handleMessage({

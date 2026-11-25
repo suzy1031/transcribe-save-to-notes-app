@@ -1,11 +1,11 @@
 import { KINDLE_SYSTEM_PROMPT, KINDLE_USER_PROMPT } from "../../kindle/kindle-prompt.ts";
 import type { ListNotesParams, SaveNoteInput } from "../../obsidian/types.ts";
 import { TRANSCRIBE_USER_PROMPT } from "../../shared/const.ts";
-import { SUMMARY_SYSTEM_PROMPT, summaryPrompt } from "../../summarize/summary-prompt.ts";
+import { wrapSummaryNotes } from "../../summarize/summary-prompt.ts";
 import { SYSTEM_PROMPT } from "../../transcribe/prompt.ts";
 import { createJsonRpcError, JSONRPC_INVALID_PARAMS } from "../jsonrpc.ts";
 import type { McpGetPromptResult } from "../types.ts";
-import { OBSIDIAN_MCP_PROMPTS, OBSIDIAN_NOTE_URI_PREFIX } from "./const.ts";
+import { OBSIDIAN_MCP_PROMPTS, OBSIDIAN_NOTE_URI_PREFIX, OBSIDIAN_WEEKLY_SUMMARY_SYSTEM_PROMPT } from "./const.ts";
 
 function requireNonEmptyString(args: Record<string, unknown>, field: string): string {
   const value = args[field];
@@ -108,7 +108,9 @@ export function buildObsidianPromptResult(name: string, args: Record<string, unk
       break;
     case "weekly_summary_prompt": {
       const notes = optionalString(args, "notes");
-      text = notes ? summaryPrompt(notes) : SUMMARY_SYSTEM_PROMPT;
+      text = notes
+        ? `${OBSIDIAN_WEEKLY_SUMMARY_SYSTEM_PROMPT}\n\n${wrapSummaryNotes(notes)}`
+        : OBSIDIAN_WEEKLY_SUMMARY_SYSTEM_PROMPT;
       break;
     }
     case "kindle_highlight_summary_prompt":
