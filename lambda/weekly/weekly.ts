@@ -1,11 +1,8 @@
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import { formatWeeklyUsage, getWeeklyUsage } from "../claude/claude-usage.ts";
+import { formatWeeklyUsage } from "../claude/claude-usage.ts";
 import { fetchUsdJpyRate } from "../claude/fx-rate.ts";
 import type { WeeklyUsageItem } from "../claude/types.ts";
-import { EMPTY_WEEK_MESSAGE, fitLineText } from "../line/helper.ts";
-import { createLineClient } from "../line/line.ts";
-import { createObsidianClient } from "../obsidian/obsidian.ts";
-import type { ObsidianListedNote } from "../obsidian/types.ts";
+import { EMPTY_WEEK_MESSAGE } from "../line/helper.ts";
 import { bunLambdaHandler } from "../shared/bun-handler.ts";
 import {
   DEFAULT_MCP_DOMAIN_NAME,
@@ -18,11 +15,10 @@ import {
 import { runLogged } from "../shared/job.ts";
 import { buildMcpServerDefinitions, callClaudeMessages, requireAnthropicApiKey } from "../shared/llm.ts";
 import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
-import { loadCredentials, settingsFromEnv } from "../shared/settings.ts";
+import { loadCredentials, requireMcpAuthToken, settingsFromEnv } from "../shared/settings.ts";
 import { daysBeforeTokyoDate, tokyoDate } from "../shared/tokyo-date.ts";
 import type { Credentials, SecretsClientLike } from "../shared/types.ts";
-import { createSummarizer } from "../summarize/summarize.ts";
-import { combineNotes, SUMMARY_SYSTEM_PROMPT } from "../summarize/summary-prompt.ts";
+import { SUMMARY_SYSTEM_PROMPT } from "../summarize/summary-prompt.ts";
 import type { WeeklySettings } from "./types.ts";
 
 export function createdSinceDate(now: Date = new Date(), timeZone: string = TOKYO_TIME_ZONE): string {
@@ -77,41 +73,6 @@ export async function reportWeeklyUsage({
   return { item, text };
 }
 
-export async function processWeekly({
-  documents,
-  readMarkdown,
-  summarize,
-  pushLine,
-  saveSummaryNote,
-  now = new Date(),
-}: {
-  documents: ReadonlyArray<Pick<ObsidianListedNote, "id" | "title">>;
-  readMarkdown: (id: string) => Promise<string>;
-  summarize: (notesText: string) => Promise<string>;
-  pushLine: (text: string) => Promise<void>;
-  saveSummaryNote: (input: { title: string; markdown: string; date: string }) => Promise<string>;
-  now?: Date;
-}): Promise<{ summarized: number }> {
-  if (documents.length === 0) {
-    await pushLine(EMPTY_WEEK_MESSAGE);
-    return { summarized: 0 };
-  }
-
-  const notes = [];
-  for (const document of documents) {
-    notes.push({ title: document.title, markdown: await readMarkdown(document.id) });
-  }
-  const summary = await summarize(combineNotes(notes));
-  await pushLine(fitLineText(summary));
-  const today = tokyoDate(now);
-  await saveSummaryNote({
-    title: `週次まとめ ${today}`,
-    markdown: summary,
-    date: today,
-  });
-  return { summarized: documents.length };
-}
-
 export async function runWeeklyWithMcp({
   settings = weeklySettingsFromEnv(),
   credentials,
@@ -130,10 +91,7 @@ export async function runWeeklyWithMcp({
   const creds =
     credentials ??
     (await loadWeeklyCredentials(settings, new SecretsManagerClient({ region: settings.bedrockRegion })));
-  const mcpAuthToken = (creds.mcpAuthToken ?? "").trim();
-  if (!mcpAuthToken) {
-    throw new Error("mcpAuthToken is required when USE_MCP_SERVERS=true");
-  }
+  const mcpAuthToken = requireMcpAuthToken(creds);
   const since = createdSinceDate(now);
   const today = tokyoDate(now);
   const mcpServers = buildMcpServerDefinitions({
@@ -164,67 +122,8 @@ export async function runWeeklyWithMcp({
   return { responseText };
 }
 
-export async function handler(): Promise<{ summarized: number } | { responseText: string }> {
-  return runLogged<{ summarized: number } | { responseText: string }>(() =>
-    process.env.USE_MCP_SERVERS === "true" ? runWeeklyWithMcp() : runWeekly(),
-  );
-}
-
-async function runWeekly(): Promise<{ summarized: number }> {
-  const settings = weeklySettingsFromEnv();
-  const credentials = await loadWeeklyCredentials(
-    settings,
-    new SecretsManagerClient({ region: settings.bedrockRegion }),
-  );
-  const obsidian = createObsidianClient({
-    bucketName: settings.notesBucketName,
-    region: settings.bedrockRegion,
-  });
-  const line = createLineClient({
-    channelAccessToken: credentials.lineChannelAccessToken,
-    userId: credentials.lineUserId,
-  });
-  const summarize = createSummarizer({
-    provider: settings.transcriptionProvider,
-    claude: {
-      apiKey: credentials.anthropicApiKey,
-      modelId: settings.claudeModelId,
-    },
-    bedrock: {
-      region: settings.bedrockRegion,
-      modelId: settings.bedrockModelId,
-    },
-  });
-  const now = new Date();
-  const documents = await obsidian.listNotes({
-    folder: settings.sourceFolderName,
-    createdDateGte: createdSinceDate(now),
-  });
-  const summary = await processWeekly({
-    documents,
-    readMarkdown: (id) => obsidian.readMarkdown(id),
-    summarize,
-    pushLine: (text) => line.push(text),
-    saveSummaryNote: ({ title, markdown, date }) =>
-      obsidian.createNote({
-        folder: settings.summaryFolderName,
-        title,
-        markdown,
-        date,
-        tags: ["weekly-summary"],
-      }),
-    now,
-  });
-  console.log(`週次要約 ${summary.summarized}件`);
-  try {
-    await reportWeeklyUsage({
-      getUsage: () => getWeeklyUsage({ now }),
-      pushLine: (text) => line.push(text),
-    });
-  } catch (error) {
-    console.error(`Claude利用量の参照に失敗: ${sanitizeErrorMessage((error as Error).message)}`);
-  }
-  return summary;
+export async function handler(): Promise<{ responseText: string }> {
+  return runLogged(() => runWeeklyWithMcp());
 }
 
 export default bunLambdaHandler(handler);

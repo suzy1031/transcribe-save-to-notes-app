@@ -60,3 +60,9 @@ export async function loadCredentials(settings: BaseSettings, secretsClient: Sec
     mcpAuthToken: process.env.MCP_AUTH_TOKEN ?? "",
   };
 }
+
+export function requireMcpAuthToken(credentials: Pick<Credentials, "mcpAuthToken">): string {
+  const token = (credentials.mcpAuthToken ?? "").trim();
+  if (!token) throw new Error("mcpAuthToken is required");
+  return token;
+}
