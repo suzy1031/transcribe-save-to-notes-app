@@ -263,6 +263,20 @@ class NotesPipelineStack extends Stack {
     secret.grantRead(obsidianMcp);
     notesBucket.grantReadWrite(obsidianMcp);
 
+    const driveMcp = createBunFunction("DriveMcp", {
+      functionName: "google-drive-mcp",
+      entry: path.join(lambdaDir, "mcp/drive/index.ts"),
+      memorySize: 256,
+      timeout: Duration.seconds(30),
+      reservedConcurrentExecutions: 1,
+      environment: {
+        SECRET_ID: secret.secretArn,
+        BEDROCK_REGION: this.region,
+      },
+    });
+
+    secret.grantRead(driveMcp);
+
     const mcpRootDomain = process.env.MCP_DOMAIN_NAME || this.node.tryGetContext("mcpDomainName") || "";
     const mcpHostedZoneId = process.env.MCP_HOSTED_ZONE_ID || this.node.tryGetContext("mcpHostedZoneId") || "";
     const mcpCertificateArn = process.env.MCP_CERTIFICATE_ARN || this.node.tryGetContext("mcpCertificateArn") || "";
@@ -273,47 +287,66 @@ class NotesPipelineStack extends Stack {
         zoneName: mcpRootDomain,
       });
       const mcpCertificate = Certificate.fromCertificateArn(this, "McpCertificate", mcpCertificateArn);
-      const mcpSubdomain = `obsidian.${mcpRootDomain}`;
 
-      const mcpDomain = new DomainName(this, "ObsidianMcpDomain", {
-        domainName: mcpSubdomain,
-        certificate: mcpCertificate,
-      });
+      const mountMcpApi = ({ idPrefix, apiName, subdomainPrefix, fn, description }) => {
+        const mcpSubdomain = `${subdomainPrefix}.${mcpRootDomain}`;
 
-      const mcpApi = new HttpApi(this, "ObsidianMcpApi", {
+        const mcpDomain = new DomainName(this, `${idPrefix}Domain`, {
+          domainName: mcpSubdomain,
+          certificate: mcpCertificate,
+        });
+
+        const mcpApi = new HttpApi(this, `${idPrefix}Api`, {
+          apiName,
+          createDefaultStage: true,
+          defaultDomainMapping: {
+            domainName: mcpDomain,
+          },
+        });
+
+        // デフォルトステージにレート制限を設定（ブルートフォース・過剰課金防止）
+        const defaultStage = mcpApi.defaultStage?.node.defaultChild;
+        if (defaultStage) {
+          defaultStage.defaultRouteSettings = {
+            throttlingRateLimit: 5,
+            throttlingBurstLimit: 10,
+          };
+        }
+
+        mcpApi.addRoutes({
+          path: "/",
+          methods: [HttpMethod.POST],
+          integration: new HttpLambdaIntegration(`${idPrefix}Integration`, fn),
+        });
+
+        new ARecord(this, `${idPrefix}AliasRecord`, {
+          zone: mcpHostedZone,
+          recordName: subdomainPrefix,
+          target: RecordTarget.fromAlias(
+            new ApiGatewayv2DomainProperties(mcpDomain.regionalDomainName, mcpDomain.regionalHostedZoneId),
+          ),
+        });
+
+        new CfnOutput(this, `${idPrefix}EndpointUrl`, {
+          value: `https://${mcpSubdomain}/`,
+          description,
+        });
+      };
+
+      mountMcpApi({
+        idPrefix: "ObsidianMcp",
         apiName: "obsidian-s3-mcp-api",
-        createDefaultStage: true,
-        defaultDomainMapping: {
-          domainName: mcpDomain,
-        },
-      });
-
-      // デフォルトステージにレート制限を設定（ブルートフォース・過剰課金防止）
-      const defaultStage = mcpApi.defaultStage?.node.defaultChild;
-      if (defaultStage) {
-        defaultStage.defaultRouteSettings = {
-          throttlingRateLimit: 5,
-          throttlingBurstLimit: 10,
-        };
-      }
-
-      mcpApi.addRoutes({
-        path: "/",
-        methods: [HttpMethod.POST],
-        integration: new HttpLambdaIntegration("ObsidianMcpIntegration", obsidianMcp),
-      });
-
-      new ARecord(this, "ObsidianMcpAliasRecord", {
-        zone: mcpHostedZone,
-        recordName: "obsidian",
-        target: RecordTarget.fromAlias(
-          new ApiGatewayv2DomainProperties(mcpDomain.regionalDomainName, mcpDomain.regionalHostedZoneId),
-        ),
-      });
-
-      new CfnOutput(this, "ObsidianMcpEndpointUrl", {
-        value: `https://${mcpSubdomain}/`,
+        subdomainPrefix: "obsidian",
+        fn: obsidianMcp,
         description: "Remote MCP endpoint URL for Obsidian S3 Vault (requires Bearer token)",
+      });
+
+      mountMcpApi({
+        idPrefix: "DriveMcp",
+        apiName: "google-drive-mcp-api",
+        subdomainPrefix: "drive",
+        fn: driveMcp,
+        description: "Remote MCP endpoint URL for Google Drive (requires Bearer token)",
       });
     }
 
