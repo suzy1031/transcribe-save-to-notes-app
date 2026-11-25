@@ -133,13 +133,8 @@ class NotesPipelineStack extends Stack {
       reservedConcurrentExecutions: 1,
       environment: {
         SECRET_ID: secret.secretArn,
-        BEDROCK_MODEL_ID: DEFAULT_BEDROCK_MODEL_ID,
         BEDROCK_REGION: this.region,
-        NOTES_BUCKET_NAME: notesBucket.bucketName,
-        OBSIDIAN_VAULT_NAME: DEFAULT_OBSIDIAN_VAULT_NAME,
         OBSIDIAN_DAILY_FOLDER: DEFAULT_OBSIDIAN_DAILY_FOLDER,
-        // "claude" or "bedrock"
-        TRANSCRIPTION_PROVIDER: DEFAULT_TRANSCRIPTION_PROVIDER,
         CLAUDE_MODEL_ID: DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
         CLAUDE_USAGE_TABLE_NAME: claudeUsage.tableName,
       },
@@ -176,9 +171,7 @@ class NotesPipelineStack extends Stack {
 
     secret.grantRead(fn);
     secret.grantRead(weekly);
-    notesBucket.grantReadWrite(fn);
     notesBucket.grantReadWrite(weekly);
-    fn.addToRolePolicy(bedrockAccess());
     weekly.addToRolePolicy(bedrockAccess());
 
     const reminder = createBunFunction("WeeklyReminder", {
