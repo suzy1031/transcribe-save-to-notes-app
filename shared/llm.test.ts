@@ -149,3 +149,86 @@ test("callClaudeMessages は mcpServers 指定時に anthropic-beta と mcp_serv
     { type: "mcp_toolset", mcp_server_name: "google-drive" },
   ]);
 });
+
+test("callClaudeMessages は stop_reason が pause_turn のとき assistant 応答を積んで継続する", async () => {
+  const requests: Array<{ messages: Array<{ role: string; content: unknown }> }> = [];
+  const usages: Array<{ input_tokens?: number; output_tokens?: number }> = [];
+  let callIndex = 0;
+
+  const text = await callClaudeMessages({
+    apiKey: "test-key",
+    modelId: "claude-haiku-5-5",
+    maxTokens: 4096,
+    system: "sys",
+    messages: [{ role: "user", content: "週次要約を実行して" }],
+    mcpServers: buildMcpServerDefinitions({ domains: ["obsidian", "line", "usage"], authToken: "mcp-secret" }),
+    functionName: "weekly",
+    errorPrefix: "Claude MCP failed",
+    fetchImpl: async (_url, options) => {
+      const body = JSON.parse(String(options?.body ?? "{}")) as {
+        messages: Array<{ role: string; content: unknown }>;
+      };
+      requests.push({ messages: body.messages });
+      callIndex++;
+      if (callIndex === 1) {
+        return new Response(
+          JSON.stringify({
+            model: "claude-haiku-5-5",
+            stop_reason: "pause_turn",
+            usage: { input_tokens: 100, output_tokens: 50 },
+            content: [{ type: "mcp_tool_use", id: "tool_1", name: "obsidian_list_notes" }],
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response(
+        JSON.stringify({
+          model: "claude-haiku-5-5",
+          stop_reason: "end_turn",
+          usage: { input_tokens: 120, output_tokens: 30 },
+          content: [{ type: "text", text: "要約とLINE通知を完了しました" }],
+        }),
+        { status: 200 },
+      );
+    },
+    recordUsage: async (entry) => {
+      usages.push(entry.usage as { input_tokens?: number; output_tokens?: number });
+    },
+  });
+
+  expect(text).toBe("要約とLINE通知を完了しました");
+  expect(requests).toHaveLength(2);
+  expect(requests[1].messages).toEqual([
+    { role: "user", content: "週次要約を実行して" },
+    { role: "assistant", content: [{ type: "mcp_tool_use", id: "tool_1", name: "obsidian_list_notes" }] },
+  ]);
+  expect(usages).toEqual([
+    { input_tokens: 100, output_tokens: 50 },
+    { input_tokens: 120, output_tokens: 30 },
+  ]);
+});
+
+test("callClaudeMessages は pause_turn が上限を超えると例外を投げる", async () => {
+  await expect(
+    callClaudeMessages({
+      apiKey: "test-key",
+      modelId: "claude-haiku-5-5",
+      maxTokens: 4096,
+      system: "sys",
+      messages: [{ role: "user", content: "hello" }],
+      functionName: "weekly",
+      errorPrefix: "Claude MCP failed",
+      fetchImpl: async () =>
+        new Response(
+          JSON.stringify({
+            model: "claude-haiku-5-5",
+            stop_reason: "pause_turn",
+            usage: { input_tokens: 10, output_tokens: 5 },
+            content: [],
+          }),
+          { status: 200 },
+        ),
+      recordUsage: async () => {},
+    }),
+  ).rejects.toThrow("Claude MCP failed: exceeded max pause_turn continuations");
+});

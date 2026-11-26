@@ -64,3 +64,29 @@ test("runWeeklyWithMcp は obsidian / line / usage の mcp_servers を指定し�
     },
   ]);
 });
+
+test("runWeeklyWithMcp は空の応答を受け取った場合に例外を投げる", async () => {
+  await expect(
+    runWeeklyWithMcp({
+      settings: weeklySettingsFromEnv({ CLAUDE_MODEL_ID: "claude-haiku-5-5" }),
+      credentials: {
+        anthropicApiKey: "sk-ant-test",
+        lineChannelAccessToken: "",
+        lineUserId: "",
+        mcpAuthToken: "mcp-token-123",
+      },
+      now,
+      fetchImpl: async () =>
+        new Response(
+          JSON.stringify({
+            model: "claude-haiku-5-5",
+            stop_reason: "max_tokens",
+            usage: { input_tokens: 20, output_tokens: 10 },
+            content: [],
+          }),
+          { status: 200 },
+        ),
+      recordUsage: async () => {},
+    }),
+  ).rejects.toThrow("Claude MCP weekly summary returned empty response");
+});

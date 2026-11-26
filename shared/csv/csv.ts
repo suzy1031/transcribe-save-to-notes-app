@@ -118,7 +118,7 @@ export function parseCsv(text: unknown): string[][] {
  * @returns 生成されたシートタイトル
  */
 export function sheetTitle({ date, fileName }: { date: string; fileName?: string }): string {
-  const stem = path.basename(fileName ?? "", path.extname(fileName ?? ""));
+  const stem = path.posix.basename(fileName ?? "", path.posix.extname(fileName ?? ""));
   const cleaned = stem
     .replace(INVALID_SHEET_CHARS, "")
     // biome-ignore lint/suspicious/noControlCharactersInRegex: sheet titles cannot contain control characters
