@@ -9,7 +9,7 @@
         "@aws-sdk/client-dynamodb": "3.1170.0",
         "@aws-sdk/client-s3": "3.1169.0",
         "@aws-sdk/client-secrets-manager": "3.1169.0",
-        "@aws-sdk/lib-dynamodb": "3.1169.0",
+        "@aws-sdk/lib-dynamodb": "3.1170.0",
         "google-auth-library": "11.3.4",
       },
       "devDependencies": {
@@ -65,7 +65,7 @@
 
     "@aws-sdk/eventstream-handler-node": ["@aws-sdk/eventstream-handler-node@3.972.42", "", { "dependencies": { "@aws-sdk/types": "^3.975.1", "@smithy/core": "^3.40.0", "@smithy/types": "^4.20.0", "tslib": "^2.6.2" } }, "sha512-YVB1wrpE1WF8NvMpaRyhwm9XBYl3HTbPNEIgybi0b0XpmBrJ7Y3Y/drbxh9qAVMbR+0hcwM63GPWzhOVRuerfg=="],
 
-    "@aws-sdk/lib-dynamodb": ["@aws-sdk/lib-dynamodb@3.1169.0", "", { "dependencies": { "@aws-sdk/core": "^3.981.0", "@aws-sdk/util-dynamodb": "^3.996.9", "@smithy/core": "^3.40.0", "@smithy/types": "^4.20.0", "tslib": "^2.6.2" }, "peerDependencies": { "@aws-sdk/client-dynamodb": "^3.1169.0" } }, "sha512-U9Y/kdqXjIM5QfCX6O1Wc+qLxDx2+dWquk0lMBp4M+v+XzwEToMtYnssHunMCUyrRGQMVIA7UkaN7CyeaqxZJw=="],
+    "@aws-sdk/lib-dynamodb": ["@aws-sdk/lib-dynamodb@3.1170.0", "", { "dependencies": { "@aws-sdk/core": "^3.981.0", "@aws-sdk/util-dynamodb": "^3.996.9", "@smithy/core": "^3.40.0", "@smithy/types": "^4.20.0", "tslib": "^2.6.2" }, "peerDependencies": { "@aws-sdk/client-dynamodb": "^3.1170.0" } }, "sha512-Wp6LdmrHFcBvZLb/fsYApShFmcy826yQbkerT1lS/mBSyxdzU9mplKYUdFx3Hg9EDwChEh1yPhgJxN3QvJGnnQ=="],
 
     "@aws-sdk/middleware-endpoint-discovery": ["@aws-sdk/middleware-endpoint-discovery@3.972.39", "", { "dependencies": { "@aws-sdk/endpoint-cache": "^3.972.11", "@aws-sdk/types": "^3.975.1", "@smithy/core": "^3.40.0", "@smithy/types": "^4.20.0", "tslib": "^2.6.2" } }, "sha512-AtZS+UK7CciPbdiszPoG08A23kUojFxFnWIv155uPieSPcHR9D9Sovtp19U0j5qmD2DzHpG9OI7mb0Kiyvf3mA=="],
 
