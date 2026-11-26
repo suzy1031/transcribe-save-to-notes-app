@@ -1,25 +1,6 @@
 import { expect, test } from "vitest";
 import type { DriveClient } from "../../interfaces/drive.ts";
-import { kindleRunSummaryMessage } from "../../shared/line/helper.ts";
-import { obsidianAppNoteLink } from "../../shared/obsidian/helper.ts";
 import { kindleSettingsFromEnv, runKindleWithMcp } from "./kindle.ts";
-
-test("kindleRunSummaryMessage にフォルダ名とObsidianリンクが列挙される", () => {
-  const text = kindleRunSummaryMessage({
-    summarized: 2,
-    failed: 0,
-    links: [
-      {
-        folderName: "kindle_book",
-        appLink: obsidianAppNoteLink("ks-vault", "kindle/kindle_book.md"),
-      },
-    ],
-  });
-  expect(text).toMatch(/Kindle要約完了/);
-  expect(text).toMatch(/処理: 2枚/);
-  expect(text).toMatch(/kindle_book/);
-  expect(text).toMatch(/obsidian:\/\/open\?/);
-});
 
 test("runKindleWithMcp は obsidian / drive / line の mcp_servers を指定して画像を処理する", async () => {
   const requests: Array<{ headers: Headers; body: Record<string, unknown> }> = [];

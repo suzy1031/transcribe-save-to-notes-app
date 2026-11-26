@@ -9,11 +9,6 @@ export interface LambdaContextLike {
   getRemainingTimeInMillis(): number;
 }
 
-export interface LoggerLike {
-  info(...args: unknown[]): void;
-  error(...args: unknown[]): void;
-}
-
 export interface BaseSettings {
   secretId: string;
   bedrockModelId: string;

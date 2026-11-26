@@ -1,7 +1,6 @@
 import { expect, test } from "vitest";
 import { tokyoDate } from "../../shared/tokyo-date.ts";
 import {
-  filterDocumentsByReminderTitle,
   reminderSettingsFromEnv,
   reminderTargetDate,
   reminderTitleCandidates,
@@ -18,14 +17,6 @@ test("reminderTargetDate は実行日から7日前の東京日付を返す", () 
 test("reminderTitleCandidates はゼロ埋めと非ゼロ埋めのタイトル候補を返す", () => {
   expect(reminderTitleCandidates("2026-11-01")).toEqual(["週次まとめ 2026-11-01", "週次まとめ 2026-11-1"]);
   expect(reminderTitleCandidates("2026-09-07")).toEqual(["週次まとめ 2026-09-07", "週次まとめ 2026-9-7"]);
-});
-
-test("filterDocumentsByReminderTitle は対象タイトルだけを抽出する", () => {
-  const docs = [
-    { id: "1", title: "週次まとめ 2026-11-01" },
-    { id: "2", title: "週次まとめ 2026-10-25" },
-  ];
-  expect(filterDocumentsByReminderTitle(docs, "2026-11-01")).toEqual([{ id: "1", title: "週次まとめ 2026-11-01" }]);
 });
 
 test("runReminderWithMcp は obsidian / line の mcp_servers を指定して Claude API を呼ぶ", async () => {

@@ -31,14 +31,6 @@ export function reminderTitleCandidates(targetDate: string): [string, string] {
   return [`${REMINDER_TITLE_PREFIX}${padded}`, `${REMINDER_TITLE_PREFIX}${year}-${month}-${day}`];
 }
 
-export function filterDocumentsByReminderTitle<T extends { title?: string }>(
-  documents: ReadonlyArray<T>,
-  targetDate: string,
-): T[] {
-  const candidates = new Set<string>(reminderTitleCandidates(targetDate));
-  return documents.filter((doc) => candidates.has(String(doc.title ?? "").trim()));
-}
-
 export function reminderSettingsFromEnv(env: NodeJS.ProcessEnv = process.env): ReminderSettings {
   return {
     ...settingsFromEnv(env),

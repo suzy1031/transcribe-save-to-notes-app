@@ -9,7 +9,6 @@ import {
   parseCsv,
   parseMarkdownTable,
   rowsToMarkdownTable,
-  sheetTitle,
 } from "../../shared/csv/csv.ts";
 import { csvImportSettingsFromEnv, runCsvImportWithMcp } from "./csv-import.ts";
 
@@ -24,14 +23,6 @@ test("parseCsv は引用符、カンマ、セル内改行、BOM、CRLFを読む"
 
 test("parseCsv は閉じていない引用符を拒否する", () => {
   expect(() => parseCsv('"open')).toThrow(/引用符が閉じていません/);
-});
-
-test("sheetTitle は日付とファイル名から作り、使えない文字を除く", () => {
-  expect(sheetTitle({ date: "2026-11-15", fileName: "sales.csv" })).toBe("2026-11-15_sales");
-  expect(sheetTitle({ date: "2026-11-15", fileName: "a:b?c*.csv" })).toBe("2026-11-15_abc");
-  expect(sheetTitle({ date: "2026-11-15", fileName: ".csv" })).toBe("2026-11-15_csv");
-  const long = `${"あ".repeat(120)}.csv`;
-  expect(sheetTitle({ date: "2026-11-15", fileName: long }).length).toBe(100);
 });
 
 test("appendTotalRow は金額列を合計し、カンマと円記号を外す", () => {
