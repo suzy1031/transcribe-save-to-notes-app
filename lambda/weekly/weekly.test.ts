@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { tokyoDate } from "../shared/tokyo-date.ts";
+import { tokyoDate } from "../../shared/tokyo-date.ts";
 import { createdSinceDate, runWeeklyWithMcp, weeklySettingsFromEnv } from "./weekly.ts";
 
 const now = new Date("2026-11-01T00:00:00Z");

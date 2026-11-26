@@ -1,7 +1,8 @@
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import { createDriveClient } from "../drive/drive.ts";
-import type { DriveClient } from "../drive/types.ts";
-import { bunLambdaHandler } from "../shared/bun-handler.ts";
+import type { DriveClient } from "../../interfaces/drive.ts";
+import type { KindleSettings, ProcessKindleResult } from "../../interfaces/kindle.ts";
+import type { Credentials, LambdaContextLike } from "../../interfaces/shared.ts";
+import { bunLambdaHandler } from "../../shared/bun-handler.ts";
 import {
   DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
   DEFAULT_KINDLE_BOOK_PREFIX,
@@ -11,19 +12,18 @@ import {
   DEFAULT_OBSIDIAN_KINDLE_FOLDER,
   MAX_TRANSCRIPTION_TOKENS,
   MIN_REMAINING_MS,
-} from "../shared/const.ts";
-import { runLogged } from "../shared/job.ts";
+} from "../../shared/const.ts";
+import { createDriveClient } from "../../shared/drive/drive.ts";
+import { runLogged } from "../../shared/job.ts";
+import { KINDLE_SYSTEM_PROMPT, KINDLE_USER_PROMPT } from "../../shared/kindle/kindle-prompt.ts";
 import {
   buildMcpServerDefinitions,
   callClaudeMessages,
   imageMediaType,
   requireAnthropicApiKey,
-} from "../shared/llm.ts";
-import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
-import { loadCredentials, requireMcpAuthToken, settingsFromEnv } from "../shared/settings.ts";
-import type { Credentials, LambdaContextLike } from "../shared/types.ts";
-import { KINDLE_SYSTEM_PROMPT, KINDLE_USER_PROMPT } from "./kindle-prompt.ts";
-import type { KindleSettings, ProcessKindleResult } from "./types.ts";
+} from "../../shared/llm.ts";
+import { sanitizeErrorMessage } from "../../shared/sanitize-error.ts";
+import { loadCredentials, requireMcpAuthToken, settingsFromEnv } from "../../shared/settings.ts";
 
 export function kindleSettingsFromEnv(env: NodeJS.ProcessEnv = process.env): KindleSettings {
   return {
