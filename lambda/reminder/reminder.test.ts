@@ -1,5 +1,5 @@
 import { expect, test } from "vitest";
-import { tokyoDate } from "../shared/tokyo-date.ts";
+import { tokyoDate } from "../../shared/tokyo-date.ts";
 import {
   filterDocumentsByReminderTitle,
   reminderSettingsFromEnv,

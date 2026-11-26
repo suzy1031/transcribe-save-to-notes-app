@@ -1,6 +1,7 @@
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import { EMPTY_REMINDER_MESSAGE } from "../line/helper.ts";
-import { bunLambdaHandler } from "../shared/bun-handler.ts";
+import type { ReminderSettings } from "../../interfaces/reminder.ts";
+import type { Credentials, SecretsClientLike } from "../../interfaces/shared.ts";
+import { bunLambdaHandler } from "../../shared/bun-handler.ts";
 import {
   ALL_NOTES_SINCE,
   DEFAULT_CLAUDE_WEEKLY_MODEL_ID,
@@ -8,13 +9,12 @@ import {
   DEFAULT_OBSIDIAN_SUMMARY_FOLDER,
   MAX_SUMMARY_TOKENS,
   REMINDER_LOOKBACK_DAYS,
-} from "../shared/const.ts";
-import { runLogged } from "../shared/job.ts";
-import { buildMcpServerDefinitions, callClaudeMessages, requireAnthropicApiKey } from "../shared/llm.ts";
-import { loadCredentials, requireMcpAuthToken, settingsFromEnv } from "../shared/settings.ts";
-import { daysBeforeTokyoDate } from "../shared/tokyo-date.ts";
-import type { Credentials, SecretsClientLike } from "../shared/types.ts";
-import type { ReminderSettings } from "./types.ts";
+} from "../../shared/const.ts";
+import { runLogged } from "../../shared/job.ts";
+import { EMPTY_REMINDER_MESSAGE } from "../../shared/line/helper.ts";
+import { buildMcpServerDefinitions, callClaudeMessages, requireAnthropicApiKey } from "../../shared/llm.ts";
+import { loadCredentials, requireMcpAuthToken, settingsFromEnv } from "../../shared/settings.ts";
+import { daysBeforeTokyoDate } from "../../shared/tokyo-date.ts";
 
 export const REMINDER_TITLE_PREFIX = "週次まとめ ";
 

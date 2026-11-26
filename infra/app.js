@@ -29,10 +29,11 @@ import {
   DEFAULT_OBSIDIAN_KINDLE_FOLDER,
   DEFAULT_OBSIDIAN_SUMMARY_FOLDER,
   DEFAULT_OBSIDIAN_VAULT_NAME,
-} from "../lambda/shared/const.ts";
+} from "../shared/const.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const lambdaDir = path.join(__dirname, "../lambda");
+const mcpDir = path.join(__dirname, "../mcp");
 const lambdaLogRetention = RetentionDays.ONE_MONTH;
 
 class NotesPipelineStack extends Stack {
@@ -220,7 +221,7 @@ class NotesPipelineStack extends Stack {
 
     const obsidianMcp = createBunFunction("ObsidianMcp", {
       functionName: "obsidian-s3-mcp",
-      entry: path.join(lambdaDir, "mcp/index.ts"),
+      entry: path.join(mcpDir, "index.ts"),
       memorySize: 256,
       timeout: Duration.seconds(30),
       reservedConcurrentExecutions: 1,
@@ -237,7 +238,7 @@ class NotesPipelineStack extends Stack {
 
     const driveMcp = createBunFunction("DriveMcp", {
       functionName: "google-drive-mcp",
-      entry: path.join(lambdaDir, "mcp/drive/index.ts"),
+      entry: path.join(mcpDir, "drive/index.ts"),
       memorySize: 256,
       timeout: Duration.seconds(30),
       reservedConcurrentExecutions: 1,
@@ -251,7 +252,7 @@ class NotesPipelineStack extends Stack {
 
     const csvMcp = createBunFunction("CsvMcp", {
       functionName: "household-csv-mcp",
-      entry: path.join(lambdaDir, "mcp/csv/index.ts"),
+      entry: path.join(mcpDir, "csv/index.ts"),
       memorySize: 256,
       timeout: Duration.seconds(30),
       reservedConcurrentExecutions: 1,
@@ -265,7 +266,7 @@ class NotesPipelineStack extends Stack {
 
     const lineMcp = createBunFunction("LineMcp", {
       functionName: "line-notification-mcp",
-      entry: path.join(lambdaDir, "mcp/line/index.ts"),
+      entry: path.join(mcpDir, "line/index.ts"),
       memorySize: 256,
       timeout: Duration.seconds(30),
       reservedConcurrentExecutions: 1,
@@ -279,7 +280,7 @@ class NotesPipelineStack extends Stack {
 
     const usageMcp = createBunFunction("UsageMcp", {
       functionName: "claude-usage-mcp",
-      entry: path.join(lambdaDir, "mcp/usage/index.ts"),
+      entry: path.join(mcpDir, "usage/index.ts"),
       memorySize: 256,
       timeout: Duration.seconds(30),
       reservedConcurrentExecutions: 1,

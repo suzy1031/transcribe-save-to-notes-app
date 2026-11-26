@@ -1,7 +1,7 @@
 import { expect, test } from "vitest";
-import type { DriveClient } from "../drive/types.ts";
-import { kindleRunSummaryMessage } from "../line/helper.ts";
-import { obsidianAppNoteLink } from "../obsidian/helper.ts";
+import type { DriveClient } from "../../interfaces/drive.ts";
+import { kindleRunSummaryMessage } from "../../shared/line/helper.ts";
+import { obsidianAppNoteLink } from "../../shared/obsidian/helper.ts";
 import { kindleSettingsFromEnv, runKindleWithMcp } from "./kindle.ts";
 
 test("kindleRunSummaryMessage にフォルダ名とObsidianリンクが列挙される", () => {

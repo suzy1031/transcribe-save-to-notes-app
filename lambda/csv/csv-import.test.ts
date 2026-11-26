@@ -10,7 +10,7 @@ import {
   parseMarkdownTable,
   rowsToMarkdownTable,
   sheetTitle,
-} from "./csv.ts";
+} from "../../shared/csv/csv.ts";
 import { csvImportSettingsFromEnv, runCsvImportWithMcp } from "./csv-import.ts";
 
 test("parseCsv は引用符、カンマ、セル内改行、BOM、CRLFを読む", () => {

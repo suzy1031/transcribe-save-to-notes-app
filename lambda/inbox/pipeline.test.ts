@@ -1,6 +1,6 @@
 import { expect, test } from "vitest";
-import type { DriveClient, DriveFile } from "../drive/types.ts";
-import { settingsFromEnv } from "../shared/settings.ts";
+import type { DriveClient, DriveFile } from "../../interfaces/drive.ts";
+import { settingsFromEnv } from "../../shared/settings.ts";
 import { runInboxWithMcp } from "./index.ts";
 
 const image: DriveFile = {
