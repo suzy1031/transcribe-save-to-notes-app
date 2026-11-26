@@ -1,34 +1,33 @@
 import { expect, test, vi } from "vitest";
-import { createLinePush } from "./job.ts";
+import { runLogged } from "./job.ts";
 
-test("createLinePush は資格情報が無いときログを出して戻る", async () => {
-  const errors: unknown[] = [];
-  const spy = vi.spyOn(console, "error").mockImplementation((message: unknown) => {
-    errors.push(message);
+test("runLogged は正常終了時に start と end を出力して戻り値を返す", async () => {
+  const logs: unknown[] = [];
+  const spy = vi.spyOn(console, "log").mockImplementation((message: unknown) => {
+    logs.push(message);
   });
   try {
-    const pushLine = createLinePush({});
-    await pushLine("hello");
+    const result = await runLogged(async () => "ok");
+    expect(result).toBe("ok");
   } finally {
     spy.mockRestore();
   }
-  expect(errors).toEqual(["LINE通知失敗: credentials are missing"]);
+  expect(logs).toEqual(["start", "end"]);
 });
 
-test("createLinePush は送信失敗をログに残して例外を出さない", async () => {
-  const errors: unknown[] = [];
-  const spy = vi.spyOn(console, "error").mockImplementation((message: unknown) => {
-    errors.push(message);
+test("runLogged は例外発生時も end を出力して例外を再送出する", async () => {
+  const logs: unknown[] = [];
+  const spy = vi.spyOn(console, "log").mockImplementation((message: unknown) => {
+    logs.push(message);
   });
   try {
-    const pushLine = createLinePush({ lineChannelAccessToken: "token", lineUserId: "user" }, async () => {
-      throw new Error("Bearer sk-ant-secretvalue failed");
-    });
-    await pushLine("hello");
+    await expect(
+      runLogged(async () => {
+        throw new Error("boom");
+      }),
+    ).rejects.toThrow("boom");
   } finally {
     spy.mockRestore();
   }
-  expect(errors.length).toBe(1);
-  expect(String(errors[0])).toMatch(/^LINE通知失敗:/);
-  expect(String(errors[0]).includes("sk-ant-secretvalue")).toBe(false);
+  expect(logs).toEqual(["start", "end"]);
 });

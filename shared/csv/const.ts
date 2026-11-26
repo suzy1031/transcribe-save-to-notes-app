@@ -1,5 +1,3 @@
-export const SHEET_TITLE_MAX = 100;
-export const INVALID_SHEET_CHARS = /[:\\/?*[\]]/g;
 export const SHEET_TITLE_PATTERN = /^(\d{4}-\d{2}-\d{2})_(.+)$/;
 
 export const AMOUNT_PATTERN = /^-?\d+(\.\d+)?$/;

@@ -13,8 +13,6 @@ import {
   DEBIT_CATEGORY,
   DEBIT_CATEGORY_COLUMN_INDEX,
   DEBIT_TOTAL_LABEL,
-  INVALID_SHEET_CHARS,
-  SHEET_TITLE_MAX,
   SHEET_TITLE_PATTERN,
 } from "./const.ts";
 import {
@@ -110,22 +108,6 @@ export function parseCsv(text: unknown): string[][] {
     rows.push(row);
   }
   return rows;
-}
-
-/**
- * 日付とファイル名から Google Sheets の制限に収まるシートタイトル（`YYYY-MM-DD_<stem>`）を生成する。
- * @param params 日付文字列と元ファイル名
- * @returns 生成されたシートタイトル
- */
-export function sheetTitle({ date, fileName }: { date: string; fileName?: string }): string {
-  const stem = path.posix.basename(fileName ?? "", path.posix.extname(fileName ?? ""));
-  const cleaned = stem
-    .replace(INVALID_SHEET_CHARS, "")
-    // biome-ignore lint/suspicious/noControlCharactersInRegex: sheet titles cannot contain control characters
-    .replace(/[\u0000-\u001f]/g, "")
-    .replace(/^\.+/, "")
-    .trim();
-  return `${date}_${cleaned || "csv"}`.slice(0, SHEET_TITLE_MAX);
 }
 
 function escapeMarkdownCell(value: unknown): string {

@@ -1,5 +1,3 @@
-import type { DriveFile } from "./drive.ts";
-import type { CsvImportFailure } from "./line.ts";
 import type { BaseSettings } from "./shared.ts";
 
 export interface FileLike {
@@ -13,27 +11,8 @@ export interface CsvImportSettings extends BaseSettings {
   householdBudgetFolder: string;
 }
 
-export interface CsvImportResult {
-  imported: number;
-  failed: number;
-  failures: CsvImportFailure[];
-  folderLookup?: string;
-}
-
 export interface MonthSums {
   total: number;
   debit: number;
   cash: number;
-}
-
-export interface ImportCsvFilesOptions {
-  files: ReadonlyArray<DriveFile>;
-  download: (file: DriveFile) => Promise<Uint8Array | Buffer>;
-  existingNoteTitles: ReadonlyArray<string>;
-  readNoteRows?: (title: string) => Promise<ReadonlyArray<ReadonlyArray<string>>>;
-  writeNote: (input: { title: string; date: string; markdown: string }) => Promise<string>;
-  moveToProcessed: (file: DriveFile) => Promise<void>;
-  pushLine: (text: string) => Promise<void>;
-  buildNoteLink?: (noteKey: string) => string;
-  now?: Date;
 }
