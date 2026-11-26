@@ -23,6 +23,7 @@ export interface ClaudeTextBlock {
 
 export interface ClaudeMessagesResponse {
   model?: string;
+  stop_reason?: string | null;
   usage?: RawClaudeUsage;
   content?: ClaudeTextBlock[];
   error?: {
@@ -124,7 +125,9 @@ export function requireNonEmptyText(text: string, errorMessage: string): string 
   return text;
 }
 
-/** Call Anthropic Messages API, record token usage, and return concatenated text blocks. */
+const MAX_PAUSE_TURN_CONTINUATIONS = 10;
+
+/** Call Anthropic Messages API, continuing `pause_turn` responses, record token usage, and return concatenated text blocks. */
 export async function callClaudeMessages({
   apiKey,
   modelId,
@@ -145,15 +148,6 @@ export async function callClaudeMessages({
   const resolvedTools = hasMcp
     ? (tools ?? mcpServers.map((server) => ({ type: "mcp_toolset" as const, mcp_server_name: server.name })))
     : tools;
-  const body: Record<string, unknown> = {
-    model: modelId,
-    max_tokens: maxTokens,
-    ...(thinking ? { thinking } : {}),
-    ...(hasMcp ? { mcp_servers: mcpServers } : {}),
-    ...(resolvedTools && resolvedTools.length > 0 ? { tools: resolvedTools } : {}),
-    system,
-    messages,
-  };
   const headers: Record<string, string> = {
     "content-type": JSON_CONTENT_TYPE,
     "x-api-key": apiKey,
@@ -161,26 +155,48 @@ export async function callClaudeMessages({
     ...(hasMcp ? { "anthropic-beta": (mcpBetas ?? [ANTHROPIC_MCP_BETA_HEADER]).join(",") } : {}),
   };
   const requestTimeoutMs = timeoutMs ?? (hasMcp ? CLAUDE_MCP_FETCH_TIMEOUT_MS : EXTERNAL_API_FETCH_TIMEOUT_MS);
-  const response = await fetchImpl(
-    CLAUDE_API_URL,
-    withFetchTimeout(
-      {
-        method: "POST",
-        headers,
-        body: JSON.stringify(body),
-      },
-      requestTimeoutMs,
-    ),
-  );
-  const payload = (await response.json()) as ClaudeMessagesResponse;
-  if (!response.ok) {
-    const detail = sanitizeErrorMessage(payload.error?.message ?? response.statusText);
-    throw new Error(`${errorPrefix}: ${response.status} ${detail}`);
+
+  let currentMessages = [...messages];
+  const textParts: string[] = [];
+
+  for (let turn = 0; ; turn++) {
+    const body: Record<string, unknown> = {
+      model: modelId,
+      max_tokens: maxTokens,
+      ...(thinking ? { thinking } : {}),
+      ...(hasMcp ? { mcp_servers: mcpServers } : {}),
+      ...(resolvedTools && resolvedTools.length > 0 ? { tools: resolvedTools } : {}),
+      system,
+      messages: currentMessages,
+    };
+    const response = await fetchImpl(
+      CLAUDE_API_URL,
+      withFetchTimeout(
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+        },
+        requestTimeoutMs,
+      ),
+    );
+    const payload = (await response.json()) as ClaudeMessagesResponse;
+    if (!response.ok) {
+      const detail = sanitizeErrorMessage(payload.error?.message ?? response.statusText);
+      throw new Error(`${errorPrefix}: ${response.status} ${detail}`);
+    }
+    await recordUsage({
+      functionName,
+      modelId: payload.model || modelId,
+      usage: payload.usage ?? {},
+    });
+    textParts.push(extractClaudeText(payload));
+    if (payload.stop_reason !== "pause_turn") {
+      return textParts.join("");
+    }
+    if (turn >= MAX_PAUSE_TURN_CONTINUATIONS) {
+      throw new Error(`${errorPrefix}: exceeded max pause_turn continuations`);
+    }
+    currentMessages = [...currentMessages, { role: "assistant", content: payload.content ?? [] }];
   }
-  await recordUsage({
-    functionName,
-    modelId: payload.model || modelId,
-    usage: payload.usage ?? {},
-  });
-  return extractClaudeText(payload);
 }

@@ -36,7 +36,7 @@ export const IMAGE_MIME_JPEG = "image/jpeg";
 export const IMAGE_MIME_PNG = "image/png";
 
 export const MAX_TRANSCRIPTION_TOKENS = 4096;
-export const MAX_SUMMARY_TOKENS = 2048;
+export const MAX_SUMMARY_TOKENS = 4096;
 export const MAX_IMAGE_BYTES = 7 * 1024 * 1024;
 
 /** Per-request timeout for Craft, LINE, Anthropic, and Google Drive HTTP calls. */
