@@ -1,10 +1,7 @@
 import { expect, test } from "vitest";
 import {
-  bedrockImageFormat,
   buildMcpServerDefinitions,
   callClaudeMessages,
-  converseBedrock,
-  extractBedrockText,
   extractClaudeText,
   imageMediaType,
   requireAnthropicApiKey,
@@ -17,14 +14,10 @@ test("requireAnthropicApiKey はAPIキー未指定を拒否する", () => {
   expect(requireAnthropicApiKey("sk-test")).toBe("sk-test");
 });
 
-test("imageMediaType と bedrockImageFormat は PNG/JPEG を判定し未知の形式を拒否する", () => {
+test("imageMediaType は PNG/JPEG を判定し未知の形式を拒否する", () => {
   expect(imageMediaType("image/png")).toBe("image/png");
   expect(imageMediaType("image/jpeg")).toBe("image/jpeg");
   expect(() => imageMediaType("image/webp")).toThrow(/Unsupported image type: image\/webp/);
-
-  expect(bedrockImageFormat("image/png")).toBe("png");
-  expect(bedrockImageFormat("image/jpeg")).toBe("jpeg");
-  expect(() => bedrockImageFormat(undefined)).toThrow(/Unsupported image type: undefined/);
 });
 
 test("extractClaudeText は text ブロックだけを連結する", () => {
@@ -38,11 +31,6 @@ test("extractClaudeText は text ブロックだけを連結する", () => {
     }),
   ).toBe("前半後半");
   expect(extractClaudeText({})).toBe("");
-});
-
-test("extractBedrockText は Bedrock の content テキストを連結する", () => {
-  expect(extractBedrockText({ output: { message: { content: [{ text: "A" }, { text: "B" }] } } })).toBe("AB");
-  expect(extractBedrockText({})).toBe("");
 });
 
 test("requireNonEmptyText は空文字を拒否する", () => {
@@ -113,35 +101,6 @@ test("callClaudeMessages はエラー時に機密情報をマスクして例外�
       recordUsage: async () => {},
     }),
   ).rejects.toThrow(/^Claude transcription failed: 401 Invalid key \[REDACTED\]$/);
-});
-
-test("converseBedrock は ConverseCommand を送信しテキストを返す", async () => {
-  let sent:
-    | {
-        input: {
-          modelId: string;
-          system: Array<{ text: string }>;
-          inferenceConfig: { maxTokens: number; temperature: number };
-        };
-      }
-    | undefined;
-  const text = await converseBedrock({
-    client: {
-      send: async (command) => {
-        sent = command as unknown as typeof sent;
-        return { output: { message: { content: [{ text: "Bedrock応答" }] } } };
-      },
-    },
-    modelId: "amazon.nova-lite-v1:0",
-    maxTokens: 1024,
-    system: "sys",
-    messages: [{ role: "user", content: [{ text: "hi" }] }],
-  });
-
-  expect(text).toBe("Bedrock応答");
-  expect(sent?.input.modelId).toBe("amazon.nova-lite-v1:0");
-  expect(sent?.input.system).toEqual([{ text: "sys" }]);
-  expect(sent?.input.inferenceConfig).toEqual({ maxTokens: 1024, temperature: 0 });
 });
 
 test("callClaudeMessages は mcpServers 指定時に anthropic-beta と mcp_servers / mcp_toolset を送信する", async () => {

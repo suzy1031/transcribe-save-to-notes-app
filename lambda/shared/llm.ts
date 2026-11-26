@@ -1,7 +1,5 @@
-import { ConverseCommand, type ConverseCommandInput } from "@aws-sdk/client-bedrock-runtime";
 import { recordWeeklyUsage } from "../claude/claude-usage.ts";
 import type { RawClaudeUsage, RecordWeeklyUsageOptions } from "../claude/types.ts";
-import type { BedrockClientLike } from "../transcribe/types.ts";
 import {
   ANTHROPIC_API_VERSION,
   ANTHROPIC_MCP_BETA_HEADER,
@@ -17,7 +15,6 @@ import { withFetchTimeout } from "./fetch-with-timeout.ts";
 import { sanitizeErrorMessage } from "./sanitize-error.ts";
 
 export type ImageMimeType = typeof IMAGE_MIME_PNG | typeof IMAGE_MIME_JPEG;
-export type BedrockImageFormat = "png" | "jpeg";
 
 export interface ClaudeTextBlock {
   type?: string;
@@ -100,23 +97,6 @@ export interface ClaudeMessagesRequest {
   recordUsage?: (options: RecordWeeklyUsageOptions) => Promise<unknown>;
 }
 
-export interface BedrockConverseResponse {
-  output?: {
-    message?: {
-      content?: Array<{ text?: string }>;
-    };
-  };
-}
-
-export interface BedrockConverseRequest {
-  client: BedrockClientLike;
-  modelId: string;
-  maxTokens: number;
-  system: string;
-  messages: NonNullable<ConverseCommandInput["messages"]>;
-  temperature?: number;
-}
-
 /** Validate that an Anthropic API key is present before constructing a client. */
 export function requireAnthropicApiKey(apiKey?: string): string {
   if (!apiKey) throw new Error("Anthropic API key is required");
@@ -130,22 +110,12 @@ export function imageMediaType(mimeType?: string): ImageMimeType {
   throw new Error(`Unsupported image type: ${mimeType}`);
 }
 
-/** Convert a supported image MIME type to the Bedrock Converse image format string. */
-export function bedrockImageFormat(mimeType?: string): BedrockImageFormat {
-  return imageMediaType(mimeType) === IMAGE_MIME_PNG ? "png" : "jpeg";
-}
-
 /** Concatenate text blocks from a Claude Messages API response. */
 export function extractClaudeText(payload: ClaudeMessagesResponse): string {
   return (payload.content ?? [])
     .filter((block) => block.type === "text")
     .map((block) => block.text ?? "")
     .join("");
-}
-
-/** Concatenate text blocks from a Bedrock Converse API response. */
-export function extractBedrockText(response: BedrockConverseResponse): string {
-  return (response.output?.message?.content ?? []).map((block) => block.text ?? "").join("");
 }
 
 /** Throw when an LLM response is empty or whitespace-only. */
@@ -213,24 +183,4 @@ export async function callClaudeMessages({
     usage: payload.usage ?? {},
   });
   return extractClaudeText(payload);
-}
-
-/** Call Bedrock Converse API and return concatenated text blocks. */
-export async function converseBedrock({
-  client,
-  modelId,
-  maxTokens,
-  system,
-  messages,
-  temperature = 0,
-}: BedrockConverseRequest): Promise<string> {
-  const response = (await client.send(
-    new ConverseCommand({
-      modelId,
-      system: [{ text: system }],
-      messages,
-      inferenceConfig: { maxTokens, temperature },
-    }),
-  )) as BedrockConverseResponse;
-  return extractBedrockText(response);
 }

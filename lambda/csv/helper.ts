@@ -1,10 +1,3 @@
-import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import { createDriveClient } from "../drive/drive.ts";
-import { csvImportFailedMessage } from "../line/helper.ts";
-import { obsidianAppNoteLink } from "../obsidian/helper.ts";
-import { createObsidianClient } from "../obsidian/obsidian.ts";
-import { createLinePush } from "../shared/job.ts";
-import { loadCredentials } from "../shared/settings.ts";
 import {
   AMOUNT_PATTERN,
   CASH_AMOUNT_COLUMN_INDEX,
@@ -16,15 +9,8 @@ import {
   DEBIT_CATEGORY,
   DEBIT_CATEGORY_COLUMN_INDEX,
 } from "./const.ts";
-import {
-  appendCumulativeRows,
-  cumulativeMonth,
-  earlierSheetTitles,
-  parseMarkdownTable,
-  sheetHasCumulativeMonth,
-} from "./csv.ts";
-import { csvImportSettingsFromEnv, importCsvFiles } from "./csv-import.ts";
-import type { CsvImportResult, MonthSums } from "./types.ts";
+import { appendCumulativeRows, cumulativeMonth, earlierSheetTitles, sheetHasCumulativeMonth } from "./csv.ts";
+import type { MonthSums } from "./types.ts";
 
 /**
  * セル値から通貨記号・カンマ・空白を除去して数値にパースする。空文字の場合は `null` を返す。
@@ -175,60 +161,4 @@ export async function rowsWithCumulative(
     previous.push(sheetRows.map((row) => row.map((cell) => String(cell))));
   }
   return appendCumulativeRows(weekly, previous);
-}
-
-/**
- * 環境変数・認証情報を読み込み、Google Drive 上の CSV ファイルを Obsidian S3 バケットへ取り込む一連の処理を実行する。
- * @returns 取り込み件数・失敗件数・失敗詳細を含む実行結果
- */
-export async function runCsvImport(): Promise<CsvImportResult> {
-  const settings = csvImportSettingsFromEnv();
-  const credentials = await loadCredentials(settings, new SecretsManagerClient({ region: settings.bedrockRegion }));
-  const pushLine = createLinePush(credentials);
-  const drive = createDriveClient({ serviceAccount: credentials.serviceAccount });
-  const obsidian = createObsidianClient({
-    bucketName: settings.notesBucketName,
-    region: settings.bedrockRegion,
-  });
-
-  const inbox = await drive.findUniqueFolder(settings.inboxFolderName);
-  const processed = await drive.findUniqueFolder(settings.processedFolderName);
-  if (!inbox.ok || !processed.ok) {
-    const inboxCount = inbox.ok ? 1 : inbox.count;
-    const processedCount = processed.ok ? 1 : processed.count;
-    const reason = `Drive folder lookup failed: csv_inbox=${inboxCount} csv_processed=${processedCount}`;
-    console.error(reason);
-    await pushLine(csvImportFailedMessage(reason));
-    return { imported: 0, failed: 0, failures: [], folderLookup: "failed" };
-  }
-
-  const files = await drive.listCsvFiles(inbox.id);
-  const existingNotes = files.length === 0 ? [] : await obsidian.listNotes({ folder: settings.householdBudgetFolder });
-  const keyByTitle = new Map(existingNotes.map((note) => [note.title, note.key]));
-  return importCsvFiles({
-    files,
-    download: (file) => drive.download(file.id),
-    existingNoteTitles: existingNotes.map((note) => note.title),
-    readNoteRows: async (title) => {
-      const key = keyByTitle.get(title);
-      if (!key) return [];
-      return parseMarkdownTable(await obsidian.readMarkdown(key));
-    },
-    writeNote: ({ title, date, markdown }) =>
-      obsidian.createNote({
-        folder: settings.householdBudgetFolder,
-        title,
-        date,
-        markdown,
-        tags: ["household-budget"],
-      }),
-    moveToProcessed: (file) =>
-      drive.moveFile({
-        fileId: file.id,
-        addParentId: processed.id,
-        removeParentId: inbox.id,
-      }),
-    pushLine,
-    buildNoteLink: (noteKey) => obsidianAppNoteLink(settings.obsidianVaultName, noteKey),
-  });
 }

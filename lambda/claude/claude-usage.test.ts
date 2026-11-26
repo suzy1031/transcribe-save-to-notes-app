@@ -1,8 +1,5 @@
 import { expect, test } from "vitest";
-import { createClaudeKindleSummarizer } from "../kindle/kindle-summarize.ts";
-import { createClaudeSummarizer } from "../summarize/summarize.ts";
-import { createTranscriber } from "../transcribe/claude.ts";
-import { reportWeeklyUsage } from "../weekly/weekly.ts";
+import { callClaudeMessages } from "../shared/llm.ts";
 import { estimateUsdMicros, microToUsdDecimal, normalizeUsage } from "./claude-pricing.ts";
 import { formatWeeklyUsage, getWeeklyUsage, isoWeekKey, recordWeeklyUsage } from "./claude-usage.ts";
 import type { RawClaudeUsage, RecordWeeklyUsageOptions } from "./types.ts";
@@ -169,69 +166,6 @@ test("formatWeeklyUsage は週合計と関数別の推定額を日本円・ド�
   expect(formatWeeklyUsage(null)).toBe("Claude利用量: 当週の記録はありません");
 });
 
-test("reportWeeklyUsage は記録があるときだけ為替取得して LINE する", async () => {
-  const pushed: string[] = [];
-  const logs: string[] = [];
-  let rateCalls = 0;
-
-  const reported = await reportWeeklyUsage({
-    getUsage: async () => ({
-      pk: "WEEK#2026-W45",
-      callCount: 1,
-      inputTokens: 1,
-      outputTokens: 1,
-      estimatedUsd: 0.01,
-    }),
-    getUsdJpyRate: async () => {
-      rateCalls += 1;
-      return 150;
-    },
-    pushLine: async (text) => {
-      pushed.push(text);
-    },
-    log: (text) => logs.push(text),
-  });
-  expect(rateCalls).toBe(1);
-  expect(logs.length).toBe(1);
-  expect(pushed.length).toBe(1);
-  expect(reported.text).toMatch(/2026-W45/);
-  expect(reported.text).toMatch(/約1\.5円 \(\$0\.010\)/);
-
-  const fallback = await reportWeeklyUsage({
-    getUsage: async () => ({
-      pk: "WEEK#2026-W45",
-      callCount: 1,
-      inputTokens: 1,
-      outputTokens: 1,
-      estimatedUsd: 0.01,
-    }),
-    getUsdJpyRate: async () => {
-      throw new Error("fx down");
-    },
-    pushLine: async (text) => {
-      pushed.push(text);
-    },
-    log: (text) => logs.push(text),
-  });
-  expect(pushed.length).toBe(2);
-  expect(fallback.text).toMatch(/\$0\.010 \(円換算取得失敗\)/);
-
-  const empty = await reportWeeklyUsage({
-    getUsage: async () => null,
-    getUsdJpyRate: async () => {
-      rateCalls += 1;
-      return 150;
-    },
-    pushLine: async () => {
-      pushed.push("unused");
-    },
-    log: (text) => logs.push(text),
-  });
-  expect(rateCalls).toBe(1);
-  expect(empty.text).toMatch(/記録はありません/);
-  expect(pushed.length).toBe(2);
-});
-
 function claudeResponse(
   usage: RawClaudeUsage,
   { ok = true, model = "claude-sonnet-5-5" }: { ok?: boolean; model?: string } = {},
@@ -247,53 +181,60 @@ function claudeResponse(
     );
 }
 
-test("文字起こし成功時だけ index の利用量を記録する", async () => {
+test("callClaudeMessages は成功時だけ利用量を記録する", async () => {
   const calls: Array<RecordWeeklyUsageOptions | string> = [];
-  const transcribe = createTranscriber({
+  await callClaudeMessages({
     apiKey: "key",
+    modelId: "claude-sonnet-5-5",
+    maxTokens: 1024,
+    system: "sys",
+    messages: [{ role: "user", content: "hi" }],
+    functionName: "index",
+    errorPrefix: "Claude transcription failed",
     fetchImpl: claudeResponse({ input_tokens: 3, output_tokens: 4 }),
     recordUsage: async (input) => calls.push(input),
   });
-  await transcribe({ bytes: Buffer.from("png"), mimeType: "image/png" });
   expect(calls).toEqual([
     { functionName: "index", modelId: "claude-sonnet-5-5", usage: { input_tokens: 3, output_tokens: 4 } },
   ]);
 
-  const failing = createTranscriber({
-    apiKey: "key",
-    fetchImpl: claudeResponse({}, { ok: false }),
-    recordUsage: async () => calls.push("fail"),
-  });
-  await expect(failing({ bytes: Buffer.from("png"), mimeType: "image/png" })).rejects.toThrow(
-    /Claude transcription failed/,
-  );
+  await expect(
+    callClaudeMessages({
+      apiKey: "key",
+      modelId: "claude-sonnet-5-5",
+      maxTokens: 1024,
+      system: "sys",
+      messages: [{ role: "user", content: "hi" }],
+      functionName: "index",
+      errorPrefix: "Claude transcription failed",
+      fetchImpl: claudeResponse({}, { ok: false }),
+      recordUsage: async () => calls.push("fail"),
+    }),
+  ).rejects.toThrow(/Claude transcription failed/);
   expect(calls.length).toBe(1);
-});
 
-test("週次要約と Kindle 要約は成功時だけ利用量を記録する", async () => {
-  const calls: RecordWeeklyUsageOptions[] = [];
-  const summarize = createClaudeSummarizer({
+  await callClaudeMessages({
     apiKey: "key",
-    fetchImpl: async () =>
-      new Response(
-        JSON.stringify({
-          model: "claude-haiku-5-5",
-          usage: { input_tokens: 8 },
-          content: [{ type: "text", text: "まとめ" }],
-        }),
-        {
-          status: 200,
-        },
-      ),
+    modelId: "claude-haiku-5-5",
+    maxTokens: 1024,
+    system: "sys",
+    messages: [{ role: "user", content: "summary" }],
+    functionName: "weekly",
+    errorPrefix: "Claude summary failed",
+    fetchImpl: claudeResponse({ input_tokens: 8 }, { model: "claude-haiku-5-5" }),
     recordUsage: async (input) => calls.push(input),
   });
-  expect(await summarize("ノート")).toBe("まとめ");
 
-  const kindle = createClaudeKindleSummarizer({
+  await callClaudeMessages({
     apiKey: "key",
+    modelId: "claude-sonnet-5-5",
+    maxTokens: 1024,
+    system: "sys",
+    messages: [{ role: "user", content: "kindle" }],
+    functionName: "kindle",
+    errorPrefix: "Claude kindle failed",
     fetchImpl: claudeResponse({ input_tokens: 9 }, { model: "claude-sonnet-5-5" }),
     recordUsage: async (input) => calls.push(input),
   });
-  expect(await kindle({ bytes: Buffer.from("png"), mimeType: "image/jpeg" })).toBe('{"title":"題","markdown":"本文"}');
-  expect(calls.map((call) => call.functionName)).toEqual(["weekly", "kindle"]);
+  expect((calls.slice(1) as RecordWeeklyUsageOptions[]).map((call) => call.functionName)).toEqual(["weekly", "kindle"]);
 });

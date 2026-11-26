@@ -1,6 +1,6 @@
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
 import { createDriveClient } from "../drive/drive.ts";
-import type { DriveClient, DriveFile } from "../drive/types.ts";
+import type { DriveClient } from "../drive/types.ts";
 import { bunLambdaHandler } from "../shared/bun-handler.ts";
 import {
   DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
@@ -21,8 +21,7 @@ import {
 } from "../shared/llm.ts";
 import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
 import { loadCredentials, requireMcpAuthToken, settingsFromEnv } from "../shared/settings.ts";
-import type { Credentials, LambdaContextLike, LoggerLike } from "../shared/types.ts";
-import type { TranscribeInput } from "../transcribe/types.ts";
+import type { Credentials, LambdaContextLike } from "../shared/types.ts";
 import { KINDLE_SYSTEM_PROMPT, KINDLE_USER_PROMPT } from "./kindle-prompt.ts";
 import type { KindleSettings, ProcessKindleResult } from "./types.ts";
 
@@ -35,91 +34,6 @@ export function kindleSettingsFromEnv(env: NodeJS.ProcessEnv = process.env): Kin
     obsidianKindleFolder: env.OBSIDIAN_KINDLE_FOLDER || DEFAULT_OBSIDIAN_KINDLE_FOLDER,
     kindleClaudeModelId: env.KINDLE_CLAUDE_MODEL_ID || env.CLAUDE_MODEL_ID || DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
   };
-}
-
-export async function processKindleBooks({
-  bookFolders,
-  listImages,
-  download,
-  saveOrAppendBookNote,
-  summarizeImage,
-  ensureProcessedFolder,
-  moveImageToProcessed,
-  getRemainingTimeMs = () => Number.POSITIVE_INFINITY,
-  log = console,
-}: {
-  bookFolders: ReadonlyArray<DriveFile>;
-  listImages: (folderId: string) => Promise<DriveFile[]>;
-  download: (file: DriveFile) => Promise<Uint8Array | Buffer>;
-  saveOrAppendBookNote: (input: { bookTitle: string; markdown: string }) => Promise<string>;
-  summarizeImage: (input: TranscribeInput) => Promise<string>;
-  ensureProcessedFolder: (bookFolderId: string) => Promise<string>;
-  moveImageToProcessed: (input: { file: DriveFile; bookFolderId: string; processedFolderId: string }) => Promise<void>;
-  getRemainingTimeMs?: () => number;
-  log?: LoggerLike;
-}): Promise<Required<Omit<ProcessKindleResult, "folderLookup">>> {
-  const result = {
-    foldersScanned: bookFolders.length,
-    imagesSummarized: 0,
-    imagesFailed: 0,
-    deferred: 0,
-    errors: [] as string[],
-    links: [] as Array<{ folderName: string; documentId: string }>,
-  };
-
-  for (let folderIndex = 0; folderIndex < bookFolders.length; folderIndex += 1) {
-    const bookFolder = bookFolders[folderIndex];
-    if (getRemainingTimeMs() < MIN_REMAINING_MS) {
-      result.deferred += bookFolders.length - folderIndex;
-      log.info(`Deferred ${result.deferred} book folder(s): remaining time is under 60 seconds`);
-      break;
-    }
-
-    const images = await listImages(bookFolder.id);
-    if (images.length === 0) continue;
-
-    let documentId: string | null = null;
-    let folderSaved = false;
-    const processedFolderId = await ensureProcessedFolder(bookFolder.id);
-
-    for (let index = 0; index < images.length; index += 1) {
-      const file = images[index];
-      if (getRemainingTimeMs() < MIN_REMAINING_MS) {
-        result.deferred += images.length - index;
-        log.info(`Deferred ${result.deferred} image(s): remaining time is under 60 seconds`);
-        break;
-      }
-
-      try {
-        log.info(`Kindle要約 start ${bookFolder.name}/${file.name}`);
-        const bytes = await download(file);
-        const markdown = await summarizeImage({ bytes, mimeType: file.mimeType });
-        documentId = await saveOrAppendBookNote({
-          bookTitle: bookFolder.name,
-          markdown,
-        });
-        await moveImageToProcessed({
-          file,
-          bookFolderId: bookFolder.id,
-          processedFolderId,
-        });
-        result.imagesSummarized += 1;
-        folderSaved = true;
-        log.info(`Kindle要約 end ${bookFolder.name}/${file.name}`);
-      } catch (error) {
-        result.imagesFailed += 1;
-        const message = sanitizeErrorMessage((error as Error).message);
-        result.errors.push(`${bookFolder.name}/${file.name}: ${message}`);
-        log.error(`Kindle要約失敗 ${bookFolder.name}/${file.name}: ${message}`);
-      }
-    }
-
-    if (folderSaved && documentId) {
-      result.links.push({ folderName: bookFolder.name, documentId });
-    }
-  }
-
-  return result;
 }
 
 export async function runKindleWithMcp({

@@ -1,9 +1,5 @@
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import { EMPTY_REMINDER_MESSAGE, reminderDeliveredMessage, reminderFailedMessage } from "../line/helper.ts";
-import { createLineClient } from "../line/line.ts";
-import type { LineClient } from "../line/types.ts";
-import { obsidianAppNoteLink } from "../obsidian/helper.ts";
-import type { ObsidianClient, ObsidianListedNote } from "../obsidian/types.ts";
+import { EMPTY_REMINDER_MESSAGE } from "../line/helper.ts";
 import { bunLambdaHandler } from "../shared/bun-handler.ts";
 import {
   ALL_NOTES_SINCE,
@@ -13,7 +9,7 @@ import {
   MAX_SUMMARY_TOKENS,
   REMINDER_LOOKBACK_DAYS,
 } from "../shared/const.ts";
-import { pushLineMessage, runLogged } from "../shared/job.ts";
+import { runLogged } from "../shared/job.ts";
 import { buildMcpServerDefinitions, callClaudeMessages, requireAnthropicApiKey } from "../shared/llm.ts";
 import { loadCredentials, requireMcpAuthToken, settingsFromEnv } from "../shared/settings.ts";
 import { daysBeforeTokyoDate } from "../shared/tokyo-date.ts";
@@ -43,31 +39,6 @@ export function filterDocumentsByReminderTitle<T extends { title?: string }>(
   return documents.filter((doc) => candidates.has(String(doc.title ?? "").trim()));
 }
 
-export async function listReminderDocuments(
-  obsidian: Pick<ObsidianClient, "listNotes">,
-  summaryFolder: string,
-  targetDate: string,
-): Promise<{
-  documents: ObsidianListedNote[];
-  matchedBy: "createdDate" | "title" | "none";
-}> {
-  const byCreatedDate = await obsidian.listNotes({
-    folder: summaryFolder,
-    createdDateGte: targetDate,
-    createdDateLte: targetDate,
-  });
-  if (byCreatedDate.length > 0) {
-    return { documents: byCreatedDate, matchedBy: "createdDate" };
-  }
-
-  const inFolder = await obsidian.listNotes({
-    folder: summaryFolder,
-    createdDateGte: ALL_NOTES_SINCE,
-  });
-  const byTitle = filterDocumentsByReminderTitle(inFolder, targetDate);
-  return { documents: byTitle, matchedBy: byTitle.length > 0 ? "title" : "none" };
-}
-
 export function reminderSettingsFromEnv(env: NodeJS.ProcessEnv = process.env): ReminderSettings {
   return {
     ...settingsFromEnv(env),
@@ -83,53 +54,8 @@ export async function loadReminderCredentials(
   return {
     lineChannelAccessToken: settings.lineChannelAccessToken,
     lineUserId: settings.lineUserId,
+    mcpAuthToken: process.env.MCP_AUTH_TOKEN ?? "",
   };
-}
-
-export async function processReminder({
-  documents,
-  pushLine,
-  vaultName,
-  targetDate,
-}: {
-  documents: ReadonlyArray<Pick<ObsidianListedNote, "id" | "title">>;
-  pushLine: (text: string) => Promise<void>;
-  vaultName?: string;
-  targetDate: string;
-}): Promise<{ reminded: number; documentId?: string }> {
-  if (documents.length === 0) {
-    await pushLine(EMPTY_REMINDER_MESSAGE);
-    return { reminded: 0 };
-  }
-  if (documents.length > 1) {
-    throw new Error(`Summary folder had ${documents.length} documents for ${targetDate}; expected exactly one`);
-  }
-
-  const document = documents[0];
-  const link = vaultName ? obsidianAppNoteLink(vaultName, document.id) : "";
-  await pushLine(reminderDeliveredMessage(document.title, link));
-  return { reminded: 1, documentId: document.id };
-}
-
-export async function notifyReminderLineError({
-  line,
-  credentials,
-  error,
-}: {
-  line?: LineClient | null;
-  credentials?: Partial<Credentials> | null;
-  error: { message?: unknown };
-}): Promise<void> {
-  const message = reminderFailedMessage(error.message);
-  const client =
-    line ??
-    (credentials?.lineChannelAccessToken && credentials?.lineUserId
-      ? createLineClient({
-          channelAccessToken: credentials.lineChannelAccessToken,
-          userId: credentials.lineUserId,
-        })
-      : null);
-  await pushLineMessage(client, message);
 }
 
 export async function runReminderWithMcp({

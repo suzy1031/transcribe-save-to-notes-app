@@ -1,7 +1,4 @@
 import { SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
-import { formatWeeklyUsage } from "../claude/claude-usage.ts";
-import { fetchUsdJpyRate } from "../claude/fx-rate.ts";
-import type { WeeklyUsageItem } from "../claude/types.ts";
 import { EMPTY_WEEK_MESSAGE } from "../line/helper.ts";
 import { bunLambdaHandler } from "../shared/bun-handler.ts";
 import {
@@ -14,7 +11,6 @@ import {
 } from "../shared/const.ts";
 import { runLogged } from "../shared/job.ts";
 import { buildMcpServerDefinitions, callClaudeMessages, requireAnthropicApiKey } from "../shared/llm.ts";
-import { sanitizeErrorMessage } from "../shared/sanitize-error.ts";
 import { loadCredentials, requireMcpAuthToken, settingsFromEnv } from "../shared/settings.ts";
 import { daysBeforeTokyoDate, tokyoDate } from "../shared/tokyo-date.ts";
 import type { Credentials, SecretsClientLike } from "../shared/types.ts";
@@ -44,33 +40,6 @@ export async function loadWeeklyCredentials(
     lineUserId: settings.lineUserId,
     mcpAuthToken: process.env.MCP_AUTH_TOKEN ?? "",
   };
-}
-
-export async function reportWeeklyUsage({
-  getUsage,
-  getUsdJpyRate = fetchUsdJpyRate,
-  pushLine,
-  log = console.log,
-}: {
-  getUsage: () => Promise<WeeklyUsageItem | null>;
-  getUsdJpyRate?: () => Promise<number | null>;
-  pushLine?: (text: string) => Promise<void>;
-  log?: (text: string) => void;
-}): Promise<{ item: WeeklyUsageItem | null; text: string }> {
-  const item = await getUsage();
-  let usdJpyRate: number | null = null;
-  if (item) {
-    try {
-      usdJpyRate = await getUsdJpyRate();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.warn(`為替レート取得に失敗: ${sanitizeErrorMessage(message)}`);
-    }
-  }
-  const text = formatWeeklyUsage(item, usdJpyRate);
-  log(text);
-  if (item && pushLine) await pushLine(text);
-  return { item, text };
 }
 
 export async function runWeeklyWithMcp({

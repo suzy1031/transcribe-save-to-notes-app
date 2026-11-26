@@ -1,6 +1,4 @@
-import { expect, test } from "vitest";
-import { csvImportSummaryMessage, EMPTY_CSV_MESSAGE } from "../line/helper.ts";
-import { obsidianAppNoteLink } from "../obsidian/helper.ts";
+﻿import { expect, test } from "vitest";
 import {
   appendCashTotalRow,
   appendCumulativeRows,
@@ -13,7 +11,7 @@ import {
   rowsToMarkdownTable,
   sheetTitle,
 } from "./csv.ts";
-import { csvImportSettingsFromEnv, importCsvFiles, runCsvImportWithMcp } from "./csv-import.ts";
+import { csvImportSettingsFromEnv, runCsvImportWithMcp } from "./csv-import.ts";
 
 test("parseCsv は引用符、カンマ、セル内改行、BOM、CRLFを読む", () => {
   const text = '\uFEFFname,note\r\n"a,b","line1\nline2"\r\nplain,"say ""hi"""\r\n';
@@ -338,152 +336,6 @@ test("isCsvFile はcsv拡張子かtext/csvを受け、Googleスプレッドシ�
   expect(isCsvFile({ name: "week", mimeType: "text/csv" })).toBe(true);
   expect(isCsvFile({ name: "week.csv", mimeType: "application/vnd.google-apps.spreadsheet" })).toBe(false);
   expect(isCsvFile({ name: "week.png", mimeType: "image/png" })).toBe(false);
-});
-
-test("CSVが0件ならノートを作らず対象なしを通知する", async () => {
-  const messages: string[] = [];
-  const result = await importCsvFiles({
-    files: [],
-    download: async () => {
-      throw new Error("download");
-    },
-    existingNoteTitles: [],
-    writeNote: async () => {
-      throw new Error("write");
-    },
-    moveToProcessed: async () => {
-      throw new Error("move");
-    },
-    pushLine: async (text) => {
-      messages.push(text);
-    },
-  });
-  expect(result).toEqual({ imported: 0, failed: 0, failures: [] });
-  expect(messages).toEqual([EMPTY_CSV_MESSAGE]);
-});
-
-test("CSVをMarkdownテーブルとしてS3へ保存し、成功後に移動してLINEする", async () => {
-  const order: string[] = [];
-  const result = await importCsvFiles({
-    files: [{ id: "file-1", name: "sales.csv" }],
-    download: async () => Buffer.from("name,qty\npen,2\n"),
-    existingNoteTitles: [],
-    writeNote: async ({ title, date, markdown }) => {
-      order.push("write");
-      expect(title).toBe("2026-11-15_sales");
-      expect(date).toBe("2026-11-15");
-      expect(parseMarkdownTable(markdown)).toEqual([
-        ["name", "qty", "", ""],
-        ["pen", "2", "", ""],
-        ["合計", "2", "", ""],
-        ["0", "", "", "デビット支払い合計"],
-        ["0", "", "", "現金支払い"],
-      ]);
-      return "household_budget/2026-11-15_sales.md";
-    },
-    moveToProcessed: async (file) => {
-      order.push(`move:${file.id}`);
-    },
-    pushLine: async (text) => {
-      order.push(text);
-    },
-    buildNoteLink: (key) => obsidianAppNoteLink("ks-vault", key),
-    now: new Date("2026-11-15T01:00:00.000Z"),
-  });
-  expect(result.imported).toBe(1);
-  expect(result.failed).toBe(0);
-  expect(order).toEqual([
-    "write",
-    "move:file-1",
-    csvImportSummaryMessage({
-      imported: 1,
-      failed: 0,
-      noteLinks: [obsidianAppNoteLink("ks-vault", "household_budget/2026-11-15_sales.md")],
-      failures: [],
-    }),
-  ]);
-});
-
-test("日付があるCSVは同じ月の前週ノートだけを読んで累計行を足す", async () => {
-  const reads: string[] = [];
-  let writtenRows: string[][] = [];
-  const result = await importCsvFiles({
-    files: [{ id: "file-1", name: "household.csv" }],
-    download: async () => Buffer.from("金額,日付,内容,カテゴリー\n100,2026-11-15,現金,食費\n"),
-    existingNoteTitles: ["2026-11-08_household", "2026-10-25_household", "2026-10-18_household"],
-    readNoteRows: async (title) => {
-      reads.push(title);
-      if (title === "2026-11-08_household") {
-        return [
-          ["金額", "日付", "内容", "カテゴリー"],
-          ["40", "2026-11-08", "ランチ", "デビット支払い"],
-        ];
-      }
-      return [
-        ["金額", "日付", "内容", "カテゴリー"],
-        ["9", "2026-10-25", "ランチ", "デビット支払い"],
-      ];
-    },
-    writeNote: async ({ title, markdown }) => {
-      expect(title).toBe("2026-11-15_household");
-      writtenRows = parseMarkdownTable(markdown);
-      return "household_budget/2026-11-15_household.md";
-    },
-    moveToProcessed: async () => {},
-    pushLine: async () => {},
-    now: new Date("2026-11-15T01:00:00.000Z"),
-  });
-  expect(result.imported).toBe(1);
-  expect(reads).toEqual(["2026-11-08_household", "2026-10-25_household"]);
-  expect(writtenRows.at(-3)).toEqual(["140", "", "", "累計 合計"]);
-  expect(writtenRows.at(-2)).toEqual(["40", "", "", "デビット 合計"]);
-  expect(writtenRows.at(-1)).toEqual(["100", "", "", "現金 合計"]);
-});
-
-test("同名ノートがあるファイルは上書きも移動もしない", async () => {
-  let downloaded = false;
-  let moved = false;
-  const result = await importCsvFiles({
-    files: [{ id: "file-1", name: "sales.csv" }],
-    download: async () => {
-      downloaded = true;
-      return Buffer.from("a\n");
-    },
-    existingNoteTitles: ["2026-11-15_Sales"],
-    writeNote: async () => {
-      throw new Error("write");
-    },
-    moveToProcessed: async () => {
-      moved = true;
-    },
-    pushLine: async () => {},
-    now: new Date("2026-11-15T01:00:00.000Z"),
-  });
-  expect(downloaded).toBe(false);
-  expect(moved).toBe(false);
-  expect(result.imported).toBe(0);
-  expect(result.failed).toBe(1);
-  expect(result.failures[0].reason).toMatch(/既にあります/);
-});
-
-test("書き込みに失敗したファイルは移動しない", async () => {
-  let moved = false;
-  const result = await importCsvFiles({
-    files: [{ id: "file-1", name: "sales.csv" }],
-    download: async () => Buffer.from("name,qty\npen,2\n"),
-    existingNoteTitles: [],
-    writeNote: async () => {
-      throw new Error("s3 down");
-    },
-    moveToProcessed: async () => {
-      moved = true;
-    },
-    pushLine: async () => {},
-    now: new Date("2026-11-15T01:00:00.000Z"),
-  });
-  expect(moved).toBe(false);
-  expect(result.failed).toBe(1);
-  expect(result.failures[0].reason).toBe("s3 down");
 });
 
 test("runCsvImportWithMcp は drive / csv / obsidian / line の mcp_servers を指定して Claude API を呼ぶ", async () => {
