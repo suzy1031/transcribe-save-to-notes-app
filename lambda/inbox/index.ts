@@ -18,7 +18,7 @@ import {
   buildMcpServerDefinitions,
   callClaudeMessages,
   imageMediaType,
-  requireAnthropicApiKey,
+  resolveAnthropicAuth,
 } from "../../shared/llm.ts";
 import { sanitizeErrorMessage } from "../../shared/sanitize-error.ts";
 import { loadCredentials, settingsFromEnv } from "../../shared/settings.ts";
@@ -71,7 +71,11 @@ export async function runInboxWithMcp({
     authToken: mcpAuthToken,
     rootDomain,
   });
-  const apiKey = requireAnthropicApiKey(creds.anthropicApiKey);
+  const auth = await resolveAnthropicAuth({
+    apiKey: creds.anthropicApiKey,
+    wif: settings.anthropicWif,
+    fetchImpl,
+  });
 
   for (let index = 0; index < files.length; index += 1) {
     const file = files[index];
@@ -108,7 +112,7 @@ export async function runInboxWithMcp({
       ].join("\n");
 
       await callClaudeMessages({
-        apiKey,
+        auth,
         modelId: settings.claudeModelId,
         maxTokens: MAX_TRANSCRIPTION_TOKENS,
         system: SYSTEM_PROMPT,

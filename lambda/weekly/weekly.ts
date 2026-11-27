@@ -12,12 +12,7 @@ import {
 } from "../../shared/const.ts";
 import { runLogged } from "../../shared/job.ts";
 import { EMPTY_WEEK_MESSAGE } from "../../shared/line/helper.ts";
-import {
-  buildMcpServerDefinitions,
-  callClaudeMessages,
-  requireAnthropicApiKey,
-  requireNonEmptyText,
-} from "../../shared/llm.ts";
+import { buildMcpServerDefinitions, callClaudeMessages, requireNonEmptyText } from "../../shared/llm.ts";
 import { loadCredentials, requireMcpAuthToken, settingsFromEnv } from "../../shared/settings.ts";
 import { SUMMARY_SYSTEM_PROMPT } from "../../shared/summarize/summary-prompt.ts";
 import { daysBeforeTokyoDate, tokyoDate } from "../../shared/tokyo-date.ts";
@@ -82,7 +77,8 @@ export async function runWeeklyWithMcp({
   ].join("\n");
 
   const responseText = await callClaudeMessages({
-    apiKey: requireAnthropicApiKey(creds.anthropicApiKey),
+    apiKey: creds.anthropicApiKey,
+    wif: settings.anthropicWif,
     modelId: settings.claudeModelId,
     maxTokens: MAX_SUMMARY_TOKENS,
     system: SUMMARY_SYSTEM_PROMPT,

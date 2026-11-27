@@ -9,6 +9,13 @@ export interface LambdaContextLike {
   getRemainingTimeInMillis(): number;
 }
 
+export interface AnthropicWifConfig {
+  federationRuleId: string;
+  organizationId: string;
+  serviceAccountId: string;
+  workspaceId: string;
+}
+
 export interface BaseSettings {
   secretId: string;
   bedrockModelId: string;
@@ -17,6 +24,7 @@ export interface BaseSettings {
   obsidianVaultName: string;
   obsidianDailyFolder: string;
   anthropicApiKey: string;
+  anthropicWif?: AnthropicWifConfig;
   claudeModelId: string;
   transcriptionProvider: string;
   googleServiceAccountJson: string;

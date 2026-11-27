@@ -2,11 +2,14 @@ import { expect, test } from "vitest";
 import {
   buildMcpServerDefinitions,
   callClaudeMessages,
+  exchangeWifToken,
   extractClaudeText,
   imageMediaType,
   requireAnthropicApiKey,
   requireNonEmptyText,
+  resolveAnthropicAuth,
 } from "./llm.ts";
+import { settingsFromEnv } from "./settings.ts";
 
 test("requireAnthropicApiKey はAPIキー未指定を拒否する", () => {
   expect(() => requireAnthropicApiKey("")).toThrow(/Anthropic API key is required/);
@@ -231,4 +234,120 @@ test("callClaudeMessages は pause_turn が上限を超えると例外を投げ�
       recordUsage: async () => {},
     }),
   ).rejects.toThrow("Claude MCP failed: exceeded max pause_turn continuations");
+});
+
+const TEST_WIF = {
+  federationRuleId: "fdrl_test",
+  organizationId: "org_test",
+  serviceAccountId: "svac_test",
+  workspaceId: "wrkspc_test",
+};
+
+test("exchangeWifToken は STS トークンを Anthropic OAuth トークンへ交換する", async () => {
+  const tokenRequests: Array<{ url: string; body: Record<string, unknown> }> = [];
+  let stsInput: unknown;
+
+  const token = await exchangeWifToken({
+    wif: TEST_WIF,
+    stsClient: {
+      send: async (command) => {
+        stsInput = command.input;
+        return { WebIdentityToken: "aws-jwt-123" };
+      },
+    },
+    fetchImpl: async (url, options) => {
+      tokenRequests.push({
+        url: String(url),
+        body: JSON.parse(String(options?.body ?? "{}")),
+      });
+      return new Response(JSON.stringify({ access_token: "sk-ant-oat01-test" }), { status: 200 });
+    },
+  });
+
+  expect(token).toBe("sk-ant-oat01-test");
+  expect(stsInput).toEqual({
+    Audience: ["https://api.anthropic.com"],
+    SigningAlgorithm: "RS256",
+    DurationSeconds: 900,
+  });
+  expect(tokenRequests).toEqual([
+    {
+      url: "https://api.anthropic.com/v1/oauth/token",
+      body: {
+        grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        assertion: "aws-jwt-123",
+        federation_rule_id: "fdrl_test",
+        organization_id: "org_test",
+        service_account_id: "svac_test",
+        workspace_id: "wrkspc_test",
+      },
+    },
+  ]);
+});
+
+test("resolveAnthropicAuth と callClaudeMessages は WIF 設定時に Bearer 認証と oauth beta を使用する", async () => {
+  const requests: Array<{ url: string; headers: Headers }> = [];
+  const auth = await resolveAnthropicAuth({
+    apiKey: "sk-ant-unused",
+    wif: TEST_WIF,
+    stsClient: {
+      send: async () => ({ WebIdentityToken: "aws-jwt-456" }),
+    },
+    fetchImpl: async (url) => {
+      requests.push({ url: String(url), headers: new Headers() });
+      return new Response(JSON.stringify({ access_token: "sk-ant-oat01-bearer" }), { status: 200 });
+    },
+  });
+
+  expect(auth).toEqual({ type: "oauth", accessToken: "sk-ant-oat01-bearer" });
+
+  const text = await callClaudeMessages({
+    auth,
+    modelId: "claude-haiku-5-5",
+    maxTokens: 1024,
+    system: "sys",
+    messages: [{ role: "user", content: "hi" }],
+    mcpServers: buildMcpServerDefinitions({ domains: ["obsidian"], authToken: "mcp-1" }),
+    functionName: "weekly",
+    errorPrefix: "Claude WIF failed",
+    fetchImpl: async (url, options) => {
+      requests.push({ url: String(url), headers: new Headers(options?.headers) });
+      return new Response(
+        JSON.stringify({
+          model: "claude-haiku-5-5",
+          usage: { input_tokens: 5, output_tokens: 2 },
+          content: [{ type: "text", text: "ok" }],
+        }),
+        { status: 200 },
+      );
+    },
+    recordUsage: async () => {},
+  });
+
+  expect(text).toBe("ok");
+  expect(requests[1].url).toBe("https://api.anthropic.com/v1/messages");
+  expect(requests[1].headers.get("authorization")).toBe("Bearer sk-ant-oat01-bearer");
+  expect(requests[1].headers.get("x-api-key")).toBeNull();
+  expect(requests[1].headers.get("anthropic-beta")).toBe("oauth-2025-04-20,mcp-client-2025-11-20");
+});
+
+test("settingsFromEnv は WIF 環境変数が揃っている場合に anthropicWif を構築し、一部欠落時は拒否する", () => {
+  const withWif = settingsFromEnv({
+    ANTHROPIC_FEDERATION_RULE_ID: "fdrl_1",
+    ANTHROPIC_ORGANIZATION_ID: "org_1",
+    ANTHROPIC_SERVICE_ACCOUNT_ID: "svac_1",
+    ANTHROPIC_WORKSPACE_ID: "wrkspc_1",
+  });
+  expect(withWif.anthropicWif).toEqual({
+    federationRuleId: "fdrl_1",
+    organizationId: "org_1",
+    serviceAccountId: "svac_1",
+    workspaceId: "wrkspc_1",
+  });
+
+  expect(() =>
+    settingsFromEnv({
+      ANTHROPIC_FEDERATION_RULE_ID: "fdrl_1",
+    }),
+  ).toThrow(/must all be set together/);
 });
