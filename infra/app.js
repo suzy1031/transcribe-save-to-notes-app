@@ -6,7 +6,15 @@ import { DomainName, HttpApi, HttpMethod } from "aws-cdk-lib/aws-apigatewayv2";
 import { HttpLambdaIntegration } from "aws-cdk-lib/aws-apigatewayv2-integrations";
 import { Certificate } from "aws-cdk-lib/aws-certificatemanager";
 import { AttributeType, BillingMode, Table } from "aws-cdk-lib/aws-dynamodb";
-import { OpenIdConnectProvider, PolicyStatement, Role, User, WebIdentityPrincipal } from "aws-cdk-lib/aws-iam";
+import {
+  ManagedPolicy,
+  OpenIdConnectProvider,
+  PolicyStatement,
+  Role,
+  ServicePrincipal,
+  User,
+  WebIdentityPrincipal,
+} from "aws-cdk-lib/aws-iam";
 import { Architecture, Code, Function as LambdaFunction, LayerVersion, Runtime } from "aws-cdk-lib/aws-lambda";
 import { RetentionDays } from "aws-cdk-lib/aws-logs";
 import { ARecord, HostedZone, RecordTarget } from "aws-cdk-lib/aws-route53";
@@ -125,8 +133,28 @@ class NotesPipelineStack extends Stack {
       removalPolicy: RemovalPolicy.RETAIN,
     });
 
+    const claudeLambdaRole = new Role(this, "ClaudeLambdaRole", {
+      roleName: "notes-pipeline-lambda-role",
+      assumedBy: new ServicePrincipal("lambda.amazonaws.com"),
+      managedPolicies: [ManagedPolicy.fromAwsManagedPolicyName("service-role/AWSLambdaBasicExecutionRole")],
+    });
+    claudeLambdaRole.addToPolicy(
+      new PolicyStatement({
+        actions: ["sts:GetWebIdentityToken", "sts:TagGetWebIdentityToken"],
+        resources: ["*"],
+      }),
+    );
+
+    const claudeWifEnv = {
+      ANTHROPIC_FEDERATION_RULE_ID: process.env.ANTHROPIC_FEDERATION_RULE_ID || "fdrl_01VJpv84wU3Ku59SutiN8JvT",
+      ANTHROPIC_ORGANIZATION_ID: process.env.ANTHROPIC_ORGANIZATION_ID || "fb786537-fd85-4f77-bb33-ff2f4ee312df",
+      ANTHROPIC_SERVICE_ACCOUNT_ID: process.env.ANTHROPIC_SERVICE_ACCOUNT_ID || "svac_01PiXvxhG1rhj9q9WUeNiQfN",
+      ANTHROPIC_WORKSPACE_ID: process.env.ANTHROPIC_WORKSPACE_ID || "wrkspc_012F6HXZFwjL1n2s475BwsNc",
+    };
+
     const fn = createBunFunction("Handler", {
       entry: path.join(lambdaDir, "inbox/index.ts"),
+      role: claudeLambdaRole,
       memorySize: 512,
       timeout: Duration.minutes(5),
       reservedConcurrentExecutions: 1,
@@ -136,12 +164,14 @@ class NotesPipelineStack extends Stack {
         OBSIDIAN_DAILY_FOLDER: DEFAULT_OBSIDIAN_DAILY_FOLDER,
         CLAUDE_MODEL_ID: DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID,
         CLAUDE_USAGE_TABLE_NAME: claudeUsage.tableName,
+        ...claudeWifEnv,
       },
     });
 
     const weekly = createBunFunction("WeeklySummarizer", {
       functionName: "craft-weekly-summarizer",
       entry: path.join(lambdaDir, "weekly/weekly.ts"),
+      role: claudeLambdaRole,
       memorySize: 512,
       timeout: Duration.minutes(3),
       reservedConcurrentExecutions: 1,
@@ -152,15 +182,14 @@ class NotesPipelineStack extends Stack {
         OBSIDIAN_DAILY_FOLDER: DEFAULT_OBSIDIAN_DAILY_FOLDER,
         OBSIDIAN_SUMMARY_FOLDER: DEFAULT_OBSIDIAN_SUMMARY_FOLDER,
         CLAUDE_USAGE_TABLE_NAME: claudeUsage.tableName,
+        ...claudeWifEnv,
       },
     });
-
-    secret.grantRead(fn);
-    secret.grantRead(weekly);
 
     const reminder = createBunFunction("WeeklyReminder", {
       functionName: "craft-weekly-reminder",
       entry: path.join(lambdaDir, "reminder/reminder.ts"),
+      role: claudeLambdaRole,
       memorySize: 256,
       timeout: Duration.minutes(2),
       reservedConcurrentExecutions: 1,
@@ -170,14 +199,14 @@ class NotesPipelineStack extends Stack {
         CLAUDE_MODEL_ID: DEFAULT_CLAUDE_WEEKLY_MODEL_ID,
         OBSIDIAN_SUMMARY_FOLDER: DEFAULT_OBSIDIAN_SUMMARY_FOLDER,
         CLAUDE_USAGE_TABLE_NAME: claudeUsage.tableName,
+        ...claudeWifEnv,
       },
     });
-
-    secret.grantRead(reminder);
 
     const csvImport = createBunFunction("CsvImport", {
       functionName: "csv-spreadsheet-import",
       entry: path.join(lambdaDir, "csv/csv-import.ts"),
+      role: claudeLambdaRole,
       memorySize: 512,
       timeout: Duration.minutes(3),
       reservedConcurrentExecutions: 1,
@@ -189,14 +218,14 @@ class NotesPipelineStack extends Stack {
         CSV_INBOX_FOLDER_NAME: DEFAULT_CSV_INBOX_FOLDER,
         CSV_PROCESSED_FOLDER_NAME: DEFAULT_CSV_PROCESSED_FOLDER,
         CLAUDE_USAGE_TABLE_NAME: claudeUsage.tableName,
+        ...claudeWifEnv,
       },
     });
-
-    secret.grantRead(csvImport);
 
     const kindle = createBunFunction("KindleSummarizer", {
       functionName: "craft-kindle-summarizer",
       entry: path.join(lambdaDir, "kindle/kindle.ts"),
+      role: claudeLambdaRole,
       memorySize: 512,
       timeout: Duration.minutes(5),
       reservedConcurrentExecutions: 1,
@@ -209,15 +238,12 @@ class NotesPipelineStack extends Stack {
         KINDLE_BOOK_FOLDER_PREFIX: DEFAULT_KINDLE_BOOK_PREFIX,
         KINDLE_PROCESSED_FOLDER_NAME: DEFAULT_KINDLE_PROCESSED_FOLDER,
         CLAUDE_USAGE_TABLE_NAME: claudeUsage.tableName,
+        ...claudeWifEnv,
       },
     });
 
-    secret.grantRead(kindle);
-    claudeUsage.grantWriteData(fn);
-    claudeUsage.grantReadWriteData(weekly);
-    claudeUsage.grantWriteData(reminder);
-    claudeUsage.grantWriteData(csvImport);
-    claudeUsage.grantWriteData(kindle);
+    secret.grantRead(claudeLambdaRole);
+    claudeUsage.grantReadWriteData(claudeLambdaRole);
 
     const obsidianMcp = createBunFunction("ObsidianMcp", {
       functionName: "obsidian-s3-mcp",
