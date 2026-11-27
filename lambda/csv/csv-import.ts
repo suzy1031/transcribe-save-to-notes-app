@@ -13,7 +13,7 @@ import {
 } from "../../shared/const.ts";
 import { runLogged } from "../../shared/job.ts";
 import { EMPTY_CSV_MESSAGE } from "../../shared/line/helper.ts";
-import { buildMcpServerDefinitions, callClaudeMessages, requireAnthropicApiKey } from "../../shared/llm.ts";
+import { buildMcpServerDefinitions, callClaudeMessages } from "../../shared/llm.ts";
 import { loadCredentials, requireMcpAuthToken, settingsFromEnv } from "../../shared/settings.ts";
 import { tokyoDate } from "../../shared/tokyo-date.ts";
 
@@ -67,7 +67,8 @@ export async function runCsvImportWithMcp({
   ].join("\n");
 
   const responseText = await callClaudeMessages({
-    apiKey: requireAnthropicApiKey(creds.anthropicApiKey),
+    apiKey: creds.anthropicApiKey,
+    wif: settings.anthropicWif,
     modelId: process.env.CLAUDE_MODEL_ID || DEFAULT_CLAUDE_WEEKLY_MODEL_ID,
     maxTokens: MAX_SUMMARY_TOKENS,
     system:

@@ -1,8 +1,15 @@
+import { GetWebIdentityTokenCommand, STSClient } from "@aws-sdk/client-sts";
 import type { RawClaudeUsage, RecordWeeklyUsageOptions } from "../interfaces/claude.ts";
+import type { AnthropicWifConfig } from "../interfaces/shared.ts";
 import { recordWeeklyUsage } from "./claude/claude-usage.ts";
 import {
   ANTHROPIC_API_VERSION,
   ANTHROPIC_MCP_BETA_HEADER,
+  ANTHROPIC_OAUTH_BETA_HEADER,
+  ANTHROPIC_OAUTH_TOKEN_URL,
+  ANTHROPIC_WIF_AUDIENCE,
+  ANTHROPIC_WIF_STS_REGION,
+  ANTHROPIC_WIF_TOKEN_DURATION_SECONDS,
   CLAUDE_API_URL,
   CLAUDE_MCP_FETCH_TIMEOUT_MS,
   DEFAULT_MCP_DOMAIN_NAME,
@@ -81,8 +88,17 @@ export function buildMcpServerDefinitions({
   }));
 }
 
+export interface StsClientLike {
+  send(command: GetWebIdentityTokenCommand): Promise<{ WebIdentityToken?: string }>;
+}
+
+export type AnthropicAuth = { type: "apiKey"; apiKey: string } | { type: "oauth"; accessToken: string };
+
 export interface ClaudeMessagesRequest {
-  apiKey: string;
+  apiKey?: string;
+  wif?: AnthropicWifConfig;
+  auth?: AnthropicAuth;
+  stsClient?: StsClientLike;
   modelId: string;
   maxTokens: number;
   system: string;
@@ -102,6 +118,83 @@ export interface ClaudeMessagesRequest {
 export function requireAnthropicApiKey(apiKey?: string): string {
   if (!apiKey) throw new Error("Anthropic API key is required");
   return apiKey;
+}
+
+/** Exchange an AWS STS Web Identity Token for a short-lived Anthropic OAuth access token. */
+export async function exchangeWifToken({
+  wif,
+  stsClient = new STSClient({ region: ANTHROPIC_WIF_STS_REGION }),
+  fetchImpl = fetch,
+}: {
+  wif: AnthropicWifConfig;
+  stsClient?: StsClientLike;
+  fetchImpl?: typeof fetch;
+}): Promise<string> {
+  const stsResponse = await stsClient.send(
+    new GetWebIdentityTokenCommand({
+      Audience: [ANTHROPIC_WIF_AUDIENCE],
+      SigningAlgorithm: "RS256",
+      DurationSeconds: ANTHROPIC_WIF_TOKEN_DURATION_SECONDS,
+    }),
+  );
+  const jwt = stsResponse.WebIdentityToken;
+  if (!jwt) {
+    throw new Error("AWS STS did not return WebIdentityToken");
+  }
+
+  const response = await fetchImpl(
+    ANTHROPIC_OAUTH_TOKEN_URL,
+    withFetchTimeout(
+      {
+        method: "POST",
+        headers: { "content-type": JSON_CONTENT_TYPE },
+        body: JSON.stringify({
+          grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+          assertion: jwt,
+          federation_rule_id: wif.federationRuleId,
+          organization_id: wif.organizationId,
+          service_account_id: wif.serviceAccountId,
+          workspace_id: wif.workspaceId,
+        }),
+      },
+      EXTERNAL_API_FETCH_TIMEOUT_MS,
+    ),
+  );
+  const payload = (await response.json()) as {
+    access_token?: string;
+    error?: string | { message?: string };
+    error_description?: string;
+  };
+  if (!response.ok || !payload.access_token) {
+    const rawDetail =
+      payload.error_description ??
+      (typeof payload.error === "string" ? payload.error : payload.error?.message) ??
+      response.statusText;
+    const detail = sanitizeErrorMessage(rawDetail);
+    throw new Error(`Anthropic WIF token exchange failed: ${response.status} ${detail}`);
+  }
+  return payload.access_token;
+}
+
+/** Resolve Claude API authentication, preferring AWS Workload Identity Federation when configured. */
+export async function resolveAnthropicAuth({
+  apiKey,
+  wif,
+  stsClient,
+  fetchImpl = fetch,
+}: {
+  apiKey?: string;
+  wif?: AnthropicWifConfig;
+  stsClient?: StsClientLike;
+  fetchImpl?: typeof fetch;
+}): Promise<AnthropicAuth> {
+  if (wif) {
+    return {
+      type: "oauth",
+      accessToken: await exchangeWifToken({ wif, stsClient, fetchImpl }),
+    };
+  }
+  return { type: "apiKey", apiKey: requireAnthropicApiKey(apiKey) };
 }
 
 /** Validate and normalize an image MIME type for Claude Messages API. */
@@ -130,6 +223,9 @@ const MAX_PAUSE_TURN_CONTINUATIONS = 10;
 /** Call Anthropic Messages API, continuing `pause_turn` responses, record token usage, and return concatenated text blocks. */
 export async function callClaudeMessages({
   apiKey,
+  wif,
+  auth,
+  stsClient,
   modelId,
   maxTokens,
   system,
@@ -144,15 +240,22 @@ export async function callClaudeMessages({
   fetchImpl = fetch,
   recordUsage = recordWeeklyUsage,
 }: ClaudeMessagesRequest): Promise<string> {
+  const resolvedAuth = auth ?? (await resolveAnthropicAuth({ apiKey, wif, stsClient, fetchImpl }));
   const hasMcp = Array.isArray(mcpServers) && mcpServers.length > 0;
   const resolvedTools = hasMcp
     ? (tools ?? mcpServers.map((server) => ({ type: "mcp_toolset" as const, mcp_server_name: server.name })))
     : tools;
+  const betaHeaders = [
+    ...(resolvedAuth.type === "oauth" ? [ANTHROPIC_OAUTH_BETA_HEADER] : []),
+    ...(hasMcp ? (mcpBetas ?? [ANTHROPIC_MCP_BETA_HEADER]) : []),
+  ];
   const headers: Record<string, string> = {
     "content-type": JSON_CONTENT_TYPE,
-    "x-api-key": apiKey,
+    ...(resolvedAuth.type === "oauth"
+      ? { authorization: `Bearer ${resolvedAuth.accessToken}` }
+      : { "x-api-key": resolvedAuth.apiKey }),
     "anthropic-version": ANTHROPIC_API_VERSION,
-    ...(hasMcp ? { "anthropic-beta": (mcpBetas ?? [ANTHROPIC_MCP_BETA_HEADER]).join(",") } : {}),
+    ...(betaHeaders.length > 0 ? { "anthropic-beta": betaHeaders.join(",") } : {}),
   };
   const requestTimeoutMs = timeoutMs ?? (hasMcp ? CLAUDE_MCP_FETCH_TIMEOUT_MS : EXTERNAL_API_FETCH_TIMEOUT_MS);
 

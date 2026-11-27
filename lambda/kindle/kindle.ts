@@ -20,7 +20,7 @@ import {
   buildMcpServerDefinitions,
   callClaudeMessages,
   imageMediaType,
-  requireAnthropicApiKey,
+  resolveAnthropicAuth,
 } from "../../shared/llm.ts";
 import { sanitizeErrorMessage } from "../../shared/sanitize-error.ts";
 import { loadCredentials, requireMcpAuthToken, settingsFromEnv } from "../../shared/settings.ts";
@@ -70,7 +70,11 @@ export async function runKindleWithMcp({
     authToken: mcpAuthToken,
     rootDomain,
   });
-  const apiKey = requireAnthropicApiKey(creds.anthropicApiKey);
+  const auth = await resolveAnthropicAuth({
+    apiKey: creds.anthropicApiKey,
+    wif: settings.anthropicWif,
+    fetchImpl,
+  });
 
   const result: Required<Omit<ProcessKindleResult, "folderLookup">> = {
     foldersScanned: bookFolders.length,
@@ -108,7 +112,7 @@ export async function runKindleWithMcp({
         ].join("\n");
 
         await callClaudeMessages({
-          apiKey,
+          auth,
           modelId: settings.kindleClaudeModelId,
           maxTokens: MAX_TRANSCRIPTION_TOKENS,
           system: KINDLE_SYSTEM_PROMPT,

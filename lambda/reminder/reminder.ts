@@ -12,7 +12,7 @@ import {
 } from "../../shared/const.ts";
 import { runLogged } from "../../shared/job.ts";
 import { EMPTY_REMINDER_MESSAGE } from "../../shared/line/helper.ts";
-import { buildMcpServerDefinitions, callClaudeMessages, requireAnthropicApiKey } from "../../shared/llm.ts";
+import { buildMcpServerDefinitions, callClaudeMessages } from "../../shared/llm.ts";
 import { loadCredentials, requireMcpAuthToken, settingsFromEnv } from "../../shared/settings.ts";
 import { daysBeforeTokyoDate } from "../../shared/tokyo-date.ts";
 
@@ -86,7 +86,8 @@ export async function runReminderWithMcp({
   ].join("\n");
 
   const responseText = await callClaudeMessages({
-    apiKey: requireAnthropicApiKey(creds.anthropicApiKey),
+    apiKey: creds.anthropicApiKey,
+    wif: settings.anthropicWif,
     modelId: process.env.CLAUDE_MODEL_ID || DEFAULT_CLAUDE_WEEKLY_MODEL_ID,
     maxTokens: MAX_SUMMARY_TOKENS,
     system: "あなたは週次リマインダーの実行担当です。指示された手順どおりに MCP ツールを呼び出して処理してください。",

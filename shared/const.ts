@@ -28,8 +28,13 @@ export const DEFAULT_CLAUDE_TRANSCRIBE_MODEL_ID = "claude-sonnet-5-5";
 export const DEFAULT_CLAUDE_WEEKLY_MODEL_ID = "claude-haiku-5-5";
 
 export const CLAUDE_API_URL = "https://api.anthropic.com/v1/messages";
+export const ANTHROPIC_OAUTH_TOKEN_URL = "https://api.anthropic.com/v1/oauth/token";
 export const ANTHROPIC_API_VERSION = "2023-06-01";
 export const ANTHROPIC_MCP_BETA_HEADER = "mcp-client-2025-11-20";
+export const ANTHROPIC_OAUTH_BETA_HEADER = "oauth-2025-04-20";
+export const ANTHROPIC_WIF_AUDIENCE = "https://api.anthropic.com";
+export const ANTHROPIC_WIF_STS_REGION = "us-east-1";
+export const ANTHROPIC_WIF_TOKEN_DURATION_SECONDS = 900;
 export const DEFAULT_MCP_DOMAIN_NAME = "infra-practice.jp";
 export const JSON_CONTENT_TYPE = "application/json";
 export const IMAGE_MIME_JPEG = "image/jpeg";
